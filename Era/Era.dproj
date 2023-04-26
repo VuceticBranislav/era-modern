@@ -1,0 +1,234 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{CC9B8910-F7CA-41F1-8AB7-9224E38C811D}</ProjectGuid>
+        <MainSource>Era.dpr</MainSource>
+        <Base>True</Base>
+        <Config Condition="'$(Config)'==''">Debug</Config>
+        <TargetedPlatforms>1</TargetedPlatforms>
+        <AppType>Library</AppType>
+        <FrameworkType>None</FrameworkType>
+        <ProjectVersion>19.5</ProjectVersion>
+        <Platform Condition="'$(Platform)'==''">Win32</Platform>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Base)'=='true') or '$(Base_Win32)'!=''">
+        <Base_Win32>true</Base_Win32>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Release' or '$(Cfg_1)'!=''">
+        <Cfg_1>true</Cfg_1>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Debug' or '$(Cfg_2)'!=''">
+        <Cfg_2>true</Cfg_2>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Cfg_2)'=='true') or '$(Cfg_2_Win32)'!=''">
+        <Cfg_2_Win32>true</Cfg_2_Win32>
+        <CfgParent>Cfg_2</CfgParent>
+        <Cfg_2>true</Cfg_2>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Base)'!=''">
+        <DCC_DebugInformation>1</DCC_DebugInformation>
+        <DCC_E>false</DCC_E>
+        <DCC_F>false</DCC_F>
+        <DCC_K>false</DCC_K>
+        <DCC_N>true</DCC_N>
+        <DCC_S>false</DCC_S>
+        <DCC_ImageBase>00400000</DCC_ImageBase>
+        <GenDll>true</GenDll>
+        <SanitizedProjectName>Era</SanitizedProjectName>
+        <VerInfo_DLL>true</VerInfo_DLL>
+        <VerInfo_Locale>1033</VerInfo_Locale>
+        <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
+        <DCC_Namespace>System;Winapi;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_UnitSearchPath>..\Lib\b2;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <PreBuildEvent><![CDATA[call VersionInfo.bat
+$(PreBuildEvent)]]></PreBuildEvent>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Base_Win32)'!=''">
+        <BT_BuildType>Debug</BT_BuildType>
+        <Manifest_File>(None)</Manifest_File>
+        <Debugger_DebugSourcePath>..\Vfs;..\Lib\b2;$(Debugger_DebugSourcePath)</Debugger_DebugSourcePath>
+        <Debugger_HostApplication>D:\_Games\Heroes3\h3era HD.exe</Debugger_HostApplication>
+        <AppDPIAwarenessMode>none</AppDPIAwarenessMode>
+        <DCC_NXCompat>false</DCC_NXCompat>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Cfg_1)'!=''">
+        <DCC_Define>RELEASE;$(DCC_Define)</DCC_Define>
+        <DCC_DebugInformation>0</DCC_DebugInformation>
+        <DCC_LocalDebugSymbols>false</DCC_LocalDebugSymbols>
+        <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
+        <DCC_DcuOutput>Release\Dcu</DCC_DcuOutput>
+        <DCC_ExeOutput>Release\</DCC_ExeOutput>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Cfg_2)'!=''">
+        <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
+        <DCC_Optimize>false</DCC_Optimize>
+        <DCC_GenerateStackFrames>true</DCC_GenerateStackFrames>
+        <DCC_DcuOutput>Debug\Dcu</DCC_DcuOutput>
+        <DCC_ExeOutput>Debug\</DCC_ExeOutput>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
+        <DCC_DebugInformation>2</DCC_DebugInformation>
+        <DCC_DebugInfoInExe>true</DCC_DebugInfoInExe>
+        <DCC_MapFile>3</DCC_MapFile>
+        <VerInfo_Debug>true</VerInfo_Debug>
+        <DCC_RemoteDebug>true</DCC_RemoteDebug>
+    </PropertyGroup>
+    <ItemGroup>
+        <DelphiCompile Include="$(MainSource)">
+            <MainSource>MainSource</MainSource>
+        </DelphiCompile>
+        <RcCompile Include="VersionInfo.rc">
+            <Form>VersionInfo.res</Form>
+        </RcCompile>
+        <DCCReference Include="Erm.pas"/>
+        <DCCReference Include="..\Vfs\VfsImport.pas"/>
+        <DCCReference Include="AdvErm.pas"/>
+        <DCCReference Include="BinPatching.pas"/>
+        <DCCReference Include="EraButtons.pas"/>
+        <DCCReference Include="EraLog.pas"/>
+        <DCCReference Include="EraSettings.pas"/>
+        <DCCReference Include="ErmTracking.pas"/>
+        <DCCReference Include="EventMan.pas"/>
+        <DCCReference Include="Extern.pas"/>
+        <DCCReference Include="GameExt.pas"/>
+        <DCCReference Include="Graph.pas"/>
+        <DCCReference Include="Heroes.pas"/>
+        <DCCReference Include="Lodman.pas"/>
+        <DCCReference Include="PoTweak.pas"/>
+        <DCCReference Include="Rainbow.pas"/>
+        <DCCReference Include="SndVid.pas"/>
+        <DCCReference Include="Stores.pas"/>
+        <DCCReference Include="Trans.pas"/>
+        <DCCReference Include="Triggers.pas"/>
+        <DCCReference Include="Tweaks.pas"/>
+        <DCCReference Include="Dwellings.pas"/>
+        <DCCReference Include="RscLists.pas"/>
+        <DCCReference Include="..\Lib\b2\Legacy.pas"/>
+        <DCCReference Include="..\Lib\b2\UtilsB2.pas"/>
+        <DCCReference Include="..\Lib\b2\ApiJack.pas"/>
+        <DCCReference Include="..\Lib\b2\AssocArrays.pas"/>
+        <DCCReference Include="..\Lib\b2\DataLib.pas"/>
+        <DCCReference Include="..\Lib\b2\Files.pas"/>
+        <DCCReference Include="..\Lib\b2\Lists.pas"/>
+        <DCCReference Include="..\Lib\b2\StrLib.pas"/>
+        <DCCReference Include="..\Lib\b2\TextScan.pas"/>
+        <DCCReference Include="..\Lib\b2\TypeWrappers.pas"/>
+        <DCCReference Include="..\Lib\b2\Alg.pas"/>
+        <DCCReference Include="..\Lib\b2\Crypto.pas"/>
+        <DCCReference Include="..\Lib\b2\WinWrappers.pas"/>
+        <DCCReference Include="..\Lib\b2\CFiles.pas"/>
+        <DCCReference Include="..\Lib\b2\Log.pas"/>
+        <DCCReference Include="..\Lib\b2\Concur.pas"/>
+        <DCCReference Include="..\Lib\b2\PatchForge.pas"/>
+        <DCCReference Include="..\Lib\b2\hde32.pas"/>
+        <DCCReference Include="..\Lib\b2\Core.pas"/>
+        <DCCReference Include="..\Lib\b2\PatchApi.pas"/>
+        <DCCReference Include="..\Lib\b2\DlgMes.pas"/>
+        <DCCReference Include="..\Lib\b2\Lang.pas"/>
+        <DCCReference Include="..\Lib\b2\CLang.pas"/>
+        <DCCReference Include="..\Lib\b2\CBinString.pas"/>
+        <DCCReference Include="..\Lib\b2\CLngPack.pas"/>
+        <DCCReference Include="..\Lib\b2\CLngStrArr.pas"/>
+        <DCCReference Include="..\Lib\b2\CLngUnit.pas"/>
+        <DCCReference Include="..\Lib\b2\DlgMesLng.pas"/>
+        <DCCReference Include="..\Lib\b2\DebugMaps.pas"/>
+        <DCCReference Include="..\Lib\b2\FilesEx.pas"/>
+        <DCCReference Include="..\Lib\b2\DataFlows.pas"/>
+        <DCCReference Include="..\Lib\b2\CmdApp.pas"/>
+        <DCCReference Include="..\Lib\b2\WinUtils.pas"/>
+        <DCCReference Include="..\Lib\b2\ConsoleAPI.pas"/>
+        <DCCReference Include="..\Lib\b2\Ini.pas"/>
+        <DCCReference Include="..\Lib\b2\WinNative.pas"/>
+        <DCCReference Include="..\Lib\b2\RandMt.pas"/>
+        <DCCReference Include="EraAPI.pas"/>
+        <DCCReference Include="Memory.pas"/>
+        <DCCReference Include="EraUtils.pas"/>
+        <DCCReference Include="FpuUtils.pas"/>
+        <DCCReference Include="ResLib.pas"/>
+        <DCCReference Include="EraZip.pas"/>
+        <DCCReference Include="KubaZip.pas"/>
+        <DCCReference Include="GraphTypes.pas"/>
+        <DCCReference Include="Libspng.pas"/>
+        <DCCReference Include="..\Lib\b2\FastRand.pas"/>
+        <DCCReference Include="Network.pas"/>
+        <DCCReference Include="ZlibUtils.pas"/>
+        <DCCReference Include="Scripts.pas"/>
+        <DCCReference Include="Lua\Lua.pas"/>
+        <None Include="_NOTES_.txt"/>
+        <None Include="VersionInfo.inc"/>
+        <BuildConfiguration Include="Base">
+            <Key>Base</Key>
+        </BuildConfiguration>
+        <BuildConfiguration Include="Release">
+            <Key>Cfg_1</Key>
+            <CfgParent>Base</CfgParent>
+        </BuildConfiguration>
+        <BuildConfiguration Include="Debug">
+            <Key>Cfg_2</Key>
+            <CfgParent>Base</CfgParent>
+        </BuildConfiguration>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Delphi.Personality.12</Borland.Personality>
+        <Borland.ProjectType>VCLApplication</Borland.ProjectType>
+        <BorlandProject>
+            <Delphi.Personality>
+                <Source>
+                    <Source Name="MainSource">Era.dpr</Source>
+                </Source>
+                <Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dcloffice2k280.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dclofficexp280.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
+                </Excluded_Packages>
+            </Delphi.Personality>
+            <Platforms>
+                <Platform value="Win32">True</Platform>
+                <Platform value="Win64">False</Platform>
+            </Platforms>
+        </BorlandProject>
+        <ProjectFileVersion>12</ProjectFileVersion>
+    </ProjectExtensions>
+    <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')"/>
+    <Import Project="$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj" Condition="Exists('$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj')"/>
+    <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Win32'">
+        <PreBuildEvent>call VersionInfo.bat</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Win64'">
+        <PreBuildEvent>call VersionInfo.bat</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Win32'">
+        <PreBuildEvent>call VersionInfo.bat</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Win64'">
+        <PreBuildEvent>call VersionInfo.bat</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+</Project>

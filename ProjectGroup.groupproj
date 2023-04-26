@@ -1,0 +1,60 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{E5C82B3F-9AA4-482C-812E-318A5919CFB7}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="Era\Era.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="vfs\Vfs.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="vfs\VfsTest.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="Era">
+        <MSBuild Projects="Era\Era.dproj"/>
+    </Target>
+    <Target Name="Era:Clean">
+        <MSBuild Projects="Era\Era.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Era:Make">
+        <MSBuild Projects="Era\Era.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Vfs">
+        <MSBuild Projects="vfs\Vfs.dproj"/>
+    </Target>
+    <Target Name="Vfs:Clean">
+        <MSBuild Projects="vfs\Vfs.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Vfs:Make">
+        <MSBuild Projects="vfs\Vfs.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="VfsTest">
+        <MSBuild Projects="vfs\VfsTest.dproj"/>
+    </Target>
+    <Target Name="VfsTest:Clean">
+        <MSBuild Projects="vfs\VfsTest.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="VfsTest:Make">
+        <MSBuild Projects="vfs\VfsTest.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="Era;Vfs;VfsTest"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="Era:Clean;Vfs:Clean;VfsTest:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="Era:Make;Vfs:Make;VfsTest:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
