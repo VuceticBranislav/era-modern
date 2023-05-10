@@ -51,6 +51,8 @@
         <DCC_UnitSearchPath>..\Lib\b2;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <PreBuildEvent><![CDATA[call VersionInfo.bat
 $(PreBuildEvent)]]></PreBuildEvent>
+        <DCC_DynamicBase>false</DCC_DynamicBase>
+        <DCC_HighEntropyVa>false</DCC_HighEntropyVa>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <BT_BuildType>Debug</BT_BuildType>

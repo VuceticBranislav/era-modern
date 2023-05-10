@@ -117,8 +117,8 @@ Project goals:
 If you prefer using compiled releases, please follow the steps outlined below:
 
 1. Download the latest [Release.zip](../../releases) file,
-2. Before proceeding make sure to backup Era.dll and Vfs.dll files in your game folder,
-3. Unzip the Release.zip file to game folder and override Era.dll and Vfs.dll files,
+2. Before proceeding make sure to backup (Era.dll, Vfs.dll, Era.dbgmap and Vfs.dbgmap) files in your game folder,
+3. Unzip the Release.zip file to game folder and override files,
 4. Start game.
 <p align="justify">
   Please note that it is always recommended to create a backup of your game files before making any 
@@ -400,6 +400,6 @@ Markdownguide                https://www.markdownguide.org/basic-syntax/#referen
 [Delphi-bdg]:          https://img.shields.io/badge/Delphi_RAD_Studio-B22222?style=flat&logo=delphi&logoColor=white
 [Delphi-url]:          https://www.embarcadero.com/
 [Discord-bdg]:         https://img.shields.io/badge/Discord-7289DA?style=flat&logo=discord&logoColor=white
-[Discord-url]:         https://discord.com/channels/665742159307341827/665764270763540490
+[Discord-url]:         https://discord.com/channels/665742159307341827/1105827060812873748
 [GoToTop-bdg]:         https://img.shields.io/badge/Go%20to%20top-blue
 [GoToTop-url]:         #readme-page-top
