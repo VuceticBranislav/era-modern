@@ -2,8 +2,9 @@ VER_Major     = 1;
 VER_Minor     = 0;
 VER_Build     = 5;
 VER_Revision  = 1;
+VER_Sufix     = '-port';
 
-(* Verion control
+(* Version control
 VER_CompanyName      = "BerSoft";
 VER_FileDescription  = "Virtual File System";
 VER_InternalName     = "";

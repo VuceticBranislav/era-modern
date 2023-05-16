@@ -2,8 +2,9 @@ VER_Major     = 3;
 VER_Minor     = 9;
 VER_Build     = 4;
 VER_Revision  = 0;
+VER_Sufix     = '-port';
 
-(* Verion control
+(* Version control
 VER_CompanyName      = "BerSoft";
 VER_FileDescription  = "Era Project";
 VER_InternalName     = "";

@@ -474,7 +474,7 @@ begin
   EventMan.GetInstance.Fire('OnAfterStructRelocations');
 end; // .procedure Init
 
-procedure AssertHandler (const Mes, FileName: string; LineNumber: integer; Address: pointer);
+procedure AssertHandler (const Mes: myAStr; const FileName: string; LineNumber: integer; Address: pointer);
 var
   CrashMes: myAStr;
 
@@ -495,12 +495,12 @@ begin
   DlgMes.MsgError(CrashMes);
 
   // Better callstack
-  //pinteger(0)^ := 0;
+  pinteger(0)^ := 0;
   //raise EAssertFailure.Create(CrashMes) at Address;
 end; // .procedure AssertHandler
 
 begin
-  ERA_VERSION_STR        := Legacy.Format('%d.%d.%d', [VER_Major, VER_Minor, VER_Build]);
+  ERA_VERSION_STR        := Legacy.Format('%d.%d.%d%s', [VER_Major, VER_Minor, VER_Build, VER_Sufix]);
   ERA_VERSION_INT        := VER_Major*1000 + VER_Minor*100 + VER_Build;
   AssertErrorProc        := @AssertHandler;
   PluginsList            := DataLib.NewStrList(not UtilsB2.OWNS_ITEMS, DataLib.CASE_INSENSITIVE);

@@ -114,12 +114,12 @@ Project goals:
 <!-- Compiled release -->
 ### Compiled release
 
-If you prefer using compiled releases, please follow the steps outlined below:
+If you prefering to use compiled releases, please follow the steps outlined below:
 
-1. Download the latest [Release.zip](../../releases) file,
+1. Download the latest self extracting [Release package](../../releases),
 2. Before proceeding make sure to backup (Era.dll, Vfs.dll, Era.dbgmap and Vfs.dbgmap) files in your game folder,
-3. Unzip the Release.zip file to game folder and override files,
-4. Start game.
+3. Unpack the [Release package](../../releases) to game folder and override existing files,
+4. Play game.
 <p align="justify">
   Please note that it is always recommended to create a backup of your game files before making any 
   changes to the game folder. This ensures that in case anything goes wrong during the installation 

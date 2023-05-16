@@ -53,6 +53,7 @@
 $(PreBuildEvent)]]></PreBuildEvent>
         <DCC_DynamicBase>false</DCC_DynamicBase>
         <DCC_HighEntropyVa>false</DCC_HighEntropyVa>
+        <DCC_MapFile>3</DCC_MapFile>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <BT_BuildType>Debug</BT_BuildType>
@@ -76,13 +77,11 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCC_GenerateStackFrames>true</DCC_GenerateStackFrames>
         <DCC_DcuOutput>Debug\Dcu</DCC_DcuOutput>
         <DCC_ExeOutput>Debug\</DCC_ExeOutput>
+        <DCC_DebugInformation>2</DCC_DebugInformation>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
-        <DCC_DebugInformation>2</DCC_DebugInformation>
         <DCC_DebugInfoInExe>true</DCC_DebugInfoInExe>
-        <DCC_MapFile>3</DCC_MapFile>
         <VerInfo_Debug>true</VerInfo_Debug>
-        <DCC_RemoteDebug>true</DCC_RemoteDebug>
     </PropertyGroup>
     <ItemGroup>
         <DelphiCompile Include="$(MainSource)">

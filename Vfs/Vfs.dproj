@@ -52,6 +52,7 @@
 $(PreBuildEvent)]]></PreBuildEvent>
         <DCC_DynamicBase>false</DCC_DynamicBase>
         <DCC_HighEntropyVa>false</DCC_HighEntropyVa>
+        <DCC_MapFile>3</DCC_MapFile>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <BT_BuildType>Debug</BT_BuildType>
@@ -78,9 +79,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
         <DCC_DebugInfoInExe>true</DCC_DebugInfoInExe>
-        <DCC_MapFile>3</DCC_MapFile>
         <VerInfo_Debug>true</VerInfo_Debug>
-        <DCC_RemoteDebug>true</DCC_RemoteDebug>
         <DCC_NXCompat>false</DCC_NXCompat>
     </PropertyGroup>
     <ItemGroup>
