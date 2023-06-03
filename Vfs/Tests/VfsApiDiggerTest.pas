@@ -39,7 +39,7 @@ begin
     if (@NormalProc <> nil) and (@RealProc <> nil) then begin
       VfsApiDigger.FindOutRealSystemApiAddrs([Kernel32Handle]);
       TestProc := VfsApiDigger.GetRealProcAddress(Kernel32Handle, 'GetCurrentProcessId');
-      Check(@TestProc = @RealProc, Format('Failed to get real api address. Normal address: %x, Real address: %x, Got address: %x', [Int(@NormalProc), Int(@RealProc), Int(@TestProc)]));
+      Check(@TestProc = @RealProc, string(Legacy.Format('Failed to get real api address. Normal address: %x, Real address: %x, Got address: %x', [Int(@NormalProc), Int(@RealProc), Int(@TestProc)])));
     end;
   end;
 end;

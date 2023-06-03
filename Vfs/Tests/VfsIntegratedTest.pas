@@ -257,5 +257,5 @@ end; // .procedure TestIntegrated.TestDirectoryListing;
 
 begin
   RegisterTest(TestIntegrated.Suite);
-  LogFile := Legacy.FileCreate(Legacy.ExtractFileDir(WinUtils.GetExePath()) + '\_LOG_.txt');
+  LogFile := Legacy.FileCreate(string(Legacy.ExtractFileDir(MyAstr(WinUtils.GetExePath())) + '\_LOG_.txt'));
 end.
