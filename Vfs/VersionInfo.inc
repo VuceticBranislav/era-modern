@@ -5,12 +5,12 @@ VER_Revision  = 1;
 VER_Sufix     = '-port';
 
 (* Version control
-VER_CompanyName      = "BerSoft";
-VER_FileDescription  = "Virtual File System";
-VER_InternalName     = "";
-VER_LegalCopyright   = "(C) Berserker aka EtherniDee aka BerSoft";
-VER_LegalTrademarks  = "";
-VER_OriginalFilename = "vfs.dll";
-VER_ProductName      = "Vfs";
-VER_Comments         = "";
+VER_CompanyName      = 'BerSoft';
+VER_FileDescription  = 'Virtual File System';
+VER_InternalName     = '';
+VER_LegalCopyright   = '(C) Berserker aka EtherniDee aka BerSoft';
+VER_LegalTrademarks  = '';
+VER_OriginalFilename = 'vfs.dll';
+VER_ProductName      = 'Vfs';
+VER_Comments         = '';
 *)
