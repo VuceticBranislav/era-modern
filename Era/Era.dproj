@@ -35,7 +35,6 @@
         <Base>true</Base>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base)'!=''">
-        <DCC_DebugInformation>1</DCC_DebugInformation>
         <DCC_E>false</DCC_E>
         <DCC_F>false</DCC_F>
         <DCC_K>false</DCC_K>
@@ -49,33 +48,30 @@
         <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <DCC_Namespace>System;Winapi;$(DCC_Namespace)</DCC_Namespace>
         <DCC_UnitSearchPath>..\Lib\b2;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
-        <PreBuildEvent><![CDATA[call VersionInfo.bat
+        <PreBuildEvent><![CDATA[call ..\BuildTools\Compiled\BuildTools.exe -VersionInfo "$(INPUTDIR)"
 $(PreBuildEvent)]]></PreBuildEvent>
         <DCC_DynamicBase>false</DCC_DynamicBase>
         <DCC_HighEntropyVa>false</DCC_HighEntropyVa>
         <DCC_MapFile>3</DCC_MapFile>
         <DCC_ExeOutput>Compiled\$(Config)</DCC_ExeOutput>
         <DCC_DcuOutput>Compiled\$(Config)\Dcu</DCC_DcuOutput>
+        <PostBuildEvent><![CDATA[call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps "$(OUTPUTPATH)"
+$(PostBuildEvent)]]></PostBuildEvent>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <BT_BuildType>Debug</BT_BuildType>
         <Manifest_File>(None)</Manifest_File>
         <Debugger_DebugSourcePath>..\Vfs;..\Lib\b2;$(Debugger_DebugSourcePath)</Debugger_DebugSourcePath>
-        <Debugger_HostApplication>D:\_Games\Heroes3\h3era HD.exe</Debugger_HostApplication>
         <AppDPIAwarenessMode>none</AppDPIAwarenessMode>
         <DCC_NXCompat>false</DCC_NXCompat>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1)'!=''">
         <DCC_Define>RELEASE;$(DCC_Define)</DCC_Define>
-        <DCC_DebugInformation>0</DCC_DebugInformation>
-        <DCC_LocalDebugSymbols>false</DCC_LocalDebugSymbols>
-        <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2)'!=''">
         <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
         <DCC_Optimize>false</DCC_Optimize>
         <DCC_GenerateStackFrames>true</DCC_GenerateStackFrames>
-        <DCC_DebugInformation>2</DCC_DebugInformation>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
         <DCC_DebugInfoInExe>true</DCC_DebugInfoInExe>
@@ -199,35 +195,35 @@ $(PreBuildEvent)]]></PreBuildEvent>
     <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')"/>
     <Import Project="$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj" Condition="Exists('$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj')"/>
     <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Win32'">
-        <PreBuildEvent>call VersionInfo.bat</PreBuildEvent>
+<PreBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -VersionInfo &quot;$(INPUTDIR)&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
-        <PostBuildEvent/>
+        <PostBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps &quot;$(OUTPUTPATH)&quot;</PostBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Win64'">
-        <PreBuildEvent>call VersionInfo.bat</PreBuildEvent>
+        <PreBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -VersionInfo &quot;$(INPUTDIR)&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
-        <PostBuildEvent/>
+        <PostBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps &quot;$(OUTPUTPATH)&quot;</PostBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Win32'">
-        <PreBuildEvent>call VersionInfo.bat</PreBuildEvent>
+        <PreBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -VersionInfo &quot;$(INPUTDIR)&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
-        <PostBuildEvent/>
+        <PostBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps &quot;$(OUTPUTPATH)&quot;</PostBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Win64'">
-        <PreBuildEvent>call VersionInfo.bat</PreBuildEvent>
+        <PreBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -VersionInfo &quot;$(INPUTDIR)&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
-        <PostBuildEvent/>
+        <PostBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps &quot;$(OUTPUTPATH)&quot;</PostBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
 </Project>
