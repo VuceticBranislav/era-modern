@@ -3,6 +3,9 @@
         <ProjectGuid>{E5C82B3F-9AA4-482C-812E-318A5919CFB7}</ProjectGuid>
     </PropertyGroup>
     <ItemGroup>
+        <Projects Include="BuildTools\BuildTools.dproj">
+            <Dependencies/>
+        </Projects>
         <Projects Include="Era\Era.dproj">
             <Dependencies/>
         </Projects>
@@ -20,6 +23,15 @@
             <Default.Personality/>
         </BorlandProject>
     </ProjectExtensions>
+    <Target Name="BuildTools">
+        <MSBuild Projects="BuildTools\BuildTools.dproj"/>
+    </Target>
+    <Target Name="BuildTools:Clean">
+        <MSBuild Projects="BuildTools\BuildTools.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="BuildTools:Make">
+        <MSBuild Projects="BuildTools\BuildTools.dproj" Targets="Make"/>
+    </Target>
     <Target Name="Era">
         <MSBuild Projects="Era\Era.dproj"/>
     </Target>
@@ -48,13 +60,13 @@
         <MSBuild Projects="vfs\VfsTest.dproj" Targets="Make"/>
     </Target>
     <Target Name="Build">
-        <CallTarget Targets="Era;Vfs;VfsTest"/>
+        <CallTarget Targets="BuildTools;Era;Vfs;VfsTest"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="Era:Clean;Vfs:Clean;VfsTest:Clean"/>
+        <CallTarget Targets="BuildTools:Clean;Era:Clean;Vfs:Clean;VfsTest:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="Era:Make;Vfs:Make;VfsTest:Make"/>
+        <CallTarget Targets="BuildTools:Make;Era:Make;Vfs:Make;VfsTest:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>
