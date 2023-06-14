@@ -22,9 +22,9 @@
     <img src="https://user-images.githubusercontent.com/24853106/235458980-7db2599e-b53c-4ee3-83d9-bb0098543189.png" alt="Logo" width="312" height="256">
   </a>
   
-  ### ERA 3 - Delphi XE, 10 & 11
+  ### ERA 3 - New era of mod making - Delphi XE, 10 & 11
   <p align="center">
-    <i>Code ported from old Delphi version to modern Delphi (Delphi XE, 10 & 11)<br/>
+    <i>Code ported from Delphi 7 version to modern Delphi (Delphi XE, 10 & 11)<br/>
     Contains ERA and VFS projects as well as B2 library.<br/>
     <br/></i>
     Original commits containing code are from <a href="https://github.com/ethernidee">ethernidee</a> repositories:<br/>
@@ -84,7 +84,7 @@
 <!-- About the Project -->
 ## About The Project
 <p align="justify">
-  Project code has been ported from the old Delphi 7 version to the newest Delphi version. Minimal changes to 
+  Project code has been ported from Delphi 7 version to the newest Delphi version. Minimal changes to 
   code are introduced. Main purpose of this project is to continue its legacy and provide updated functionalities. 
   Original goals and functionalities have been preserved. The porting process has been carefully executed to 
   ensure that the project retains its original essence while leveraging the latest features of the new Delphi version. 
@@ -92,12 +92,12 @@
 </p>
 
 Project goals:
-* Compile code on modern Delphi versions,
-* Retain ASCII string compatability,
-* Minimal changes to code,
-* Code lines numbers in align with original code lines for easier compare,
-* No additional features or improvements are added,
-* Project will be active until this code become base for future ERA releases.
+* Compile code using modern version of Delphi.
+* Maintain compatibility with ASCII strings.
+* Make minimal changes to the code.
+* Ensure that code line numbers align with the original code lines for easier comparison.
+* Avoid adding any additional features or improvements.
+* Keep the project active until this code becomes the foundation for future ERA releases.
 
 <div align="right">
 
@@ -121,9 +121,9 @@ If you prefering to use compiled releases, please follow the steps outlined belo
 3. Unpack the [Release package](../../releases) to game folder and override existing files,
 4. Play game.
 <p align="justify">
-  Please note that it is always recommended to create a backup of your game files before making any 
-  changes to the game folder. This ensures that in case anything goes wrong during the installation 
-  process, you can easily revert back to the previous version without any data loss or damage to your game.
+  Please note that it is always recommended to create a backup of files before making any changes on them. 
+  This ensures that you can easily revert back to the previous version without any data loss or 
+  damage to your game in case of problems during installation process.
 </p>
 
 <div align="right">
@@ -162,7 +162,7 @@ If you prefering to use compiled releases, please follow the steps outlined belo
 
 1. Obtain local copy of repository from GitHub
 
-    1.1. If you will not use version control then download <a href="../../archive/refs/heads/develop.zip">zip file</a> from GitHub and unpack it to local folder
+    1.1. If you will not use version control then download <a href="../../archive/refs/heads/main.zip">zip file</a> from GitHub and unpack it to local folder
 
     1.2. If you will use version control then clone the repository to local folder
 
@@ -170,18 +170,14 @@ If you prefering to use compiled releases, please follow the steps outlined belo
 2. Open project group file in Delphi
 
         ProjectGroup.groupproj
-3. Set host application in Era and Vfs projects
+3. Set host application in Era and Vfs projects to Heroes 3 executable
 
         Era.dll project > Options... > Debugger > Host application
         Vfs.dll project > Options... > Debugger > Host application
 4. (Optional) Set output folder for compiled dlls to root of Heroes 3 installation directory
 
         Era.dll project > Options... > Building > Delphi compiler > Target > All configurations - All platforms > Output directory
-        Era.dll project > Options... > Building > Delphi compiler > Target > Release configurations - All platforms > Output directory
-        Era.dll project > Options... > Building > Delphi compiler > Target > Debug configurations - All platforms > Output directory
         Vfs.dll project > Options... > Building > Delphi compiler > Target > All configurations - All platforms > Output directory
-        Vfs.dll project > Options... > Building > Delphi compiler > Target > Release configurations - All platforms > Output directory
-        Vfs.dll project > Options... > Building > Delphi compiler > Target > Debug configurations - All platforms > Output directory
 
 <div align="right">
 
@@ -194,39 +190,46 @@ If you prefering to use compiled releases, please follow the steps outlined belo
 ## Build and run project
 
 <p align="justify">
-  Whether or not the optional setup step is taken depends how project should be run. If the project's DLL 
-  files are created in a local folder, then they must be manually copied to the game root folder. 
-  It is always good idea to backup old files. File can be backed up by moving to another location or 
-  renaming (e.g. Era.dll.off or Vfs.dll.off).
+  If optional setup step in not taken, the project's files are created in a local folder, then files must be manually 
+  copied to the game root folder. It is always good idea to backup old files. File can be backed up by moving to another 
+  location or renaming (e.g. Era.dll.off or Era.dbgmap.off ...).
 </p>
-
+<p align="justify">
+  BuildTools is set of tools used to build Era or Vfs project. BuildTools is used to generate version information 
+  resource files in pre-build process. It is also used to generate .dbgmap files in post-build process.
+  That is reason why it must be build first, then Era and Vfs projects can be build.
+</p>
 
 ### Output directory is not set
 
 <p align="justify">
-  Dll files must be manually copied to game directory. In order to do that replace original dll files with 
+  Dll files must be manually copied to game directory. Also copy .dbgmap to game "DebugMaps" folder. 
+  In order to do that replace original files with 
   newly built files. You will not be able to use debugger if you pick this option. 
   Follow next steps run game with new dll files:
 </p>
 
-1. Build Era project, (Debug build configuration),
-2. Build Vfs project, (Debug build configuration),
-3. Backup old Era.dll and Vfs.dll from Heroes 3 installation folder,
-4. Copy new Era.dll and Vfs.dll to Heroes 3 installation folder,
-5. Run Heroes 3 executable.
+1. (Optional) Backup old Era.dll and Vfs.dll from Heroes 3 installation folder,
+2. (Optional) Backup old Era.dbgmap and Vfs.dbgmap from Heroes 3 "DebugMaps" folder,
+3. Build All project, (Right click on ProjectGroup in project explorer and select "Build All"),
+5. Copy new Era.dll and Vfs.dll from corresponding "Compiled" folders to Heroes 3 installation folder,
+6. Copy new Era.dbgmap and Vfs.dbgmap from corresponding "Compiled" to Heroes 3 "DebugMaps" folder,
+7. Run Heroes 3 executable.
 
 
 ### Output directory is set
 
 <p align="justify">
-  Compiled files will be automatically moved to game folder. If you need backup old dlls do it before project build. 
+  Compiled files will be automatically moved to game folder. If you need old dlls backup it before project build. 
+  Debug maps will be automatically generated and moved to game "DebugMaps" folder.
   Follow next steps:
 </p>
 
-1. Backup old Era.dll and Vfs.dll from Heroes 3 installation folder,
-2. Build Era project, (Debug build configuration),
-3. Build Vfs project, (Debug build configuration),
-4. Run with debug from Delphi,
+1. (Optional) Backup old Era.dll and Vfs.dll from Heroes 3 installation folder,
+2. (Optional) Backup old Era.dbgmap and Vfs.dbgmap from Heroes 3 "DebugMaps" folder,
+3. Build All project, (Right click on ProjectGroup in project explorer and select "Build All"),
+4. Select Era.dll as active project by double click on it,
+5. Run Era project in debug mode from Delphi,
 
 <div align="right">
 
@@ -242,29 +245,40 @@ If you prefering to use compiled releases, please follow the steps outlined belo
 Project structure show important content location and default location of compiled dll files if output directory is not set.
 <pre>
   .
-  ├─ Era
-  │  ├─ Debug
-  │  │  ├─ Dcu
-  │  │  └─ ...     # Debug version Era.dll and other debug files
+  │
+  ├─ BuildTools          # Tools needed to generate .dbgmap files and update dll version info
+  │  ├─ Compiled
+  │  │  ├─ Debug
+  │  │  ├─ Release
+  │  │  └─ ...           # Comiled BuildTools.exe used in build process
+  │  └─ ...
+  │
+  ├─ Era                 # Era project
+  │  ├─ Compiled
+  │  │  ├─ Debug
+  │  │  │  ├─ DebugMaps  # Debug version Era.dbgmap
+  │  │  │  └─ ...        # Debug version Era.dll and other debug files
+  │  │  └─ Release
+  │  │     ├─ DebugMaps  # Release version Era.dbgmap
+  │  │     └─ ...        # Release version Era.dll and Era.dbgmap file
   │  ├─ Lua
-  │  ├─ Releas
-  │  │  ├─ Dcu
-  │  │  └─ ...     # Release version Era.dll file
-  │  └─ ...        # Source and versioning files
+  │  └─ ...              # Source code and versioning files
   │
-  ├─ Lib
+  ├─ Lib                 # Additional libraries needed for projects
+  │  └─ ...
   │
-  ├─ Vfs
-  │  ├─ Debug
-  │  │  ├─ Dcu
-  │  │  └─ ...     # Debug version Vfs.dll and other debug files
-  │  ├─ Releas
-  │  │  ├─ Dcu
-  │  │  └─ ...     # Release version Vfs.dll file
+  ├─ Vfs                 # Virtual file system project
+  │  ├─ Compiled
+  │  │  ├─ Debug
+  │  │  │  ├─ DebugMaps  # Debug version Vfs.dbgmap
+  │  │  │  └─ ...        # Debug version Vfs.dll and other debug files
+  │  │  └─ Release
+  │  │     ├─ DebugMaps  # Release version Vfs.dbgmap
+  │  │     └─ ...        # Release version Vfs.dll file
   │  ├─ Tests
-  │  └─ ...        # Source and versioning files
+  │  └─ ...              # Source code and versioning files
   │
-  └─ ...           # Clean.bat
+  └─ ...                 # Clean.bat
 </pre>
 
 <div align="right">
@@ -288,10 +302,10 @@ In regards to the original code, there have been a few changes implemented:
 ### Version info
 
 <p align="justify">
-  Versioning info are automatically embended to compiled files trough post build custom script. Post build script 
-  execut VersionInfo.bat that create VersionInfo.rc and VersionInfo.res files. During building process VersionInfo.res 
-  file is used to bind versioning info. To change versioning info of compiled files and ERA_VERSION_STR and ERA_VERSION_INT
-  project variable update VersionInfo.inc file.
+  Versioning info are automatically embended to compiled files trough post build actions. Post build action 
+  execut BuildTools.exe that create VersionInfo.rc files and compiles it to VersionInfo.res files using Bcc32.exe.
+  During building process VersionInfo.res file is used to bind versioning info. To change versioning info of compiled
+  files and ERA_VERSION_STR and ERA_VERSION_INT project variable update VersionInfo.inc file.
 </p>
 
 <div align="right">
@@ -395,7 +409,7 @@ Markdownguide                https://www.markdownguide.org/basic-syntax/#referen
 [license-url]:         ../../blob/master/LICENSE.txt
 [linkedin-shield]:     https://img.shields.io/badge/-LinkedIn-black.svg?style=flat&logo=linkedin&colorB=555
 [linkedin-url]:        https://www.linkedin.com/in/vuceticbranislav/
-[OriginalGH-bdg]:      https://img.shields.io/badge/Original-181717?style=flat&logo=github&logoColor=white&colorB=555
+[OriginalGH-bdg]:      https://img.shields.io/badge/Original_Code-181717?style=flat&logo=github&logoColor=white&colorB=555
 [OriginalGH-url]:      https://github.com/ethernidee
 [Delphi-bdg]:          https://img.shields.io/badge/Delphi_RAD_Studio-B22222?style=flat&logo=delphi&logoColor=white
 [Delphi-url]:          https://www.embarcadero.com/
