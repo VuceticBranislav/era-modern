@@ -172,8 +172,8 @@ If you prefering to use compiled releases, please follow the steps outlined belo
         ProjectGroup.groupproj
 3. Set host application in Era and Vfs projects to Heroes 3 executable
 
-        Era.dll project > Options... > Debugger > Host application
-        Vfs.dll project > Options... > Debugger > Host application
+        Era.dll project > Options... > Debugger > Target > All configurations - Windows 32-bit platform > Host application
+        Vfs.dll project > Options... > Debugger > Target > All configurations - Windows 32-bit platform > Host application
 4. (Optional) Set output folder for compiled dlls to root of Heroes 3 installation directory
 
         Era.dll project > Options... > Building > Delphi compiler > Target > All configurations - All platforms > Output directory
