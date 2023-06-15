@@ -158,7 +158,6 @@ $(PostBuildEvent)]]></PostBuildEvent>
         <DCCReference Include="ZlibUtils.pas"/>
         <DCCReference Include="Scripts.pas"/>
         <DCCReference Include="Lua\Lua.pas"/>
-        <None Include="_NOTES_.txt"/>
         <None Include="VersionInfo.inc"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
