@@ -174,36 +174,44 @@ $(PostBuildEvent)]]></PostBuildEvent>
     </ProjectExtensions>
     <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')"/>
     <Import Project="$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj" Condition="Exists('$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj')"/>
-<PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Win32'">
-        <PreBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -VersionInfo &quot;$(INPUTDIR)&quot;</PreBuildEvent>
+        <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Win32'">
+        <PreBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -VersionInfo &quot;$(INPUTDIR)&quot;
+</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
-        <PostBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps &quot;$(OUTPUTPATH)&quot;</PostBuildEvent>
+        <PostBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps &quot;$(OUTPUTPATH)&quot;
+</PostBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Win64'">
-        <PreBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -VersionInfo &quot;$(INPUTDIR)&quot;</PreBuildEvent>
+        <PreBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -VersionInfo &quot;$(INPUTDIR)&quot;
+</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
-        <PostBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps &quot;$(OUTPUTPATH)&quot;</PostBuildEvent>
+        <PostBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps &quot;$(OUTPUTPATH)&quot;
+</PostBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Win32'">
-        <PreBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -VersionInfo &quot;$(INPUTDIR)&quot;</PreBuildEvent>
+        <PreBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -VersionInfo &quot;$(INPUTDIR)&quot;
+</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
-        <PostBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps &quot;$(OUTPUTPATH)&quot;</PostBuildEvent>
+        <PostBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps &quot;$(OUTPUTPATH)&quot;
+</PostBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Win64'">
-        <PreBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -VersionInfo &quot;$(INPUTDIR)&quot;</PreBuildEvent>
+        <PreBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -VersionInfo &quot;$(INPUTDIR)&quot;
+</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
-        <PostBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps &quot;$(OUTPUTPATH)&quot;</PostBuildEvent>
+        <PostBuildEvent>call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps &quot;$(OUTPUTPATH)&quot;
+</PostBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
 </Project>
