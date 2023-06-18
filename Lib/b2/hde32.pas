@@ -47,14 +47,16 @@ type
     procedure Disassemble (Code: pointer);
   end; // .record TDisasm
 
-function hde32_disasm (Code: pointer; var DisasmRec: TDisasm): dword; cdecl; external;
 
 (***)  implementation  (***)
 
-{$LINK 'hde32.obj'}
 
 const
   OPCODE_PREFIXES = [$26, $2E, $36, $3E, $64, $65, $66, $67, $F0, $F2, $F3];
+
+{$LINK 'hde32.obj'}
+
+function hde32_disasm (Code: pointer; var DisasmRec: TDisasm): dword; cdecl; external;
 
 procedure TDisasm.Disassemble (Code: pointer);
 var

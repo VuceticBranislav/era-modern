@@ -5,18 +5,7 @@ AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
 (***)  interface  (***)
-uses Legacy, Windows, SysUtils;
-
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
+uses Windows, SysUtils, Legacy;
 
 const
   INVALID_HANDLE  = -1;
@@ -41,13 +30,13 @@ function  GetModuleFileName (hMod: HMODULE): myAStr;
 
 function FileCreate (const FilePath: myAStr; (* i *) out hFile: integer): boolean;
 begin
-  hFile   :=  SysUtils.FileCreate(string(FilePath));
+  hFile   :=  Legacy.FileCreate(string(FilePath));
   result  :=  hFile <> INVALID_HANDLE;
 end;
 
 function FileOpen (const FilePath: myAStr; OpenMode: integer; (* i *) out hFile: integer): boolean;
 begin
-  hFile   :=  SysUtils.FileOpen(string(FilePath), OpenMode);
+  hFile   :=  Legacy.FileOpen(string(FilePath), OpenMode);
   result  :=  hFile <> INVALID_HANDLE;
 end;
 
@@ -59,7 +48,7 @@ end;
 
 function FileRead (hFile: integer; var Buffer; StrictCount: integer): boolean;
 begin
-  result  :=  SysUtils.FileRead(hFile, Buffer, StrictCount) = StrictCount;
+  result  :=  Legacy.FileRead(hFile, Buffer, StrictCount) = StrictCount;
 end;
 
 function GetModuleHandle (const ModuleName: myAStr; out hModule: integer): boolean;

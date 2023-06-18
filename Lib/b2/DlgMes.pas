@@ -4,19 +4,8 @@ DESCRIPTION:  Simple dialogs for messages and debugging
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE11.0
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses Legacy, Windows, SysUtils, Math, UtilsB2, StrLib, Lang, DlgMesLng;
+uses Windows, SysUtils, Math, UtilsB2, StrLib, Lang, DlgMesLng, Legacy;
 
 const
   NO_WINDOW = 0;

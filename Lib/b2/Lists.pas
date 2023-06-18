@@ -4,19 +4,8 @@ DESCRIPTION:  Implementation of data structure "List" in several variants.
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses Legacy, Windows, SysUtils, Math, Classes, UtilsB2, Alg, StrLib;
+uses Windows, SysUtils, Math, Classes, UtilsB2, Alg, StrLib, Legacy;
 
 type
   TList = class (UtilsB2.TCloneable)
@@ -209,7 +198,7 @@ end; // .constructor TList.Create
 destructor TList.Destroy;
 begin
   Self.Clear;
-  SysUtils.FreeAndNil(Self.fItemGuard);
+  Legacy.FreeAndNil(Self.fItemGuard);
 end; // .destructor TList.Destroy
 
 procedure TList.Assign (Source: UtilsB2.TCloneable);
@@ -249,7 +238,7 @@ begin
   {!} Assert(Math.InRange(Ind, 0, Self.Count - 1));
   if Self.OwnsItems then begin
     if Self.ItemsAreObjects then begin
-      SysUtils.FreeAndNil(TObject(Self.fData[Ind]));
+      Legacy.FreeAndNil(TObject(Self.fData[Ind]));
     end else begin
       FreeMem(Self.fData[Ind]); Self.fData[Ind] :=  nil;
     end;
@@ -618,7 +607,7 @@ end; // .constructor TStringList.Create
 destructor TStringList.Destroy;
 begin
   Self.Clear;
-  SysUtils.FreeAndNil(Self.fItemGuard);
+  Legacy.FreeAndNil(Self.fItemGuard);
 end; // .destructor TStringList.Destroy
 
 procedure TStringList.Assign (Source: UtilsB2.TCloneable);
@@ -661,7 +650,7 @@ begin
   {!} Assert(Math.InRange(Ind, 0, Self.Count - 1));
   if Self.OwnsItems then begin
     if Self.ItemsAreObjects then begin
-      SysUtils.FreeAndNil(TObject(Self.fValues[Ind]));
+      Legacy.FreeAndNil(TObject(Self.fValues[Ind]));
     end else begin
       FreeMem(Self.fValues[Ind]); Self.fValues[Ind] :=  nil;
     end;

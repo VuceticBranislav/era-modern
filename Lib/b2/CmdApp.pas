@@ -4,17 +4,6 @@ DESCRIPTION:  Provides new-style command line handling and some inter-process fu
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (*
 New style command line: ArgName=ArgValue "Arg Name"="Arg Value"
 Simple "ArgName" means ArgName:1.
@@ -23,7 +12,7 @@ Duplicate arguments override the previous ones.
 *)
 
 (***)  interface  (***)
-uses Legacy, Windows, SysUtils, UtilsB2, TypeWrappers, Crypto, TextScan, AssocArrays, Lists; {$WARN SYMBOL_PLATFORM OFF}
+uses Windows, SysUtils, UtilsB2, TypeWrappers, Crypto, TextScan, AssocArrays, Lists, Legacy; {$WARN SYMBOL_PLATFORM OFF}
 
 const
   (* RunProcess *)
@@ -141,7 +130,7 @@ begin
     Args[ArgName] := TString.Create(ArgValue);
   end; // .while
   // * * * * * //
-  SysUtils.FreeAndNil(Scanner);
+  Legacy.FreeAndNil(Scanner);
 end; // .procedure ProcessArgs
 
 function RunProcess (const ExeFilePath, ExeArgs, ExeCurrentDir: myAStr; WaitEnd: boolean): boolean;

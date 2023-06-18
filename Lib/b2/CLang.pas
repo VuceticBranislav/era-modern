@@ -4,19 +4,8 @@ DESCRIPTION:  Auxiliary unit for Lang
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses Legacy, SysUtils, Math, UtilsB2, Crypto;
+uses SysUtils, Math, UtilsB2, Crypto, Legacy;
 
 const
   (* Names sizes restrictions *)
@@ -34,7 +23,7 @@ type
   end; // .record TLngStructHeader
 
 
-function  GetCharSize (Unicode: boolean): integer; // BYME should be removed. may give wrong length
+function  GetCharSize (Unicode: boolean): integer;
 function  IsValidLangName (const LangName: myAStr): boolean;
 function  IsValidClientName (const ClientName: myAStr): boolean;
 function  ValidateLngStructHeader

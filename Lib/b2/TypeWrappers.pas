@@ -4,19 +4,8 @@ DESCRIPTION:  Wrappers for primitive types into objects suitable for storing in 
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE11.0
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses Legacy, UtilsB2;
+uses UtilsB2, Legacy;
 
 type
   TString = class (UtilsB2.TCloneable)

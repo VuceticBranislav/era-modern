@@ -4,22 +4,11 @@ DESCRIPTION:  Encryption and hashing functions
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE11.0
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
 
 
 uses
-  Legacy, UtilsB2;
+  UtilsB2, Legacy;
 
 const
   Crc32Table: array[0..255] of cardinal =

@@ -4,19 +4,8 @@ DESCRIPTION:  Text manager provides high-level functions-wrappers over AText
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses Legacy, Windows, SysUtils, UtilsB2, Crypto, StrLib, CFiles, Files, ATexts, System.AnsiStrings;
+uses Windows, SysUtils, UtilsB2, Crypto, StrLib, CFiles, Files, ATexts, Legacy;
 
 const
   (* FindStr *)
@@ -68,7 +57,7 @@ begin
   result  :=  FALSE;
   if (Text.Len - Text.Pos + 1) >= StrLen then begin
     if IgnoreCase then begin
-      Str :=  System.AnsiStrings.LowerCase(Str); //SysUtils.AnsiLowerCase(Str);
+      Str :=  Legacy.LowerCase(Str);
     end;
     StartPos  :=  Text.Pos;
     StrHash   :=  0;
@@ -139,7 +128,7 @@ begin
   if result then begin
     Text.Connect(FileContents, TObject(Settings));
   end;
-  SysUtils.FreeAndNil(DataFile);
+  Legacy.FreeAndNil(DataFile);
 end; // .function LoadFromFile
 
 function SaveToFile (const FilePath: myAStr; Text: ATexts.AText): boolean;
@@ -153,10 +142,10 @@ begin
   // * * * * * //
   SavedPos  :=  Text.Pos;
   Text.GotoPos(1);
-  Windows.DeleteFile(pchar(string(FilePath)));
+  Legacy.DeleteFileA(myPChar(FilePath));
   result  :=  DataFile.CreateNew(FilePath) and DataFile.WriteStr(Text.GetStr(Text.Len));
   Text.GotoPos(SavedPos);
-  SysUtils.FreeAndNil(DataFile);
+  Legacy.FreeAndNil(DataFile);
 end; // .function SaveToFile
 
 end.

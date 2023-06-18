@@ -4,19 +4,8 @@ DESCRIPTION:  Working with language units
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses Legacy, SysUtils, Math, Classes, UtilsB2, StrLib, CLang, CLngStrArr;
+uses SysUtils, Math, Classes, UtilsB2, StrLib, CLang, CLngStrArr, Legacy;
 
 const
   LNGUNIT_SIGNATURE : myAstr = 'LUN';
@@ -193,8 +182,8 @@ begin
   end; // .if
   result  :=  result and CLang.ValidateStructSize(Self.LngUnit.Header.StructSize, RealStructSize, Error);
   // * * * * * //
-  SysUtils.FreeAndNil(LangNames);
-  SysUtils.FreeAndNil(LngStrArrReader);
+  Legacy.FreeAndNil(LangNames);
+  Legacy.FreeAndNil(LngStrArrReader);
 end; // .function TLngUnitReader.Validate
 
 function TLngUnitReader.GetUnitName: myAStr;
@@ -240,7 +229,7 @@ begin
     end;
   end;
   // * * * * * //
-  SysUtils.FreeAndNil(LngStrArrReader);
+  Legacy.FreeAndNil(LngStrArrReader);
 end; // .function TLngUnitReader.SeekLngStrArr
 
 function TLngUnitReader.ReadLngStrArr ((* n *) var LngStrArrReader: CLngStrArr.TLngStrArrReader): boolean;
@@ -277,7 +266,7 @@ begin
   Self.SeekLngStrArr(SavedLngStrArrInd);
   // * * * * * //
   if not result then begin
-    SysUtils.FreeAndNil(LngStrArrReader);
+    Legacy.FreeAndNil(LngStrArrReader);
   end;
 end; // .function TLngUnitReader.FindLngStrArr
 

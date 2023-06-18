@@ -70,6 +70,8 @@ unit PatchApi;
 
 interface
 
+uses Legacy;
+
 const
 
 // values returned by a LoHook hook function
@@ -137,7 +139,7 @@ type
     function GetSize: cardinal; virtual; stdcall; abstract;
 
 	// returns the unique name of the PatcherInstance instance with which the patch was created
-    function GetOwner: PAnsiChar; virtual; stdcall; abstract;
+    function GetOwner: myPChar; virtual; stdcall; abstract;
 
 	// returns the type of the patch
   // for not hook always PATCH_
@@ -277,13 +279,13 @@ type
   // copied using Binary copy in OllyDbg
   // Example:
   //   Pi->WriteHexPatch(0x57b521, "6A 01 6A 00");
-	  function WriteHexPatch(address: _ptr_; hex_cstr: PAnsiChar): TPatch; virtual; stdcall; abstract;
+	  function WriteHexPatch(address: _ptr_; hex_cstr: myPChar): TPatch; virtual; stdcall; abstract;
 
 	////////////////////////////////////////////////////////////
   // Method WriteCodePatchVA
   // in the original form, the method is not supposed to be used,
   // see (below) the description of the wrapper method WriteCodePatch
-	  function WriteCodePatchVA(address: _ptr_; format: PAnsiChar; va_args: _ptr_): TPatch; virtual; stdcall; abstract;
+	  function WriteCodePatchVA(address: _ptr_; format: myPChar; va_args: _ptr_): TPatch; virtual; stdcall; abstract;
 
 	////////////////////////////////////////////////////////////
   // Method WriteLoHook
@@ -363,8 +365,8 @@ type
 	  function CreateWordPatch(address: _ptr_; value: integer): TPatch; virtual; stdcall; abstract;
 	  function CreateDwordPatch(address: _ptr_; value: integer): TPatch; virtual; stdcall; abstract;
 	  function CreateJmpPatch(address, to_address: _ptr_): TPatch; virtual; stdcall; abstract;
-	  function CreateHexPatch(address: _ptr_; hex_str: PAnsiChar): TPatch; virtual; stdcall; abstract;
-	  function CreateCodePatchVA(address: _ptr_; format: PAnsiChar; va_args: _ptr_): TPatch; virtual; stdcall; abstract;
+	  function CreateHexPatch(address: _ptr_; hex_str: myPChar): TPatch; virtual; stdcall; abstract;
+	  function CreateCodePatchVA(address: _ptr_; format: myPChar; va_args: _ptr_): TPatch; virtual; stdcall; abstract;
 	  function CreateLoHook(address: _ptr_; func: pointer): TLoHook; virtual; stdcall; abstract;
 	  function CreateHiHook(address: _ptr_; hooktype, subtype, calltype: integer; new_func: pointer): THiHook; virtual; stdcall; abstract;
 
@@ -393,11 +395,11 @@ type
 
 	// in the original form, the method is not supposed to be used,
   // see (below) the description of the wrapper method WriteDataPatch
-	  function WriteDataPatchVA(address: _ptr_; format: PAnsiChar; va_args: _ptr_): TPatch; virtual; stdcall; abstract;
+	  function WriteDataPatchVA(address: _ptr_; format: myPChar; va_args: _ptr_): TPatch; virtual; stdcall; abstract;
 
   // in the original form, the method is not supposed to be used,
   // see (below) the description of the wrapper method WriteDataPatch
-	  function CreateDataPatchVA(address: _ptr_; format: PAnsiChar; va_args: _ptr_): TPatch; virtual; stdcall; abstract;
+	  function CreateDataPatchVA(address: _ptr_; format: myPChar; va_args: _ptr_): TPatch; virtual; stdcall; abstract;
 
   // GetLastPatchAt method
   // returns NULL if no patch / hook has been applied in the vicinity of the address address,
@@ -546,7 +548,7 @@ type
   // if owner = NULL or owner = '' then
   // the PatcherInstance instance will be created with the module name from
   // the function was called.
-   	function CreateInstance(owner_name: PAnsiChar): TPatcherInstance; virtual; stdcall; abstract;
+   	function CreateInstance(owner_name: myPChar): TPatcherInstance; virtual; stdcall; abstract;
 
 	///////////////////////////////////////////////////
   // GetInstance method
@@ -559,7 +561,7 @@ type
   // - check if some mod is active, using patcher_x86.dll
   // - get access to all patches and hooks of some mod,
   // using patcher_x86.dll
-   	function GetInstance(owner_name: PAnsiChar): TPatcherInstance; virtual; stdcall; abstract;
+   	function GetInstance(owner_name: myPChar): TPatcherInstance; virtual; stdcall; abstract;
 
 	///////////////////////////////////////////////////
   // GetLastPatchAt method
@@ -582,12 +584,12 @@ type
   // - the number and names of all TPatcherInstance instances
   // - the number of all applied patches / hooks
   // - list of all applied patches and hooks
-	  procedure SaveDump(file_name: PAnsiChar); virtual; stdcall; abstract;
+	  procedure SaveDump(file_name: myPChar); virtual; stdcall; abstract;
 
 	///////////////////////////////////////////////////
   // SaveLog method
   // saves the log to a file named file_name
-	  procedure SaveLog(file_name: PAnsiChar); virtual; stdcall; abstract;
+	  procedure SaveLog(file_name: myPChar); virtual; stdcall; abstract;
 
 	///////////////////////////////////////////////////
   // GetMaxPatchSize Method
@@ -603,7 +605,7 @@ type
   // Method WriteComplexDataVA
   // in the original form, the method is not supposed to be used,
   // see (below) the description of the wrapper method WriteComplexString
-   	function WriteComplexDataVA(address: _ptr_; format: PAnsiChar; va_args: _ptr_): integer; virtual; stdcall; abstract;
+   	function WriteComplexDataVA(address: _ptr_; format: myPChar; va_args: _ptr_): integer; virtual; stdcall; abstract;
 
 	///////////////////////////////////////////////////
   // method GetOpcodeLength
@@ -649,12 +651,12 @@ type
   // initializes a "variable" named name and sets its value to value
   // if a variable with the same name already exists, then simply sets its value to value
   // returns a variable on success and nil otherwise
-    function VarInit(name: PAnsiChar; value: _dword_): TVariable; virtual; stdcall; abstract;
+    function VarInit(name: myPChar; value: _dword_): TVariable; virtual; stdcall; abstract;
 
   // method VarFind
   // returns a variable named name, if one has been initialized
   // if not, returns nil
-    function VarFind(name: PAnsiChar): TVariable; virtual; stdcall; abstract;
+    function VarFind(name: myPChar): TVariable; virtual; stdcall; abstract;
 
 	////////////////////////////////////////////////////////////////////
   // method WriteComplexData
@@ -708,17 +710,17 @@ type
           vtInteger:    dword_args[i] := _dword_(VInteger);
           vtBoolean:    dword_args[i] := _dword_(VBoolean);
           vtChar:       dword_args[i] := _dword_(VChar);
-          vtPChar:      dword_args[i] := _dword_(PAnsiChar(VPChar));
+          vtPChar:      dword_args[i] := _dword_(myPChar(VPChar));
           vtPointer:    dword_args[i] := _dword_(VPointer);
-          vtString:     dword_args[i] := _dword_(PAnsiChar(AnsiString(VString^ + #0)));
-          vtAnsiString: dword_args[i] := _dword_(PAnsiChar(VAnsiString));
+          vtString:     dword_args[i] := _dword_(myPChar(AnsiString(VString^ + #0)));
+          vtAnsiString: dword_args[i] := _dword_(myPChar(VAnsiString));
           vtWideChar:   dword_args[i] := ord(VWideChar);
           vtPWideChar:  dword_args[i] := _dword_(pointer(VPWideChar));
           vtWideString: dword_args[i] := _dword_(VWideString);
           vtObject:     dword_args[i] := _dword_(pointer(VObject));
         else // vtExtended, vtClass, vtCurrency, vtVariant, vtInterface, vtInt64, vtUnicodeString
-          MessageBoxA(0, 'Patch Api - __MoveToDwordArgs - Unicod not allowed', '__MoveToDwordArgs', 0); // BYME 2.8.5 by me
-          asm int 3 end;   // BYME 2.8.5 by me
+          MessageBoxA(0, 'Patch Api - __MoveToDwordArgs - Unicod not allowed', '__MoveToDwordArgs', 0);
+          asm int 3 end;
         end;
       end;
     end;
@@ -885,7 +887,7 @@ type
   
   begin
     __MoveToDwordArgs(args, dword_args);
-    result := WriteCodePatchVA(address, PAnsiChar(dword_args[0]), _ptr_(@dword_args[1]));
+    result := WriteCodePatchVA(address, myPChar(dword_args[0]), _ptr_(@dword_args[1]));
   end;
 
   function TPatcherInstance.CreateCodePatch(address: _ptr_; const args: array of const): TPatch;
@@ -894,7 +896,7 @@ type
   
   begin
     __MoveToDwordArgs(args, dword_args);
-    result := CreateCodePatchVA(address, PAnsiChar(dword_args[0]), _ptr_(@dword_args[1]));
+    result := CreateCodePatchVA(address, myPChar(dword_args[0]), _ptr_(@dword_args[1]));
   end;
 
 
@@ -904,7 +906,7 @@ type
 
   begin
     __MoveToDwordArgs(args, dword_args);
-    result := WriteDataPatchVA(address, PAnsiChar(dword_args[0]), _ptr_(@dword_args[1]));
+    result := WriteDataPatchVA(address, myPChar(dword_args[0]), _ptr_(@dword_args[1]));
   end;
 
   function TPatcherInstance.CreateDataPatch(address: _ptr_; const args: array of const): TPatch;
@@ -913,7 +915,7 @@ type
   
   begin
     __MoveToDwordArgs(args, dword_args);
-    result := CreateDataPatchVA(address, PAnsiChar(dword_args[0]), _ptr_(@dword_args[1]));
+    result := CreateDataPatchVA(address, myPChar(dword_args[0]), _ptr_(@dword_args[1]));
   end;
 
 
@@ -923,7 +925,7 @@ type
   
   begin
     __MoveToDwordArgs(args, dword_args);
-    result := WriteComplexDataVA(address, PAnsiChar(dword_args[0]), _ptr_(@dword_args[1]));
+    result := WriteComplexDataVA(address, myPChar(dword_args[0]), _ptr_(@dword_args[1]));
   end;
 
   var
@@ -939,7 +941,7 @@ type
     if result = nil then begin
       dll := Windows.LoadLibraryA('patcher_x86.dll');
       {!} Assert(dll <> 0);
-      func := _ptr_(Windows.GetProcAddress(dll, PAnsiChar('_GetPatcherX86@0')));
+      func := _ptr_(Windows.GetProcAddress(dll, myPChar('_GetPatcherX86@0')));
       {!} Assert(func <> NULL_PTR);
       result := TPatcher(Call(STDCALL_, func, []));
       {!} Assert(result <> nil);

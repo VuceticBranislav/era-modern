@@ -4,19 +4,8 @@ DESCRIPTION:  Working with binary strings
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses Legacy, SysUtils, UtilsB2, StrLib, CLang;
+uses SysUtils, UtilsB2, StrLib, CLang, Legacy;
 
 (*
 Binary string is an atom in language system. It is either unicode or ansi string.
@@ -43,7 +32,7 @@ type
       (* Un *)  fBinString:             PBinString;
                 fStructMemoryBlockSize: integer;
                 fUnicode:               boolean;
-      
+
       function  GetStrSize: integer;
       function  GetStructSize: integer;
     

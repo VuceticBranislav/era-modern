@@ -3,21 +3,11 @@ unit DataFlows;
   Byte stream interfaces, helpers, abstract classes.
 *)
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
 
 (***)  interface  (***)
 
 uses
-  Legacy, SysUtils, UtilsB2;
+  SysUtils, UtilsB2, Legacy;
 
 const
   ENDLESS_SIZE = -1;
@@ -220,7 +210,7 @@ begin
     NumBytesRead := Source.ReadUpTo(Count, UtilsB2.PtrOfs(Buf, TotalBytesRead));
 
     if NumBytesRead <= 0 then begin
-      raise EInOutError.Create(string(Legacy.Format('Failed to read %d bytes from IReadable. Bytes read: %d', [Count, TotalBytesRead])));
+      raise Legacy.EInOutError.Create(Legacy.Format('Failed to read %d bytes from IReadable. Bytes read: %d', [Count, TotalBytesRead]));
     end;
 
     Inc(TotalBytesRead, NumBytesRead);
@@ -241,7 +231,7 @@ begin
     NumBytesWritten := Destination.WriteUpTo(Count, UtilsB2.PtrOfs(Buf, TotalBytesWritten));
 
     if NumBytesWritten <= 0 then begin
-      raise EInOutError.Create(string(Legacy.Format('Failed to write %d bytes from IWritable. Bytes written: %d', [Count, TotalBytesWritten])));
+      raise Legacy.EInOutError.Create(Legacy.Format('Failed to write %d bytes from IWritable. Bytes written: %d', [Count, TotalBytesWritten]));
     end;
 
     Inc(TotalBytesWritten, NumBytesWritten);

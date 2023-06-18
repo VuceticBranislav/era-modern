@@ -4,17 +4,6 @@ DESCRIPTION:  Language system implementation allows to dinamically change langua
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (*
 Any unit which uses language system is called Client.
 Writing strings directly in code is a bad idea when internationalization is required.
@@ -45,7 +34,7 @@ unit usage.
 *)
 
 (***)  interface  (***)
-uses Legacy, Windows, SysUtils, Classes, Math, WinWrappers, Log, UtilsB2, Files, CLang, CBinString, CLngStrArr, CLngUnit, CLngPack;
+uses Windows, SysUtils, Classes, Math, WinWrappers, Log, UtilsB2, Files, CLang, CBinString, CLngStrArr, CLngUnit, CLngPack, Legacy;
 
 const
   (* Lang names *)
@@ -56,7 +45,7 @@ const
   IS_UNICODE  = TRUE;
   IS_ANSI     = FALSE;
   
-  MAX_NUMSTRINGS  = High(integer) div sizeof(AnsiString);
+  MAX_NUMSTRINGS  = High(integer) div sizeof(myAStr);
 
 
 type
@@ -250,7 +239,7 @@ begin
     end;
   end; // .if
   // * * * * * //
-  SysUtils.FreeAndNil(FileObj);
+  Legacy.FreeAndNil(FileObj);
 end; // .function LoadFilePack
 
 function LoadResPack: boolean;
@@ -324,8 +313,8 @@ begin
     SetClientLngStrArr(Client, LngStrArrReader);
   end;
   // * * * * * //
-  SysUtils.FreeAndNil(LngStrArrReader);
-  SysUtils.FreeAndNil(LngUnitReader);
+  Legacy.FreeAndNil(LngStrArrReader);
+  Legacy.FreeAndNil(LngUnitReader);
 end; // .function LoadClientLangFromResPack
 
 function LoadClientLangFromFilePack (Client: PClient; const NewLanguage: myAStr): boolean;
@@ -347,8 +336,8 @@ begin
     SetClientLngStrArr(Client, LngStrArrReader);
   end;
   // * * * * * //
-  SysUtils.FreeAndNil(LngStrArrReader);
-  SysUtils.FreeAndNil(LngUnitReader);
+  Legacy.FreeAndNil(LngStrArrReader);
+  Legacy.FreeAndNil(LngUnitReader);
 end; // .function LoadClientLangFromFilePack
 
 function LoadClientLangFromFileUnit (Client: PClient; const NewLanguage: myAStr): boolean;
@@ -393,10 +382,10 @@ begin
     end;
   end; // .if
   // * * * * * //
-  SysUtils.FreeAndNil(FileObj);
+  Legacy.FreeAndNil(FileObj);
   FreeMem(LngUnit); LngUnit :=  nil;
-  SysUtils.FreeAndNil(LngStrArrReader);
-  SysUtils.FreeAndNil(LngUnitReader);
+  Legacy.FreeAndNil(LngStrArrReader);
+  Legacy.FreeAndNil(LngUnitReader);
 end; // .function LoadClientLangFromFileUnit
 
 function LoadClientLangFromFileStrArr (Client: PClient; const NewLanguage: myAStr): boolean;
@@ -435,9 +424,9 @@ begin
     end; // .else
   end; // .if
   // * * * * * //
-  SysUtils.FreeAndNil(FileObj);
+  Legacy.FreeAndNil(FileObj);
   FreeMem(LngStrArr); LngStrArr :=  nil;
-  SysUtils.FreeAndNil(LngStrArrReader);
+  Legacy.FreeAndNil(LngStrArrReader);
 end; // .function LoadClientLangFromFileStrArr
 
 function SetClientLang (Client: PClient; const NewLanguage: myAStr): boolean;

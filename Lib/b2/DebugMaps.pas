@@ -5,21 +5,10 @@ DESCRIPTION:  Adds support for *.dbgmap binary debug map files. Allows to conver
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 interface
 
 uses
-  Legacy, SysUtils, UtilsB2, Math;
+  SysUtils, UtilsB2, Math, Legacy;
 
 const
   MIN_DBGMAP_FILE_SIZE = 12;

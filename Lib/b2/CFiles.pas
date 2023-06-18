@@ -4,19 +4,8 @@ DESCRIPTION:  Abstract interface of virtual device with sequential access
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses Legacy, Math, UtilsB2;
+uses Math, UtilsB2, Legacy;
 
 const
   MODE_OFF        = 0;

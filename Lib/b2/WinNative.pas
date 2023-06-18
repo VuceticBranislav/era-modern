@@ -3,21 +3,10 @@ unit WinNative;
   Windows system libraries API (ntdll, etc).
 *)
 
-// D2006      --> XE11.1
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
 
 uses
-  Legacy, Windows, SysUtils, UtilsB2, StrLib;
+  Windows, SysUtils, UtilsB2, StrLib, Legacy;
 
 
 ////////////////////////////////////////////////////////////////////////

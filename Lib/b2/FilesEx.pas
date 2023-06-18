@@ -4,19 +4,8 @@ unit FilesEx;
   AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 *)
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses Legacy, SysUtils, UtilsB2, Files, DataLib, StrLib, Classes, DataFlows;
+uses SysUtils, UtilsB2, Files, DataLib, StrLib, Classes, DataFlows, Legacy;
 
 type
   (* Import *)
@@ -203,7 +192,7 @@ begin
     end;
   end;
   // * * * * * //
-  SysUtils.FreeAndNil(NamesDict);
+  Legacy.FreeAndNil(NamesDict);
 end; // .procedure MergeFileLists
 
 function WriteFormattedOutput (const FilePath: myAStr): IFormattedOutput;

@@ -4,17 +4,6 @@ unit AssocArrays;
   AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 *)
 
-// D2006      --> XE11.0
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (*
   The implementation uses binary tree and (in case of array with string keys) user provided hash function to store and retrieve data.
   Tree is automatically rebalanced when critical search depth is met which is equal to 2X of balanced tree height.
@@ -25,13 +14,12 @@ unit AssocArrays;
 
 (***)  interface  (***)
 uses
-  Legacy,
   Math,
   SysUtils,
 
   Alg,
   Crypto,
-  UtilsB2;
+  UtilsB2, Legacy;
 
 const
   LEFT_CHILD  = false;

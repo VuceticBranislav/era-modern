@@ -1,18 +1,7 @@
 unit FolderBrowser;
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 interface
-uses Legacy, Windows, SysUtils, ShlObj, AnsiStrings;
+uses Windows, SysUtils, ShlObj, Legacy;
 
 function GetFolderDialog(Handle: integer; Caption: myAStr; var strFolder: myAStr): boolean;
 
@@ -36,21 +25,21 @@ const
   BIF_USENEWUI             = BIF_EDITBOX or BIF_NEWDIALOGSTYLE;
 
 var
-  BrowseInfo: TBrowseInfo;
+  BrowseInfo: TBrowseInfoA;
   ItemIDList: PItemIDList;
   JtemIDList: PItemIDList;
-  Path: PAnsiChar;
+  Path: myPChar;
 begin
   result:= False;
-  Path:= AnsiStrings.AnsiStrAlloc(MAX_PATH);
+  Path:= Legacy.AnsiStrAlloc(MAX_PATH);
   SHGetSpecialFolderLocation(Handle, CSIDL_DRIVES, JtemIDList);
   with BrowseInfo do
   begin
     hwndOwner:= GetActiveWindow;
     pidlRoot:= JtemIDList;
     SHGetSpecialFolderLocation(hwndOwner, CSIDL_DRIVES, JtemIDList);
-    pszDisplayName:= StrAlloc(MAX_PATH);
-    lpszTitle:= pChar(string(Caption));
+    pszDisplayName:= Legacy.StrAlloc(MAX_PATH);
+    lpszTitle:= myPChar(Caption);
     lpfn:= @BrowseCallbackProc;
     lParam:= LongInt(myPChar(strFolder));
     ulflags :=  
@@ -58,7 +47,7 @@ begin
       BIF_SHAREABLE or BIF_NONEWFOLDERBUTTON;
   end;
 
-  ItemIDList:= SHBrowseForFolder(BrowseInfo);
+  ItemIDList:= SHBrowseForFolderA(BrowseInfo);
 
   if (ItemIDList <> nil) then
     if SHGetPathFromIDListA(ItemIDList, Path) then

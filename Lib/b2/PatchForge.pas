@@ -4,22 +4,12 @@
   Unit without third-party dependencies except Hacker Disassembler Engine (hde32).
 *)
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
 
 (***)  interface  (***)
 
 
 uses
-  Legacy, Windows, SysUtils, hde32, UtilsB2, Math, Alg, DataLib, TypeWrappers;
+  Windows, SysUtils, hde32, UtilsB2, Math, Alg, DataLib, TypeWrappers, Legacy;
 
 type
   (* Import *)
@@ -637,7 +627,7 @@ end;
 
 destructor TPostponedAction.Destroy;
 begin
-  SysUtils.FreeAndNil(Self.fAction);
+  Legacy.FreeAndNil(Self.fAction);
 end;
 
 procedure TPostponedAction.Execute ({n} PatchBufAddr, {n} RealBufAddr: pointer; PatchMaker: TPatchMaker);
@@ -662,7 +652,7 @@ end; // .constructor TPatchComplexAction.Create
 
 destructor TPatchComplexAction.Destroy;
 begin
-  SysUtils.FreeAndNil(Self.fActions);
+  Legacy.FreeAndNil(Self.fActions);
 end;
 
 procedure TPatchComplexAction._Execute ({n} ItemAddr, {n} RealItemAddr: pointer; ItemPos: integer; PatchMaker: {U} TPatchMaker);
@@ -754,8 +744,8 @@ end;
 
 destructor TPatchMaker.Destroy;
 begin
-  SysUtils.FreeAndNil(Self.fPostponedActions);
-  SysUtils.FreeAndNil(Self.fLabels);
+  Legacy.FreeAndNil(Self.fPostponedActions);
+  Legacy.FreeAndNil(Self.fLabels);
   inherited;
 end;
 
@@ -880,7 +870,7 @@ begin
         vtPWideChar:  Self.WriteBytes(sizeof(myPWChar),               @vPWideChar);
         
         vtObject: begin
-          if SysUtils.Supports(vObject, IPatchCmd, Cmd) then begin
+          if Legacy.Supports(vObject, IPatchCmd, Cmd) then begin
             Cmd.Execute(Self);
           end else begin
             Self.WriteBytes(sizeof(vObject), @vObject);
@@ -1407,7 +1397,7 @@ end; // .function TPatchHelper.WriteCode
 
 procedure TPatchHelper.Release;
 begin
-  SysUtils.FreeAndNil(Self.PatchMaker);
+  Legacy.FreeAndNil(Self.PatchMaker);
 end;
 
 end.

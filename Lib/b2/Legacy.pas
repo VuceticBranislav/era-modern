@@ -36,7 +36,14 @@ type
   TReplaceFlags = set of (rfReplaceAll, rfIgnoreCase);
   Exception     = class(SysUtils.Exception) end;
   EOutOfMemory  = class(SysUtils.EOutOfMemory) end;
-
+  EInOutError = class(Exception)
+  public
+    ErrorCode: Integer;
+    Path: myAStr;
+    constructor Create(const Msg: myAStr); overload;
+    constructor Create(const Msg, Path: myAStr); overload;
+    constructor CreateRes(ResStringRec: PResStringRec; const Path: myAStr); overload;
+  end;
   TSearchRec = SysUtils.TSearchRec;
 
 function IntToStr(Value: Integer): myAStr;
@@ -61,6 +68,7 @@ function ExpandFileName(const FileName: myAStr): myAStr;
 function Trim(const S: myAStr): myAStr;
 function TrimRight(const S: myAStr): myAStr;
 //function AnsiEndsText(const ASubText, AText: myAStr): Boolean;
+function AnsiStrAlloc(Size: Cardinal): myPChar; inline;
 function ByteType(const S: myAStr; Index: Integer): TMbcsByteType;
 //function FileCreate(const FileName: myAStr): THandle;
 //function FileOpen(const FileName: myAStr; Mode: LongWord): THandle;
@@ -94,8 +102,8 @@ procedure FreeAndNil(var Obj);
 function FileSeek(Handle: THandle; Offset, Origin: Integer): Integer;
 function FileRead(Handle: THandle; var Buffer; Count: LongWord): Integer;
 function FileWrite(Handle: THandle; const Buffer; Count: LongWord): Integer;
-//function FindFirst(const Path: myAStr; Attr: Integer; var F: TSearchRec): Integer;
-//function FindNext(var F: TSearchRec): Integer;
+function FindFirst(const Path: myAStr; Attr: Integer; var F: TSearchRec): Integer; inline;
+function FindNext(var F: TSearchRec): Integer; inline;
 procedure FindClose(var F: TSearchRec);
 procedure FillChar(var Dest; Count: NativeInt; Value: myChar); overload;
 procedure FillChar(var Dest; Count: NativeInt; Value: byte); overload;
@@ -104,13 +112,16 @@ function StrPas(const Str: myPChar): myAStr;
 function CompareMem(P1, P2: Pointer; Length: Integer): Boolean;
 { Interface support routines }
 function Supports(const Instance: IInterface; const IID: TGUID; out Intf): Boolean; overload;
-//function Supports(const Instance: TObject; const IID: TGUID; out Intf): Boolean; overload;
+function Supports(const Instance: TObject; const IID: TGUID; out Intf): Boolean; overload;
 //function Supports(const Instance: IInterface; const IID: TGUID): Boolean; overload;
 //function Supports(const Instance: TObject; const IID: TGUID): Boolean; overload;
 //function Supports(const AClass: TClass; const IID: TGUID): Boolean; overload;
 // utilities here. Check and reorganise
 procedure Buff(Dest: myPChar; Text: myAStr);
+function StrAlloc(Size: Cardinal): myPChar; inline;
+function Now: TDateTime; inline;
 function sprintf(S: myPChar; const Format: PAnsiChar): Integer; cdecl; varargs; external 'msvcrt.dll';
+function DeleteFileA(lpFileName: myPChar): LongBool; stdcall; external kernel32 name 'DeleteFileA';
 
 const
   fmOpenRead       = SysUtils.fmOpenRead;
@@ -160,6 +171,11 @@ begin
     Result := AnsiStrings.AnsiStrComp(Pointer(ASubText), PAnsiChar(@AText[SubTextLocation])) = 0
   else
     Result := False;
+end;
+
+function AnsiStrAlloc(Size: Cardinal): myPChar; inline;
+begin
+  Result := AnsiStrings.AnsiStrAlloc(Size);
 end;
 
 function StrScan(const Str: PAnsiChar; Chr: AnsiChar): PAnsiChar;
@@ -801,6 +817,11 @@ end;
 //    Result := GetLastError;
 //end;
 
+function FindFirst(const Path: myAStr; Attr: Integer; var F: TSearchRec): Integer; inline;
+begin
+    Result := Sysutils.FindFirst(string(Path), Attr, F);
+end;
+
 //function FindNext(var F: TSearchRec): Integer;
 //begin
 //  if Windows.FindNextFileW(F.FindHandle, F.FindData) then
@@ -808,6 +829,11 @@ end;
 //  else
 //    Result := GetLastError;
 //end;
+
+function FindNext(var F: TSearchRec): Integer; inline;
+begin
+    Result := SysUtils.FindNext(F);
+end;
 
 procedure FindClose(var F: TSearchRec);
 begin
@@ -967,14 +993,14 @@ begin
   Result := (Instance <> nil) and (Instance.QueryInterface(IID, Intf) = 0);
 end;
 
-//function Supports(const Instance: TObject; const IID: TGUID; out Intf): Boolean; overload;
-//var
-//  LUnknown: IUnknown;
-//begin
-//  Result := (Instance <> nil) and
-//            ((Instance.GetInterface(IUnknown, LUnknown) and Supports(LUnknown, IID, Intf)) or
-//             Instance.GetInterface(IID, Intf));
-//end;
+function Supports(const Instance: TObject; const IID: TGUID; out Intf): Boolean; overload;
+var
+  LUnknown: IUnknown;
+begin
+  Result := (Instance <> nil) and
+            ((Instance.GetInterface(IUnknown, LUnknown) and Supports(LUnknown, IID, Intf)) or
+             Instance.GetInterface(IID, Intf));
+end;
 
 //function Supports(const Instance: IInterface; const IID: TGUID): Boolean; overload;
 //var
@@ -1003,6 +1029,35 @@ procedure Buff(Dest: myPChar; Text: myAStr);
 begin
   // = Ptr($697428);  // $300 (768) size slot   o_TextBuffer
   UtilsB2.SetPcharValue(Dest, Text, Length(Text) + 1);
+end;
+
+function StrAlloc(Size: Cardinal): myPChar; inline;
+begin
+  Result := AnsiStrAlloc(Size);
+end;
+
+function Now: TDateTime; inline;
+begin
+  Result := SysUtils.Now;
+end;
+
+{ EInOutError }
+
+constructor EInOutError.Create(const Msg: myAStr);
+begin
+  inherited Create(string(Msg));
+end;
+
+constructor EInOutError.Create(const Msg, Path: myAStr);
+begin
+  inherited Create(string(Msg));
+  Self.Path := Path;
+  Message := Message + sLineBreak + '[' + string(Path) + ']';
+end;
+
+constructor EInOutError.CreateRes(ResStringRec: PResStringRec; const Path: myAStr);
+begin
+  Create(myAStr(LoadResString(ResStringRec)), Path);
 end;
 
 end.

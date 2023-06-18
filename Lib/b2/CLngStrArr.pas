@@ -4,19 +4,8 @@ DESCRIPTION:  Working with arrays of language strings
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses Legacy, SysUtils, Math, UtilsB2, StrLib, CLang, CBinString;
+uses SysUtils, Math, UtilsB2, StrLib, CLang, CBinString, Legacy;
 
 const
   LNGSTRARR_SIGNATURE : myAstr = 'LAR';
@@ -161,7 +150,7 @@ begin
   end; // .if
   result  :=  result and CLang.ValidateStructSize(Self.LngStrArr.Header.StructSize, RealStructSize, Error);
   // * * * * * //
-  SysUtils.FreeAndNil(BinStringReader);
+  Legacy.FreeAndNil(BinStringReader);
 end; // .function TLngStrArrReader.Validate
 
 function TLngStrArrReader.GetUnicode: boolean;
@@ -207,7 +196,7 @@ begin
     end;
   end;
   // * * * * * //
-  SysUtils.FreeAndNil(BinStringReader);
+  Legacy.FreeAndNil(BinStringReader);
 end; // .function TLngStrArrReader.SeekBinString
 
 function TLngStrArrReader.ReadBinString ((* n *) var BinStringReader: CBinString.TBinStringReader): boolean;

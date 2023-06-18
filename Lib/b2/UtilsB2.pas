@@ -4,21 +4,10 @@ DESCRIPTION:  Addition to System unit
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE11.0
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 {$ASSERTIONS ON}
 
 (***)  interface  (***)
-uses Legacy, Math, SysUtils, Windows;
+uses Math, SysUtils, Windows, Legacy;
 
 const
   (* Relations between containers and their items *)
@@ -484,6 +473,7 @@ begin
   MyGuard :=  Guard as TDefItemGuard;
   // * * * * * //
   result := (Item <> nil) or (MyGuard.AllowNil);
+
   if ItemIsObject and (Item <> nil) and (MyGuard.ItemType <> NO_TYPEGUARD) then begin
     result := result and (TObject(Item) is MyGuard.ItemType);
   end;
@@ -518,9 +508,9 @@ function IfThen (const Condition: boolean; const SuccessResult, FailureResult: m
 function IfThen (const Condition: boolean; const SuccessResult, FailureResult: integer): integer; inline; overload;     begin if Condition then result := SuccessResult else result := FailureResult; end;
 function IfThen (const Condition: boolean; const SuccessResult, FailureResult: pointer): pointer; inline; overload;     begin if Condition then result := SuccessResult else result := FailureResult; end;
 
-// function InterlockedCompareExchange (var Destination: integer; NewValue, Comperand: integer): integer; stdcall; external 'kernel32' name 'InterlockedCompareExchange';   // BYME
-// function InterlockedIncrement       (var Value: integer): integer; stdcall; external 'kernel32' name 'InterlockedIncrement';                                             // BYME
-// function InterlockedDecrement       (var Value: integer): integer; stdcall; external 'kernel32' name 'InterlockedDecrement';                                             // BYME
+ function InterlockedCompareExchange (var Destination: integer; NewValue, Comperand: integer): integer; stdcall; external 'kernel32' name 'InterlockedCompareExchange';   // BYME
+ function InterlockedIncrement       (var Value: integer): integer; stdcall; external 'kernel32' name 'InterlockedIncrement';                                             // BYME
+ function InterlockedDecrement       (var Value: integer): integer; stdcall; external 'kernel32' name 'InterlockedDecrement';                                             // BYME
 
 procedure TInterfaceAwareObject.AfterConstruction;
 begin
@@ -529,13 +519,12 @@ end;
 
 procedure TInterfaceAwareObject.BeforeDestruction;
 begin
-  // BYME old: Assert(Self.fHasMainOwner = Self.fRefCount, 'TInterfaceAwareObject consistency was broken. An attempt to destroy object with non-zero reference count or existing external owner');
   {!} Assert(Self.fHasMainOwner = (Self.fRefCount and $8000000), 'TInterfaceAwareObject consistency was broken. An attempt to destroy object with non-zero reference count or existing external owner');
 end;
 
 procedure TInterfaceAwareObject.ReleaseMainOwnage;
 begin
-  if (Self.fHasMainOwner <> 0) and (AtomicCmpExchange(Self.fHasMainOwner, 0, 1) = 0) then begin
+  if (Self.fHasMainOwner <> 0) and (InterlockedCompareExchange(Self.fHasMainOwner, 0, 1) = 0) then begin
     Self._Release();
   end;
 end;
@@ -552,8 +541,8 @@ end;
 
 function TInterfaceAwareObject.BecomeMainOwner: {O} TInterfaceAwareObject;
 begin
-  {!} Assert(AtomicIncrement(Self.fRefCount) > 1, 'Error trying to become main owner of freed interfaced object');
-  {!} Assert((Self.fHasMainOwner = 0) and (AtomicCmpExchange(Self.fHasMainOwner, 1, 0) = 1), 'Another pointer is main owner of interfaced object. Cannot become main owner');
+  {!} Assert(InterlockedIncrement(Self.fRefCount) > 1, 'Error trying to become main owner of freed interfaced object');
+  {!} Assert((Self.fHasMainOwner = 0) and (InterlockedCompareExchange(Self.fHasMainOwner, 1, 0) = 1), 'Another pointer is main owner of interfaced object. Cannot become main owner');
   result := Self;
 end;
 

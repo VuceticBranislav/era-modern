@@ -4,19 +4,8 @@ DESCRIPTION:  Text model implementation
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses Legacy, SysUtils, Math, UtilsB2, Lists, StrLib, ATexts;
+uses SysUtils, Math, UtilsB2, Lists, StrLib, ATexts, Legacy;
 
 type
   TTextLinesSettings = class
@@ -188,7 +177,7 @@ end; // .constructor TTextLines.Create
 
 destructor TTextLines.Destroy;
 begin
-  SysUtils.FreeAndNil(Self.fLines);
+  Legacy.FreeAndNil(Self.fLines);
   inherited;
 end;
 
@@ -207,7 +196,7 @@ begin
   Self.fNumLines      :=  SrcText.NumLines;
   Self.fLineEndMarker :=  SrcText.LineEndMarker;
   Self.fTextEnd       :=  SrcText.TextEnd;
-  SysUtils.FreeAndNil(Self.fLines);
+  Legacy.FreeAndNil(Self.fLines);
   Self.fLines         :=  Lists.TStringList(SrcText.fLines.Clone);
 end; // .procedure TTextLines.Assign
 
@@ -512,7 +501,7 @@ begin
   end else begin
     Self.fLineEndMarker :=  TTextLinesSettings(Settings).LineEndMarker;
   end;
-  SysUtils.FreeAndNil(Settings);
+  Legacy.FreeAndNil(Settings);
   Self.fLines.LoadFromText(Source, Self.LineEndMarker);
   Self.fLen       :=  Length(Source);
   Self.fTextEnd   :=  Self.Len = 0;

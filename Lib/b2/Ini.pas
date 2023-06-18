@@ -4,21 +4,9 @@ DESCRIPTION: Memory cached ini files management
 AUTHOR:      Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE11.0
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
 
 uses
-  Legacy,
   SysUtils,
 
   AssocArrays,
@@ -28,7 +16,7 @@ uses
   StrLib,
   TextScan,
   TypeWrappers,
-  UtilsB2;
+  UtilsB2, Legacy;
 
 type
   (* Import *)

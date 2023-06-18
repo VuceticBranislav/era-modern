@@ -4,19 +4,8 @@ unit StrLib;
   AUTHOR:      Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 *)
 
-// D2006      --> XE11.0
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses Legacy, Windows, Math, SysUtils, Classes, StrUtils, UtilsB2;
+uses Windows, Math, SysUtils, Classes, StrUtils, UtilsB2, Legacy;
 
 const
   (* ExplodeEx *)

@@ -4,22 +4,11 @@
                All hooks are thread-safe.
 *)
 
-// D2006      --> XE11.0
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
 
 uses
-  Legacy, Windows, Math,
-  UtilsB2, PatchForge;
+  Windows, SysUtils, Math,
+  UtilsB2, PatchForge, Legacy;
 
 type
   TCallingConv = (

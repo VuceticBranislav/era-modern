@@ -4,17 +4,6 @@ unit Log;
   AUTHOR:      Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (*
   Log is viewed as abstract list of records with sequential access. Every record contains time stamp.
   There is a possibility to turn off/on logging functions which may be useful, for example, in protection unit.
@@ -23,7 +12,7 @@ unit Log;
 *)
 
 (***) interface (***)
-uses Legacy, Windows, SysUtils, Classes, Concur;
+uses Windows, SysUtils, Classes, Concur, Legacy;
 
 const
   FREE_OLD_LOGGER = TRUE;
@@ -107,7 +96,7 @@ end;
 destructor TMemLogger.Destroy;
 begin
   Self.fCritSection.Delete;
-  SysUtils.FreeAndNil(Self.fListOfRecords);
+  Legacy.FreeAndNil(Self.fListOfRecords);
 end;
 
 function TMemLogger.Write (const EventSource, Operation, Description: myAStr): boolean;
@@ -126,7 +115,7 @@ begin
       Self.Lock;
 
       New(LogRec);
-      LogRec.TimeStamp   := SysUtils.Now;
+      LogRec.TimeStamp   := Legacy.Now;
       LogRec.EventSource := EventSource;
       LogRec.Operation   := Operation;
       LogRec.Description := Description;
@@ -273,7 +262,7 @@ begin
   {!} Assert(NewLogger <> nil);
   
   if FreeOldLogger then begin
-    SysUtils.FreeAndNil(Logger);
+    Legacy.FreeAndNil(Logger);
   end;
   
   Logger := NewLogger;

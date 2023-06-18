@@ -38,16 +38,6 @@ section        = section_header [g] [section_body]
 main           = {[g] section}
 *)
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
 
 interface
 uses UtilsB2, Legacy;

@@ -4,19 +4,8 @@ DESCRIPTION:  Working with language packages
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses Legacy, SysUtils, Math, Classes, UtilsB2, CLang, CLngUnit;
+uses SysUtils, Math, Classes, UtilsB2, CLang, CLngUnit, Legacy;
 
 const
   LNGPACK_SIGNATURE : myAStr = 'LPK';
@@ -97,7 +86,7 @@ var
 
 begin
   for Unicode:=FALSE to TRUE do begin
-    SysUtils.FreeAndNil(Self.fSearchIndex[Unicode]);
+    Legacy.FreeAndNil(Self.fSearchIndex[Unicode]);
   end;
 end; // .destructor TLngPackReader.Destroy
 
@@ -187,9 +176,9 @@ begin
   result  :=  result and CLang.ValidateStructSize(Self.LngPack.Header.StructSize, RealStructSize, Error);
   // * * * * * //
   for Unicode:=FALSE to TRUE do begin
-    SysUtils.FreeAndNil(UnitNames[Unicode]);
+    Legacy.FreeAndNil(UnitNames[Unicode]);
   end;
-  SysUtils.FreeAndNil(LngUnitReader);
+  Legacy.FreeAndNil(LngUnitReader);
 end; // .function TLngPackReader.Validate
 
 function TLngPackReader.GetStructSize: integer;
@@ -222,7 +211,7 @@ begin
     Self.SeekLngUnit(SavedLngUnitInd);
   end;
   // * * * * * //
-  SysUtils.FreeAndNil(LngUnitReader);
+  Legacy.FreeAndNil(LngUnitReader);
 end; // .procedure TLngPackReader.CreateSearchIndex
 
 function TLngPackReader.SeekLngUnit (SeekLngUnitInd: integer): boolean;
@@ -244,7 +233,7 @@ begin
     end;
   end;
   // * * * * * //
-  SysUtils.FreeAndNil(LngUnitReader);
+  Legacy.FreeAndNil(LngUnitReader);
 end; // .function TLngPackReader.SeekLngUnit
 
 function TLngPackReader.ReadLngUnit ((* n *) var LngUnitReader: CLngUnit.TLngUnitReader): boolean;

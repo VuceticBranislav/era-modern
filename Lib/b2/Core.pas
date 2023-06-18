@@ -4,23 +4,12 @@ DESCRIPTION: Low-level functions
 AUTHOR:      Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
 uses
-  Legacy, Windows, PsApi, Math, StrUtils, SysUtils,
+  Windows, PsApi, Math, StrUtils, SysUtils,
   hde32, PatchApi, ApiJack,
   UtilsB2, Alg, WinWrappers, DlgMes, CFiles, Files, DataLib, StrLib, Concur,
-  DebugMaps;
+  DebugMaps, Legacy;
 
 type
   (* Import *)
@@ -226,7 +215,7 @@ end; // .constructor TModuleContext.Create
 
 destructor TModuleContext.Destroy;
 begin
-  FreeAndNil(fModuleList);
+  Legacy.FreeAndNil(fModuleList);
   fCritSection.Delete;
 end; // .destructor TModuleContext.Destroy
 
@@ -300,7 +289,7 @@ end;
 
 procedure TModuleContext.UpdateModuleList;
 begin
-  FreeAndNil(fModuleList);
+  Legacy.FreeAndNil(fModuleList);
   fModulesOrderByAddr := nil;
 end;
 
@@ -698,7 +687,7 @@ begin
     end; // .for
   end; // .if
   // * * * * * //
-  FreeAndNil(ModuleInfo);
+  Legacy.FreeAndNil(ModuleInfo);
 end; // .function GetModuleList
 
 function FindModuleByAddr ({n} Addr: pointer; ModuleList: TModuleList; out ModuleInd: integer): boolean;

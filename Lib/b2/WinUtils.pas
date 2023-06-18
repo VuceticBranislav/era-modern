@@ -1,19 +1,8 @@
 unit WinUtils;
 
-// D2006      --> XE11.0
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 interface
 uses
-  Legacy, Windows, UtilsB2;
+  Windows, Legacy;
 
 const
   OWNS_BUF    = true;
@@ -62,12 +51,9 @@ function TakeScreenshot (hWnd: THandle; HideCursor: boolean; out Res: TRawImage)
 function GetExePath: myWStr;
 function GetCurrentDirW: myWStr;
 function SetCurrentDirW (const DirPath: myWStr): boolean;
-function GetLongPathNameW (lpszShortPath, lpszLongPath: myPWChar; cchBuffer: integer): integer; stdcall; external 'kernel32.dll';
+function GetLongPathNameW (lpszShortPath, lpszLongPath: myPWChar; cchBuffer: integer): integer; stdcall; external kernel32;
 function GetLongPathW (const FilePath: myWStr; Success: pboolean = nil): myWStr;
 function WaitForObjects (Objects: array of THandle; out ResObject: THandle; TimeoutMsec: integer = integer(INFINITE); WaitAll: boolean = false): TWaitResult;
-
-(* Fills buffer with cryptographically safe random data *)
-function RtlGenRandom (Buf: pointer; BufSize: integer): boolean; stdcall; external 'advapi32.dll' name 'SystemFunction036';
 
 (* Returns UTC time in msec since Jan 1, 1970 *)
 function GetMicroTime: Int64;
@@ -81,11 +67,14 @@ function GetSysDirW: myWStr;
 (* Returns attributes for file at given path *)
 function GetFileAttrs (const Path: myWStr; {out} var Attrs: integer): boolean;
 
+(* Fills buffer with cryptographically safe random data *)
+function RtlGenRandom (Buf: pointer; BufSize: integer): boolean; stdcall; external advapi32 name 'SystemFunction036';
+
 
 (***)  implementation  (***)
 
 
-uses Concur;
+uses UtilsB2, Concur;
 
 var
   ExePathW: myWStr = '';

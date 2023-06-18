@@ -4,19 +4,8 @@ DESCRIPTION:  Additional math/algorithmic functions
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE11.0
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
-uses UtilsB2;
+uses UtilsB2, Math;
 
 type
   TOnRangeMinMaxConflict = (FORCE_MIN_VALUE, FORCE_MAX_VALUE);

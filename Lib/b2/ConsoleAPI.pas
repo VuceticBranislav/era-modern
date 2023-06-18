@@ -5,19 +5,8 @@ VERSION = '1.0'
 AUTHOR = 'Berserker'
 }
 
-// D2006      --> XE11.0
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 interface
-uses Windows, SysUtils, UtilsB2, Legacy;
+uses Windows, SysUtils, Legacy;
 
 type
   PWin32Cell = ^TWin32Cell;

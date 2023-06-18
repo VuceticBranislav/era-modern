@@ -4,21 +4,9 @@ DESCRIPTION:  Implementations of virtual device with sequential access
 AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
-// D2006      --> XE11.0
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 (***)  interface  (***)
 
 uses
-  Legacy,
   Math,
   SysUtils,
   Windows,
@@ -26,7 +14,7 @@ uses
   CFiles,
   Log,
   UtilsB2,
-  WinWrappers; {$WARN SYMBOL_PLATFORM OFF}
+  WinWrappers, Legacy; {$WARN SYMBOL_PLATFORM OFF}
 
 const
   (* IMPORT *)
@@ -731,7 +719,7 @@ var
 begin
   result := true;
 
-  if SysUtils.FindFirst(string(FileMask), AdditionalAttrs, SearchRec) = 0 then begin
+  if Legacy.FindFirst(FileMask, AdditionalAttrs, SearchRec) = 0 then begin
     repeat
       if
         (FileLowCaseExt = ANY_EXT) or
@@ -739,7 +727,7 @@ begin
       then begin
         result  :=  Callback(SearchRec);
       end;
-    until SysUtils.FindNext(SearchRec) <> 0;
+    until Legacy.FindNext(SearchRec) <> 0;
 
     Legacy.FindClose(SearchRec);
   end; // .if
@@ -889,13 +877,13 @@ begin
   result := false;
 
   if not Self.fSearchStarted then begin
-    Self.fLastOperRes   := SysUtils.FindFirst(string(Self.fDir + '\*'), SysUtils.faAnyFile, Self.fFoundRec) = 0;
+    Self.fLastOperRes   := Legacy.FindFirst(Self.fDir + '\*', Legacy.faAnyFile, Self.fFoundRec) = 0;
     Self.fSearchStarted := Self.fLastOperRes;
     result              := Self.fSearchStarted and Self.MatchResult;
   end;
 
   if not result and Self.fSearchStarted then begin
-    while not result and (SysUtils.FindNext(Self.fFoundRec) = 0) do begin
+    while not result and (Legacy.FindNext(Self.fFoundRec) = 0) do begin
       result := Self.MatchResult;
     end;
 
