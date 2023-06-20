@@ -69,17 +69,17 @@ begin
   Inc(integer(result), EXTERNAL_BUF_PREFIX_SIZE);
 end;
 
-function Externalize (const Str: myAStr): {O} pointer; //overload;
+function Externalize (const Str: myAStr): {O} pointer; overload;
 begin
   result := AllocExternalBuf(Length(Str) + 1);
   UtilsB2.CopyMem(Length(Str) + 1, myPChar(Str), result);
 end;
 
-//function Externalize (const Str: WideString): {O} pointer; overload; // BYME remove this one
-//begin
-//  result := AllocExternalBuf((Length(Str) + 1) * sizeof(WideChar));
-//  UtilsB2.CopyMem((Length(Str) + 1) * sizeof(WideChar), PWideChar(Str), result);
-//end;
+function Externalize (const Str: myWStr): {O} pointer; overload;
+begin
+  result := AllocExternalBuf((Length(Str) + 1) * sizeof(myWChar));
+  UtilsB2.CopyMem((Length(Str) + 1) * sizeof(myWChar), myPWChar(Str), result);
+end;
 
 (* Frees buffer, that was transfered to client earlier *)
 procedure MemFree ({On} Buf: pointer); stdcall;

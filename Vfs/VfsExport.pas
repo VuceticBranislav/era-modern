@@ -30,10 +30,10 @@ begin
   UtilsB2.CopyMem(Length(Str) + 1, myPChar(Str), result);
 end;
 
-function Externalize (const Str: myWStr): {O} pointer; overload; // BYME remove this one
+function Externalize (const Str: myWStr): {O} pointer; overload;
 begin
-  GetMem(result, (Length(Str) + 1) * sizeof(WideChar));
-  UtilsB2.CopyMem((Length(Str) + 1) * sizeof(WideChar), myPWChar(Str), result);
+  GetMem(result, (Length(Str) + 1) * sizeof(myWChar));
+  UtilsB2.CopyMem((Length(Str) + 1) * sizeof(myWChar), myPWChar(Str), result);
 end;
 
 function MapDir (const VirtPath, RealPath: myPWChar; OverwriteExisting: Boolean; Flags: Integer = 0): LONGBOOL; stdcall;
