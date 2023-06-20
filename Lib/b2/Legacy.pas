@@ -4,18 +4,6 @@ DESCRIPTION:
 AUTHOR:      
 }
 
-// Should always be last unit in uses.
-// D2006      --> XE10.3
-// String     --> myAStr
-// WideString --> myWStr
-// Char       --> myChar
-// WideChar   --> myWChar
-// PChar      --> myPChar
-// PWideChar  --> myPWChar
-// PPChar     --> myPPChar;
-// PAnsiString--> myPAStr;
-// PWideString--> myPWStr;
-
 interface
 
 uses Windows, SysUtils, AnsiStrings; {$WARN SYMBOL_PLATFORM OFF}
@@ -120,6 +108,7 @@ function Supports(const Instance: TObject; const IID: TGUID; out Intf): Boolean;
 procedure Buff(Dest: myPChar; Text: myAStr);
 function StrAlloc(Size: Cardinal): myPChar; inline;
 function Now: TDateTime; inline;
+procedure StopDebugger; inline;
 function sprintf(S: myPChar; const Format: PAnsiChar): Integer; cdecl; varargs; external 'msvcrt.dll';
 function DeleteFileA(lpFileName: myPChar): LongBool; stdcall; external kernel32 name 'DeleteFileA';
 
@@ -1039,6 +1028,14 @@ end;
 function Now: TDateTime; inline;
 begin
   Result := SysUtils.Now;
+end;
+
+procedure StopDebugger; inline;
+begin
+    {$IFDEF DEBUG}
+    MessageBoxA(0, myPChar('Attach debugger.'), myPChar('Debugger'), MB_OK);
+    DebugBreak();
+    {$ENDIF}
 end;
 
 { EInOutError }
