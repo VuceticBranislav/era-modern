@@ -677,6 +677,7 @@ begin
   FileContentsStream := nil;
   result             := nil;
   ImageType          := GetImageTypeByName(FilePath);
+
   if (ImageType <> IMG_UNKNOWN) and EraZip.ReadFileContentsFromZipFs(FilePath, FileContents) then begin
     result             := CreateImageOfType(ImageType);
     FileContentsStream := Classes.TStringStream.Create(FileContents);
@@ -1178,6 +1179,7 @@ begin
   // if PngFilePath <> '' then begin
   //   Lodman.FindRedirection(StrLib.Concat([Def.GetName, ':', PngFileName]), PngFilePath, [Lodman.FRF_EXCLUDE_FALLBACKS]);
   //   result := LoadPngResource(PngFilePath);
+
   //   if (result <> nil) and (ColorizationInfo.ColorizationType = COLORIZATION_SPECIAL_COLORS) then begin
   //     ApplyPaletteColorizationToPng(TRawImage(result.Data), ColorizationInfo.PlayerColor);
   //   end;
@@ -1885,8 +1887,6 @@ begin
     if ImageResource <> nil then begin
       Image  := ImageResource.Data as TRawImage;
       result := TPcx8ItemStatic.Create(FileNameStr, Image.Width, Image.Height);
-
-      ImageResource.DecRef;
     end else begin
       result := Ptr(PatchApi.Call(THISCALL_, OrigFunc, [FileName]));
     end;
@@ -1917,8 +1917,6 @@ begin
     if ImageResource <> nil then begin
       Image  := ImageResource.Data as TRawImage;
       result := TPcx16ItemStatic.Create(FileNameStr, Image.Width, Image.Height);
-
-      ImageResource.DecRef;
     end else begin
       result := Ptr(PatchApi.Call(THISCALL_, OrigFunc, [FileName]));
     end;

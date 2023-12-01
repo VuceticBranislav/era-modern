@@ -1728,7 +1728,7 @@ begin
   result := nil;
 
   if (aWidth <= 0) or (aHeight <= 0) then begin
-    Core.NotifyError(Legacy.Format('Cannot create pcx16 image of size %dx%d', [aWidth, aHeight]));
+    Core.NotifyError(Legacy.Format('Cannot create pcx8 image of size %dx%d', [aWidth, aHeight]));
 
     aWidth  := UtilsB2.IfThen(aWidth > 0, aWidth, 1);
     aHeight := UtilsB2.IfThen(aHeight > 0, aHeight, 1);

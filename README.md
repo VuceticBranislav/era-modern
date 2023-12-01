@@ -22,13 +22,13 @@
     <img src="https://user-images.githubusercontent.com/24853106/235458980-7db2599e-b53c-4ee3-83d9-bb0098543189.png" alt="Logo" width="312" height="256">
   </a>
   
-  ### ERA 3 - New era of mod making - Delphi XE, 10 & 11
+  ### ERA 3 - New era of mod making - Delphi XE, 10, 11 & 12
   <p align="center">
-    <i>Code ported from Delphi 7 version to modern Delphi (Delphi XE, 10 & 11)<br/>
+    <i>Code ported from Delphi 7 version to modern Delphi (Delphi XE, 10, 11 & 12)<br/>
     Contains ERA and VFS projects as well as B2 library.<br/>
     <br/></i>
     Original commits containing code are from <a href="https://github.com/ethernidee">ethernidee</a> repositories:<br/>
-    ERA: <a href="https://github.com/ethernidee/era/tree/4dd5ea55340c0dd014138ea2940ba598acfbc0bb"><strong>4dd5ea5</strong></a><br/>
+    ERA: <a href="https://github.com/ethernidee/era/tree/3021c66faf646d013db3683ee56ba101e01caf5e"><strong>3021c66</strong></a><br/>
     VFS: <a href="https://github.com/ethernidee/vfs/tree/5e4a7f0acf1bdfa9eadb3f63c7177e8f0ccbf2e0"><strong>5e4a7f0</strong></a><br/>
     B2:   <a href="https://github.com/ethernidee/b2/tree/001251eb5f45378c329b6a60a4a4d87c346f36a0"><strong>001251e</strong></a>
   </p>
