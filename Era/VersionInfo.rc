@@ -13,8 +13,8 @@
 #endif
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION                           3,9,4,0
-PRODUCTVERSION                        3,9,4,0
+FILEVERSION                           3,9,5,0
+PRODUCTVERSION                        3,9,5,0
 FILEFLAGSMASK                         VS_FFI_FILEFLAGSMASK
 FILEFLAGS                             (VER_PRIVATEBUILD | VER_PRERELEASE | VER_DEBUG)
 FILEOS                                VOS_NT | VOS__WINDOWS32
@@ -25,8 +25,8 @@ BEGIN
     BEGIN
         BLOCK "000004E4"
         BEGIN
-            VALUE "ProductVersion",   "3.9.4.0\0"
-            VALUE "FileVersion",      "3.9.4.0\0"
+            VALUE "ProductVersion",   "3.9.5.0\0"
+            VALUE "FileVersion",      "3.9.5.0\0"
             VALUE "CompanyName",      "BerSoft\0"
             VALUE "FileDescription",  "Era Project\0"
             VALUE "InternalName",     "\0"
