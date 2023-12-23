@@ -121,8 +121,8 @@ const
   ERM_V_1 = $887668;
 
 var
-  DllName:   myAStr;
-  DllHandle: integer;
+  DllName:             myAStr;
+  DllHandle:           integer;
   FileExt:             myAStr;
   ForbiddenPluginPath: myAStr;
 

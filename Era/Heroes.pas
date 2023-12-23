@@ -55,11 +55,11 @@ const
   DEFAULT_GAME_SETTINGS_FILE : myAStr = 'default heroes3.ini';
   GAME_SETTINGS_FILE         : myAStr = 'heroes3.ini';
   GAME_SETTINGS_SECTION      : myAStr = 'Settings';
-  
+
   (* Stacks on battlefield *)
   NUM_BATTLE_STACKS          = 42;
   NUM_BATTLE_STACKS_PER_SIDE = 21;
-  
+
   (*  BattleMon  *)
   NO_STACK          = -1;
   STACK_STRUCT_SIZE = 1352;
@@ -98,7 +98,7 @@ const
   SKILL_LEVEL_BASIC    = 1;
   SKILL_LEVEL_ADVANCED = 2;
   SKILL_LEVEL_EXPERT   = 3;
-  
+
   SHOW_INTRO_OPT:             pinteger  = Ptr($699410);
   MUSIC_VOLUME_OPT:           pinteger  = Ptr($6987B0);
   SOUND_VOLUME_OPT:           pinteger  = Ptr($6987B4);
@@ -138,7 +138,7 @@ const
   MAIN_GAME_FULL_SCREEN_OPT:  pinteger  = Ptr($698808);
   APP_PATH_OPT:               myPChar   = Ptr($698614);
   CD_DRIVE_OPT:               myPChar   = Ptr($698888);
-  
+
   (* Dialog Ids *)
   ADVMAP_DLGID              = $402AE0;
   BATTLE_DLGID              = $4723E0;
@@ -184,7 +184,7 @@ const
   WND_MANAGER    = $6992D0;
   SOUND_MANAGER  = $699414;
   COMBAT_MANAGER = $699420;
-  
+
   (* Colors *)
   RED_COLOR              = 'F2223E';
   HEROES_GOLD_COLOR      = 'FFE794';
@@ -440,11 +440,12 @@ type
 
   TMAlloc = function (Size: integer): pointer; cdecl;
   TMFree  = procedure (Addr: pointer); cdecl;
-  
+
   TGzipWrite  = procedure (Data: pointer; DataSize: integer); cdecl;
   TGzipRead   = function (Dest: pointer; DataSize: integer): integer; cdecl;
   TWndProc    = function (hWnd, Msg, wParam, lParam: integer): longbool; stdcall;
-  
+
+  TGetAdvMapTileVisibility = function (x, y, z: integer): integer; cdecl;
   TGetBattleCellByPos = function (Pos: integer): pointer; cdecl;
   TMemAllocFunc       = function (Size: integer): pointer; cdecl;
   TMemFreeFunc        = procedure (Buf: pointer); cdecl;
@@ -1161,11 +1162,12 @@ const
   a2i:            function (Str: myPChar): int cdecl = Ptr($6184D9);
   a2f:            function (Str: myPChar): single cdecl = Ptr($619366);
 
+  GetAdvMapTileVisibility: TGetAdvMapTileVisibility = Ptr($715A7E);
   GetBattleCellByPos:  TGetBattleCellByPos = Ptr($715872);
   MemAllocFunc:        TMemAllocFunc       = Ptr($617492);
   MemFree:             TMemFreeFunc        = Ptr($60B0F0);
   ComplexDlgResItemId: pinteger            = Ptr($699424);
-  
+
   MapItemToCoords:  TMapItemToCoords  = Ptr($711EC6);
   CoordsToMixedPos: TCoordsToMixedPos = Ptr($711E7F);
 {$J+}
@@ -1675,7 +1677,7 @@ begin
   NewItem.Name    := aItem.Name;
   NewItem.NameEnd := 0;
   NewItem.Item    := aItem;
-  
+
   PatchApi.Call(PatchApi.THISCALL_, Ptr($55DDF0), [@Self, @ResPtrs, @NewItem]);
 end; // .procedure TBinaryTreeNode.AddItem
 
@@ -1850,7 +1852,7 @@ var
 begin
   Temp       := pointer(p);
   pointer(p) := nil;
-  
+
   if Temp <> nil then begin
     MemFree(Temp);
   end;
@@ -2105,7 +2107,7 @@ const
   SLOTS_PER_SIDE  = 21;
   SIDE_OFFSET     = $18;
   STACKID_OFFSET  = $19;
-  
+
 var
   Side: byte;
 
@@ -2256,7 +2258,7 @@ begin
     CALL EAX
     MOV [FuncResPtr], EAX
   end; // .asm
-  
+
   result := FuncResPtr.CampaignFileName;
 end; // .function GetCampaignFileName
 
