@@ -222,7 +222,7 @@ begin
       exit;
     end;
   end;
-  {!} Assert(Self.GcSources(), '[IMPOSSIBLE] TRecruitMonsDlgOpenEvent.GcSources failed for source ID = ' + Legacy.IntToStr(SourceId));
+  {!} Assert(Self.GcSources(), string('[IMPOSSIBLE] TRecruitMonsDlgOpenEvent.GcSources failed for source ID = ' + Legacy.IntToStr(SourceId)));
   Self.AllocSource(SourceId, SourceAddr, Disposable);
 end;
 procedure TRecruitMonsDlgOpenEvent.UpdateSlotSourceAddr (SlotInd: integer);

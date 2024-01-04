@@ -254,7 +254,7 @@ end;
 
 function TResourceList.GetItem (Ind: integer): TResource;
 begin
-  {!} Assert(Math.InRange(Ind, 0, Self.fItems.Count - 1), Legacy.Format('Cannot get item with index %d for resource list. Item is out of bounds', [Ind]));
+  {!} Assert(Math.InRange(Ind, 0, Self.fItems.Count - 1), string(Legacy.Format('Cannot get item with index %d for resource list. Item is out of bounds', [Ind])));
   result := Self.fItems[Ind];
 end;
 

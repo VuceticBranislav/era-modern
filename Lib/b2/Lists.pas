@@ -276,7 +276,7 @@ end;
 
 function TList.Get (Ind: integer): (* n *) pointer;
 begin
-  {!} Assert(Math.InRange(Ind, 0, Self.Count - 1), Legacy.Format('List index %d is invalid for list of size %d', [Ind, Self.Count]));
+  {!} Assert(Math.InRange(Ind, 0, Self.Count - 1), string(Legacy.Format('List index %d is invalid for list of size %d', [Ind, Self.Count])));
   result  :=  Self.fData[Ind];
 end;
 

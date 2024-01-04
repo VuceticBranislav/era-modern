@@ -84,7 +84,7 @@ begin
   with Files.Locate(GameExt.GameDir + '\' + BUTTONS_PATH + '\*.btn', Files.ONLY_FILES) do begin
     while FindNext do begin
       if FoundRec.Rec.Size > 0 then begin
-        {!} Assert(Files.ReadFileContents(FoundPath, FileContents), Legacy.Format('Failed to load button config file at "%s"', [FoundPath]));
+        {!} Assert(Files.ReadFileContents(FoundPath, FileContents), string(Legacy.Format('Failed to load button config file at "%s"', [FoundPath])));
         Lines    := StrLib.Explode(Legacy.Trim(FileContents), #13#10);
         NumLines  :=  Length(Lines);
 

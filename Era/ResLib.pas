@@ -111,7 +111,7 @@ constructor TSharedResource.CreateAndBind (Manager: TResourceManager; Data: TObj
 begin
   {!} Assert(Manager <> nil);
   {!} Assert(Data <> nil);
-  {!} Assert(Size > 0, 'Resource size cannot be negative. Given: ' + Legacy.IntToStr(Size));
+  {!} Assert(Size > 0, string('Resource size cannot be negative. Given: ' + Legacy.IntToStr(Size)));
 
   inherited Create;
 
@@ -129,7 +129,7 @@ end;
 
 destructor TSharedResource.Destroy;
 begin
-  {!} Assert(Self.fRefCount = 0, 'Cannot destroy resource with ' + Legacy.IntToStr(Self.fRefCount) + ' references left');
+  {!} Assert(Self.fRefCount = 0, string('Cannot destroy resource with ' + Legacy.IntToStr(Self.fRefCount) + ' references left'));
   Legacy.FreeAndNil(Self.fData);
 end;
 
@@ -285,7 +285,7 @@ var
 {U} ResQueueItem: TResQueueItem;
 
 begin
-  {!} Assert(Self.fResourceMap[Source] = nil, 'Cannot register resource "' + Source + '" twice');
+  {!} Assert(Self.fResourceMap[Source] = nil, string('Cannot register resource "' + Source + '" twice'));
 
   Resource                  := TSharedResource.CreateAndBind(Self, Data, Size, Source);
   ResQueueItem              := TResQueueItem.Create(Resource);

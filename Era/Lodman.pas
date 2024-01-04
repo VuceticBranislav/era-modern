@@ -96,7 +96,7 @@ var
     i:            integer;
    
 begin
-  {!} Assert(Math.InRange(LodInd, 0, NumLods - 1), 'Lod index is out of allowed range: ' + Legacy.IntToStr(LodInd));
+  {!} Assert(Math.InRange(LodInd, 0, NumLods - 1), string('Lod index is out of allowed range: ' + Legacy.IntToStr(LodInd)));
   Table   := nil;
   Indexes := nil;
   // * * * * * //

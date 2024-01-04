@@ -138,14 +138,14 @@ begin
 
           {!} Assert(
             not Legacy.FileExists(ForbiddenPluginPath),
-            Legacy.Format('Failed to load plugin "%s", because "%s" is also present. Duplicate plugin files with different extensions detected.', [FoundPath, ForbiddenPluginPath])
+            string(Legacy.Format('Failed to load plugin "%s", because "%s" is also present. Duplicate plugin files with different extensions detected.', [FoundPath, ForbiddenPluginPath]))
           );
 
         // Providing Era handle in v1 for compatibility reasons
         PINTEGER(ERM_V_1)^ := hEra;
 
         DllHandle := Windows.LoadLibraryA(myPChar(FoundPath));
-        {!} Assert(DllHandle <> 0, 'Failed to load DLL at "' + FoundPath + '"');
+        {!} Assert(DllHandle <> 0, string('Failed to load DLL at "' + FoundPath + '"'));
         PluginsList.AddObj(DllName, Ptr(DllHandle));
         end;
       end;  // .if
@@ -474,10 +474,10 @@ begin
   EventMan.GetInstance.Fire('OnAfterStructRelocations');
 end; // .procedure Init
 
-procedure AssertHandler (const Mes: myAStr; const FileName: string; LineNumber: integer; Address: pointer);
+// Explicitly cast the 'Message' parameter to a string in all instances of the Assert method. Literal strings do not require casting.
+procedure AssertHandler (const Mes, FileName: string; LineNumber: integer; Address: pointer);
 var
   CrashMes: myAStr;
-
 begin
   CrashMes := StrLib.BuildStr
   (
@@ -496,13 +496,13 @@ begin
 
   // Better callstack
   pinteger(0)^ := 0;
-  //raise EAssertFailure.Create(CrashMes) at Address;
+  //raise EAssertFailure.Create(string(CrashMes)) at Address;
 end; // .procedure AssertHandler
 
 begin
   ERA_VERSION_STR        := Legacy.Format('%d.%d.%d%s', [VER_Major, VER_Minor, VER_Build, VER_Sufix]);
   ERA_VERSION_INT        := VER_Major*1000 + VER_Minor*100 + VER_Build;
-  AssertErrorProc        := @AssertHandler;
+  AssertErrorProc        := AssertHandler;
   PluginsList            := DataLib.NewStrList(not UtilsB2.OWNS_ITEMS, DataLib.CASE_INSENSITIVE);
   MemRedirections        := DataLib.NewList(not UtilsB2.OWNS_ITEMS);
   ReportedPluginVersions := DataLib.NewStrList(not UtilsB2.OWNS_ITEMS, DataLib.CASE_INSENSITIVE);

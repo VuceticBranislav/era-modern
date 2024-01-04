@@ -1974,7 +1974,7 @@ var
       'z': result := LOCAL_VAR_TYPE_ID_Z;
       'e': result := LOCAL_VAR_TYPE_ID_E;
     else
-      Assert(false, 'LocalVarCharToId: unknown variable type: ' + c);
+      Assert(false, string('LocalVarCharToId: unknown variable type: ' + c));
       result := 0;
     end;
   end;
@@ -3781,7 +3781,7 @@ var
   i: integer;
 
 begin
-  {!} Assert(Length(Params) <= Length(ArgXVars), 'Cannot fire ERM event with so many arguments: ' + Legacy.IntToStr(length(Params)));
+  {!} Assert(Length(Params) <= Length(ArgXVars), string('Cannot fire ERM event with so many arguments: ' + Legacy.IntToStr(length(Params))));
 
   for i := 0 to High(Params) do begin
     ArgXVars[i + 1] := Params[i];

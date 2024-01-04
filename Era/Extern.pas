@@ -256,8 +256,8 @@ end;
 
 function Splice (OrigFunc, HandlerFunc: pointer; CallingConv: integer; NumArgs: integer; {n} CustomParam: pinteger; {n} AppliedPatch: ppointer): pointer; stdcall;
 begin
-  {!} Assert((CallingConv >= ord(ApiJack.CONV_FIRST)) and (CallingConv <= ord(ApiJack.CONV_LAST)), Legacy.Format('Splice: Invalid calling convention: %d', [CallingConv]));
-  {!} Assert(NumArgs >= 0, Legacy.Format('Splice>> Invalid arguments number: %d', [NumArgs]));
+  {!} Assert((CallingConv >= ord(ApiJack.CONV_FIRST)) and (CallingConv <= ord(ApiJack.CONV_LAST)), string(Legacy.Format('Splice: Invalid calling convention: %d', [CallingConv])));
+  {!} Assert(NumArgs >= 0, string(Legacy.Format('Splice>> Invalid arguments number: %d', [NumArgs])));
   if AppliedPatch <> nil then begin
     New(ApiJack.PAppliedPatch(AppliedPatch^));
     AppliedPatch := AppliedPatch^;

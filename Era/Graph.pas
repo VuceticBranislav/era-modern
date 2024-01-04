@@ -315,14 +315,14 @@ end;
 function ValidateBmp24 ({OU} Image: TBitmap): {OU} TBitmap;
 begin
   {!} Assert(Image <> nil);
-  {!} Assert((Image.Width > 0) and (Image.Height > 0), Format('Invalid bitmap24 dimensions: %dx%d', [Image.Width, Image.Height]));
+  {!} Assert((Image.Width > 0) and (Image.Height > 0), string(Legacy.Format('Invalid bitmap24 dimensions: %dx%d', [Image.Width, Image.Height])));
   Image.PixelFormat := pf24bit;
   result            := Image;
 end;
 
 procedure ValidateImageSize (Width: integer; Height: integer);
 begin
-  {!} Assert((Width > 0) and (Height > 0), Format('Invalid image dimensions specified: %dx%d', [Width, Height]));
+  {!} Assert((Width > 0) and (Height > 0), string(Legacy.Format('Invalid image dimensions specified: %dx%d', [Width, Height])));
 end;
 
 (* Returns number of bits per pixels, 0 for unknown or unsupported. *)
@@ -345,7 +345,7 @@ function GetBmpScanlineSize (Image: TBitmap): integer;
 begin
   {!} Assert(Image <> nil);
   result := GetBmpColorDepth(Image);
-  {!} Assert(result <> 0, 'Unsupported bitmap pixel format ' + Legacy.IntToStr(integer(Image.PixelFormat)));
+  {!} Assert(result <> 0, string('Unsupported bitmap pixel format ' + Legacy.IntToStr(integer(Image.PixelFormat))));
   result := (result * Image.Width + 31) div 32 * 4;
 end;
 
@@ -738,7 +738,7 @@ begin
   Width  := Image.Width;
   Height := Image.Height;
   result := Heroes.TPcx16ItemStatic.Create(Name, Width, Height);
-  {!} Assert(result <> nil, Format('Failed to create pcx16 image of size %dx%d', [Width, Height]));
+  {!} Assert(result <> nil, string(Legacy.Format('Failed to create pcx16 image of size %dx%d', [Width, Height])));
 
   PcxPixels       := pointer(result.Buffer);
   PcxScanlineSize := result.ScanlineSize;
@@ -774,7 +774,7 @@ begin
   Width  := Image.Width;
   Height := Image.Height;
   result := Heroes.TPcx24ItemStatic.Create(Name, Width, Height);
-  {!} Assert(result <> nil, Format('Failed to create pcx24 image of size %dx%d', [Width, Height]));
+  {!} Assert(result <> nil, string(Legacy.Format('Failed to create pcx24 image of size %dx%d', [Width, Height])));
 
   PcxScanlineSize := Width * Heroes.PCX24_BYTES_PER_COLOR;
   PcxPixels       := pointer(result.Buffer);
@@ -817,7 +817,7 @@ begin
     PcxName := Heroes.ResourceNamer.GetResourceName(PcxName);
 
     if Heroes.ResourceTree.FindItem(PcxName, Heroes.PBinaryTreeItem(CachedItem)) then begin
-      {!} Assert(CachedItem.IsPcx16(), Legacy.Format('Image "%s", requested to be loaded from "%s" is already loaded, but has non-pcx16 type', [PcxName, FilePath]));
+      {!} Assert(CachedItem.IsPcx16(), string(Legacy.Format('Image "%s", requested to be loaded from "%s" is already loaded, but has non-pcx16 type', [PcxName, FilePath])));
       result := CachedItem;
       result.IncRef();
     end;
@@ -1390,7 +1390,7 @@ begin
   end else if Heroes.Color16GreenChannelMaskPtr^ = GREEN_CHANNEL_MASK_15 then begin
     Color16Mode := GraphTypes.COLOR_16_MODE_555;
   end else begin
-    {!} Assert(false, Format('Invalid color 16 green channel mask: %d', [Heroes.Color16GreenChannelMaskPtr^]));
+    {!} Assert(false, string(Legacy.Format('Invalid color 16 green channel mask: %d', [Heroes.Color16GreenChannelMaskPtr^])));
   end;
 
   GraphTypes.SetColor16Mode(Color16Mode);

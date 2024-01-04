@@ -403,25 +403,25 @@ end;
 
 function TMemWriter.Read (Size: integer; {n} Addr: pbyte): integer;
 begin
-  {!} Assert(false, myAStr('TMemWriter.Read is not implemented'));
+  {!} Assert(false, 'TMemWriter.Read is not implemented');
   result := 0;
 end;
 
 function TMemWriter.ReadByte: byte;
 begin
-  {!} Assert(false, myAStr('TMemWriter.ReadByte is not implemented'));
+  {!} Assert(false, 'TMemWriter.ReadByte is not implemented');
   result := 0;
 end;
 
 function TMemWriter.ReadInt: integer;
 begin
-  {!} Assert(false, myAStr('TMemWriter.ReadInt is not implemented'));
+  {!} Assert(false, 'TMemWriter.ReadInt is not implemented');
   result := 0;
 end;
 
 function TMemWriter.ReadStr: myAStr;
 begin
-  {!} Assert(false, myAStr('TMemWriter.ReadStr is not implemented'));
+  {!} Assert(false, 'TMemWriter.ReadStr is not implemented');
   result := '';
 end;
 
@@ -437,17 +437,17 @@ end;
 
 procedure TMemReader.Write (Size: integer; {n} Addr: pbyte);
 begin
-  {!} Assert(false, myAStr('TMemReader.Write is not implemented'));
+  {!} Assert(false, 'TMemReader.Write is not implemented');
 end;
 
 procedure TMemReader.WriteByte (Value: byte);
 begin
-  {!} Assert(false, myAStr('TMemReader.WriteByte is not implemented'));
+  {!} Assert(false, 'TMemReader.WriteByte is not implemented');
 end;
 
 procedure TMemReader.WriteInt (Value: integer);
 begin
-  {!} Assert(false, myAStr('TMemReader.WriteInt is not implemented'));
+  {!} Assert(false, 'TMemReader.WriteInt is not implemented');
 end;
 
 procedure TMemReader.WriteStr (const Str: myAStr);

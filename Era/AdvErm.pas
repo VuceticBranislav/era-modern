@@ -933,7 +933,7 @@ var
   i:     integer;
 
 begin
-  {!} Assert(Length(Cmd) = 2, 'Cannot register invalid ERM receiver: ' + Cmd);
+  {!} Assert(Length(Cmd) = 2, string('Cannot register invalid ERM receiver: ' + Cmd));
   CmdId.Name[0] := Cmd[1];
   CmdId.Name[1] := Cmd[2];
 

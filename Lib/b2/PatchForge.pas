@@ -716,7 +716,7 @@ var
 
 begin
   LabelPos := PatchMaker.GetLabelPos(Self.fLabelName);
-  {!} Assert(LabelPos >= 0, Format('Unresolved label "%s". Cannot apply action for position %d', [Self.fLabelName, ItemPos]));
+  {!} Assert(LabelPos >= 0, string(Legacy.Format('Unresolved label "%s". Cannot apply action for position %d', [Self.fLabelName, ItemPos])));
   Inc(pinteger(ItemAddr)^, LabelPos);
 end;
 
@@ -731,7 +731,7 @@ var
 
 begin
   LabelPos := PatchMaker.GetLabelPos(Self.fLabelName);
-  {!} Assert(LabelPos >= 0, Format('Unresolved label "%s". Cannot apply action for position %d', [Self.fLabelName, ItemPos]));
+  {!} Assert(LabelPos >= 0, string(Legacy.Format('Unresolved label "%s". Cannot apply action for position %d', [Self.fLabelName, ItemPos])));
   Inc(pbyte(ItemAddr)^, LabelPos);
 end;
 
@@ -805,7 +805,7 @@ begin
       Inc(result, Disasm.Len);
     end;
 
-    {!} Assert(RetFound and (result <= Self.fMaxCodeSize), Format('Failed to find end of function at %x. Checked %d bytes', [integer(CodePtr), Self.fMaxCodeSize]));
+    {!} Assert(RetFound and (result <= Self.fMaxCodeSize), string(Legacy.Format('Failed to find end of function at %x. Checked %d bytes', [integer(CodePtr), Self.fMaxCodeSize])));
   end; // .if
 end; // .function TFuncCodeSizeDetector.GetCodeSize
 
@@ -883,7 +883,7 @@ begin
         vtInterface:  Self.WriteBytes(sizeof(vInterface),              @vInterface);
         vtInt64:      Self.WriteBytes(sizeof(vInt64),                  @vInt64);
       else
-        {!} Assert(false, 'TPatchMaker.Write: unsupported vType: ' + Legacy.IntToStr(vType));
+        {!} Assert(false, string('TPatchMaker.Write: unsupported vType: ' + Legacy.IntToStr(vType)));
       end; // .case
     end; // .with
 
@@ -936,7 +936,7 @@ var
 begin
   result   := Self;
   LabelPos := integer(Self.fLabels[LabelName]) - 1;
-  {!} Assert((LabelPos = -1) or (LabelPos = Self.Pos), Format('TPatchMaker: Label "%s" is already binded to %d position. Cannot reassign it to %d position', [LabelName, LabelPos, Self.Pos]));
+  {!} Assert((LabelPos = -1) or (LabelPos = Self.Pos), string(Legacy.Format('TPatchMaker: Label "%s" is already binded to %d position. Cannot reassign it to %d position', [LabelName, LabelPos, Self.Pos])));
   Self.fLabels[LabelName] := Ptr(Self.Pos + 1);
 end;
 
@@ -1069,7 +1069,7 @@ begin
   while i <= StrLen do begin
     HiChar := HexStr[i];
     LoChar := HexStr[i + 1];
-    {!} Assert((LoChar in HEX_CHAR) and (HiChar in HEX_CHAR), Legacy.Format('Invalid hex char "%s" at position %d', [Copy(HexStr, i, 2), i]));
+    {!} Assert((LoChar in HEX_CHAR) and (HiChar in HEX_CHAR), string(Legacy.Format('Invalid hex char "%s" at position %d', [Copy(HexStr, i, 2), i])));
 
     Buf^ := ((ord(HiChar) - HexToVal[ord(HiChar) shr 5 - 1]) shl 4) or (ord(LoChar) - HexToVal[ord(LoChar) shr 5 - 1]);
     Inc(i, HEX_CHAR_SIZE);
@@ -1183,7 +1183,7 @@ begin
     result := Self.WriteInt(Pos - Self.Pos - sizeof(PJumpCall32Rec(nil)^.Offset));
   end else begin
     Offset := Pos - Self.Pos - sizeof(PJumpCall8Rec(nil)^.Offset);
-    {!} Assert(Math.InRange(Offset, low(shortint), high(shortint)), Format('Cannot write short jump, offset is too high: %d', [Offset]));
+    {!} Assert(Math.InRange(Offset, low(shortint), high(shortint)), string(Legacy.Format('Cannot write short jump, offset is too high: %d', [Offset])));
     result := Self.WriteByte(Offset);
   end;
 end; // .function TPatchHelper.JumpPos
@@ -1344,7 +1344,7 @@ TYPE
 
     if not IsOrigLocalAddr(JumpTargetAddr, FOR_JUMP) then begin
       if not GetJumpType(Disasm.Opcode, JumpType) then begin
-        Assert(false, Format('Failed to get jump type for opcode: %x', [Disasm.Opcode]));
+        Assert(false, string(Legacy.Format('Failed to get jump type for opcode: %x', [Disasm.Opcode])));
       end;
 
       if UtilsB2.Flags(FixCodeFlags).Have(FIX_CODE_MAKE_MOVABLE) then begin

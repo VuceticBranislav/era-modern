@@ -1294,7 +1294,7 @@ begin
     result := @Self.Desc;
   end else begin
     result := nil;
-    {!} Assert(false, 'Cannot get TArtInfo field with invalid index ' + Legacy.IntToStr(Ind));
+    {!} Assert(false, string('Cannot get TArtInfo field with invalid index ' + Legacy.IntToStr(Ind)));
   end;
 end;
 
@@ -1310,7 +1310,7 @@ begin
     6: result := @Self.SoundFileName;
   else
     result := nil;
-    {!} Assert(false, 'Cannot get TSpell field with invalid index ' + Legacy.IntToStr(Ind));
+    {!} Assert(false, string('Cannot get TSpell field with invalid index ' + Legacy.IntToStr(Ind)));
   end; // .switch Ind
 end;
 
@@ -1797,8 +1797,8 @@ end; // .function TPcx16ItemStatic.Create_
 class function TPcx16ItemStatic.Load (const aName: myAStr): {U} PPcx16Item;
 begin
   result := PPcx16Item(PatchApi.Call(PatchApi.FASTCALL_, Ptr($55B1E0), [myPChar(aName)]));
-  {!} Assert(result <> nil, Legacy.Format('Failed to load pcx16 image "%s". "dfault24.pcx" is also missing', [aName]));
-  {!} Assert(result.IsPcx16(), Legacy.Format('Loaded image "%s" is not requested pcx16', [aName]));
+  {!} Assert(result <> nil, string(Legacy.Format('Failed to load pcx16 image "%s". "dfault24.pcx" is also missing', [aName])));
+  {!} Assert(result.IsPcx16(), string(Legacy.Format('Loaded image "%s" is not requested pcx16', [aName])));
 end;
 
 class function TPcx24ItemStatic.Create (const aName: myAStr; aWidth, aHeight: integer): {On} PPcx24Item;
@@ -1837,12 +1837,12 @@ end;
 
 function MemAlloc (Size: integer): {On} pointer;
 begin
-  {!} Assert(Size >= 0, Legacy.Format('Cannot allocate memory block of %u size', [cardinal(Size)]));
+  {!} Assert(Size >= 0, string(Legacy.Format('Cannot allocate memory block of %u size', [cardinal(Size)])));
   result := nil;
   // * * * * * //
   if cardinal(Size) > 0 then begin
     result := MemAllocFunc(Size);
-    {!} Assert(result <> nil, Legacy.Format('Failed to allocate memory block of %u size', [cardinal(Size)]));
+    {!} Assert(result <> nil, string(Legacy.Format('Failed to allocate memory block of %u size', [cardinal(Size)])));
   end;
 end;
 

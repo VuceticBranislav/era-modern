@@ -1115,7 +1115,7 @@ begin
     {!} Assert(Self.IsValidValue(Value));
 
     if Self.fOwnsItems then begin
-      {!} Assert(TObject(Value) is UtilsB2.TCloneable, 'Cannot merge array with non-clonable items. Got item: ' + TObject(Value).ClassName);
+      {!} Assert(TObject(Value) is UtilsB2.TCloneable, string('Cannot merge array with non-clonable items. Got item: ' + TObject(Value).ClassName));
       Self.SetValue(Key, UtilsB2.TCloneable(Value).Clone);
     end else begin
       Self.SetValue(Key, Value);
@@ -2227,7 +2227,7 @@ begin
     {!} Assert(Destination.IsValidValue(Value));
 
     if Destination.OwnsItems then begin
-      {!} Assert(TObject(Value) is UtilsB2.TCloneable, 'Cannot merge array with non-clonable items. Got item: ' + TObject(Value).ClassName);
+      {!} Assert(TObject(Value) is UtilsB2.TCloneable, string('Cannot merge array with non-clonable items. Got item: ' + TObject(Value).ClassName));
       Destination.SetValue(Key, UtilsB2.TCloneable(Value).Clone);
     end else begin
       Destination.SetValue(Key, Value);
@@ -2711,7 +2711,7 @@ begin
     {!} Assert(Destination.IsValidValue(Value));
 
     if Destination.OwnsItems then begin
-      {!} Assert(TObject(Value) is UtilsB2.TCloneable, 'Cannot merge array with non-clonable items. Got item: ' + TObject(Value).ClassName);
+      {!} Assert(TObject(Value) is UtilsB2.TCloneable, string('Cannot merge array with non-clonable items. Got item: ' + TObject(Value).ClassName));
       Destination.SetValue(Key, UtilsB2.TCloneable(Value).Clone);
     end else begin
       Destination.SetValue(Key, Value);

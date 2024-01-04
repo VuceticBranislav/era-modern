@@ -325,7 +325,7 @@ var
 
 begin
   {!} Assert(SrcInfo <> nil);
-  {!} Assert(IsSupportedFileInformationClass(ord(TargetFormat)), Legacy.Format('Unsupported file information class: %d', [ord(TargetFormat)]));
+  {!} Assert(IsSupportedFileInformationClass(ord(TargetFormat)), string(Legacy.Format('Unsupported file information class: %d', [ord(TargetFormat)])));
   FileNameBuf := nil;
   // * * * * * //
   BytesWritten   := 0;
@@ -354,7 +354,7 @@ begin
       UtilsB2.CopyMem(StructBaseSize, @SrcInfo.Base, Buf);
     end;
   else
-    {!} Assert(IsSupportedFileInformationClass(ord(TargetFormat)), Legacy.Format('Unexpected unsupported file information class: %d', [ord(TargetFormat)]));
+    {!} Assert(IsSupportedFileInformationClass(ord(TargetFormat)), string(Legacy.Format('Unexpected unsupported file information class: %d', [ord(TargetFormat)])));
   end;
 
   FileNameBufSize := Min(BufSize - StructBaseSize, SrcInfo.Base.FileNameLength) and not $00000001;

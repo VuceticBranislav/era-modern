@@ -106,7 +106,7 @@ var
 {U} EventInfo: TEventInfo;
     i:         integer;
 begin
-  {!} Assert(UtilsB2.IsValidBuf(EventData, DataSize), Legacy.Format('TEventManager.Fire: Invalid event data for event "%s". Address: %x. Size: %d', [EventName, integer(EventData), DataSize]));
+  {!} Assert(UtilsB2.IsValidBuf(EventData, DataSize), string(Legacy.Format('TEventManager.Fire: Invalid event data for event "%s". Address: %x. Size: %d', [EventName, integer(EventData), DataSize])));
   EventInfo := Self.fEvents[EventName];
   // * * * * * //
   if EventInfo = nil then begin

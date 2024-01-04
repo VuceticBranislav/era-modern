@@ -193,7 +193,7 @@ begin
     IncomingStreams[Ptr(SenderPlayerId)] := SenderStreams;
   end;
 
-  {!} Assert(SenderStreams[Ptr(StreamId)] = nil, myAStr('Cannot create incoming stream. It''s already present'));
+  {!} Assert(SenderStreams[Ptr(StreamId)] = nil, 'Cannot create incoming stream. It''s already present');
   result := TIncomingStream.Create(EventName, TotalSize, UncompressedSize);
   SenderStreams[Ptr(StreamId)] := result;
 end;
@@ -327,7 +327,7 @@ begin
     PacketReader.ReadInt(TotalSize);
     PacketReader.ReadInt(UncompressedSize);
     PacketReader.ReadInt(PayloadSize);
-    {!} Assert(PayloadSize <= TotalSize, Legacy.Format('Invalid PayloadSize field for incoming stream. It cannot be greater than TotalSize. Given: %d/%d', [PayloadSize, TotalSize]));
+    {!} Assert(PayloadSize <= TotalSize, string(Legacy.Format('Invalid PayloadSize field for incoming stream. It cannot be greater than TotalSize. Given: %d/%d', [PayloadSize, TotalSize])));
     DestroyIncomingStream(NetData.PlayerId, StreamId);
 
     if PayloadSize = TotalSize then begin
@@ -349,7 +349,7 @@ begin
     Stream := FindIncomingStream(NetData.PlayerId, StreamId);
 
     if Stream <> nil then begin
-      {!} Assert(Stream.Data.Size + PayloadSize <= Stream.TotalSize, Legacy.Format('Invalid PayloadSize field for incoming stream chunk. TotalSize is overflowed. Given: %d/%d', [Stream.Data.Size + PayloadSize, Stream.TotalSize]));
+      {!} Assert(Stream.Data.Size + PayloadSize <= Stream.TotalSize, string(Legacy.Format('Invalid PayloadSize field for incoming stream chunk. TotalSize is overflowed. Given: %d/%d', [Stream.Data.Size + PayloadSize, Stream.TotalSize])));
       Stream.WriteData(UtilsB2.PtrOfs(PacketReader.Buf, PacketReader.Pos), PayloadSize);
 
       if Stream.Data.Size = Stream.TotalSize then begin

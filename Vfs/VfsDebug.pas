@@ -14,7 +14,7 @@ uses
 type
   TLoggingProc = procedure (Operation, Msg: myPChar); stdcall;
 
-  EAssertFailure = class (Exception)
+  EAssertFailure = class (Legacy.Exception)
   end;
 
 
@@ -67,10 +67,10 @@ begin
   end;
 end;
 
+// Explicitly cast the 'Message' parameter to a string in all instances of the Assert method. Literal strings do not require casting.
 procedure AssertHandler (const Msg, FileName: string; LineNumber: integer; Address: pointer);
 var
   CrashMes: myAStr;
-
 begin
   CrashMes := StrLib.BuildStr
   (

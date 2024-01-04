@@ -1104,7 +1104,7 @@ begin
         Res.Append('}');
       end; // TEXT_BLOCK_DEF
     else
-      {!} Assert(false, 'ToTaggedText: unsupported BlockType = ' + Legacy.IntToStr(ord(CurrBlock.BlockType)));
+      {!} Assert(false, string('ToTaggedText: unsupported BlockType = ' + Legacy.IntToStr(ord(CurrBlock.BlockType))));
     end; // .switch CurrBlock.BlockType
 
     // Skip block meaningful characters
