@@ -96,6 +96,7 @@ type
     fRangeMax:       integer;
     fCombatActionId: integer;
     fFreeParam:      integer;
+    fAttemptParam:   integer;
   end;
 
   TBattleDeterministicRng = class (FastRand.TRng)
@@ -106,7 +107,7 @@ type
     fCombatActionIdPtr: pinteger;
     fFreeParamPtr:      pinteger;
 
-    procedure UpdateState (RangeMin, RangeMax: integer);
+    procedure UpdateState (RangeMin, RangeMax: integer; AttemptIndex: integer = 1);
 
    public
     constructor Create (CombatIdPtr, CombatRoundPtr, CombatActionIdPtr, FreeParamPtr: pinteger);
@@ -167,7 +168,7 @@ begin
   Self.fFreeParamPtr      := FreeParamPtr;
 end;
 
-procedure TBattleDeterministicRng.UpdateState (RangeMin, RangeMax: integer);
+procedure TBattleDeterministicRng.UpdateState (RangeMin, RangeMax: integer; AttemptIndex: integer = 1);
 begin
   Self.fState.fCombatRound    := Crypto.Tm32Encode(Self.fCombatRoundPtr^);
   Self.fState.fRangeMin       := RangeMin;
@@ -175,6 +176,7 @@ begin
   Self.fState.fRangeMax       := RangeMax;
   Self.fState.fCombatActionId := Crypto.Tm32Encode(Self.fCombatActionIdPtr^ + 1147022261);
   Self.fState.fFreeParam      := Crypto.Tm32Encode(Self.fFreeParamPtr^ + 641013956);
+  Self.fState.fAttemptParam   := 1709573561 + AttemptIndex * 39437491;
 end;
 
 procedure TBattleDeterministicRng.Seed (NewSeed: integer);
@@ -189,6 +191,15 @@ begin
 end;
 
 function TBattleDeterministicRng.RandomRange (MinValue, MaxValue: integer): integer;
+const
+  MAX_UNBIAS_ATTEMPTS = 100;
+
+var
+  RangeLen:         cardinal;
+  BiasedRangeLen:   cardinal;
+  MaxUnbiasedValue: cardinal;
+  i:                integer;
+
 begin
   if MinValue >= MaxValue then begin
     result := MinValue;
@@ -199,7 +210,23 @@ begin
   result := Crypto.FastHash(@Self.fState, sizeof(Self.fState));
 
   if (MinValue > Low(integer)) or (MaxValue < High(integer)) then begin
-    result := MinValue + integer(cardinal(result) mod cardinal(MaxValue - MinValue + 1));
+    i                := 2;
+    RangeLen         := cardinal(MaxValue - MinValue) + 1;
+    BiasedRangeLen   := High(cardinal) mod RangeLen + 1;
+
+    if BiasedRangeLen = RangeLen then begin
+      BiasedRangeLen := 0;
+  end;
+
+  MaxUnbiasedValue := High(cardinal) - BiasedRangeLen;
+
+  while (cardinal(result) > MaxUnbiasedValue) and (i <= MAX_UNBIAS_ATTEMPTS) do begin
+    Inc(Self.fState.fAttemptParam, 39437491);
+    result := Crypto.FastHash(@Self.fState, sizeof(Self.fState));
+    Inc(i);
+  end;
+
+  result := MinValue + integer(cardinal(result) mod RangeLen);
   end;
 end;
 
@@ -860,6 +887,8 @@ var
   BattleMgr: Heroes.PCombatManager;
 
 begin
+  Inc(CombatActionId);
+
   BattleMgr := Heroes.CombatManagerPtr^;
 
   CombatOrigStackActionInfo.Action       := BattleMgr.Action;
@@ -868,6 +897,33 @@ begin
   CombatOrigStackActionInfo.ActionParam2 := BattleMgr.ActionParam2;
 
   result := Core.EXEC_DEF_CODE;
+end;
+
+function Hook_WoGBeforeBattleAction_HandleEnchantress (Context: Core.PHookContext): longbool; stdcall;
+const
+  LOCAL_ACTING_MON_TYPE = -$2C;
+
+var
+  BattleMgr: Heroes.PCombatManager;
+
+begin
+  BattleMgr  := Heroes.CombatManagerPtr^;
+  Erm.v[997] := CombatRound;
+  Erm.FireErmEvent(TRIGGER_BG0);
+
+  // Monster type could be changed by script, use the one from combat manager
+  pinteger(Context.EBP + LOCAL_ACTING_MON_TYPE)^ := BattleMgr.GetActiveStack().MonType;
+
+  result := Core.EXEC_DEF_CODE;
+end;
+
+function Hook_WoGCallAfterBattleAction (Context: Core.PHookContext): longbool; stdcall;
+begin
+  Erm.v[997] := CombatRound;
+  Erm.FireErmEvent(TRIGGER_BG1);
+
+  Context.RetAddr := Ptr($75D317);
+  result          := not Core.EXEC_DEF_CODE;
 end;
 
 function Hook_SendBattleAction_CopyActionParams (Context: Core.PHookContext): longbool; stdcall;
@@ -934,11 +990,6 @@ end;
 
 var
   RngId: integer = 0; // Holds random generation attempt ID, auto resets at each reseeding. Used for debugging purposes
-
-procedure OnBeforeBattleAction (Event: GameExt.PEvent); stdcall;
-begin
-  Inc(CombatActionId);
-end;
 
 procedure Hook_SRand (OrigFunc: pointer; Seed: integer); stdcall;
 var
@@ -2139,6 +2190,13 @@ begin
   ApiJack.HookCode(Ptr($75C69E), @Hook_WoGBeforeBattleAction);
   ApiJack.HookCode(Ptr($47883B), @Hook_SendBattleAction_CopyActionParams);
 
+  (* Trigger OnBeforeBattleAction before Enchantress, Hell Steed and creature experience mass spell processing *)
+  ApiJack.HookCode(Ptr($75C96C), @Hook_WoGBeforeBattleAction_HandleEnchantress);
+  Core.p.WriteDataPatch(Ptr($75CB26), [myAStr('9090909090909090909090')]);
+
+  (* Use CombatRound in OnAfterBattleAction trigger for v997 *)
+  ApiJack.HookCode(Ptr($75D306), @Hook_WoGCallAfterBattleAction);
+
   (* Send and receive unique identifier for each battle to use in deterministic PRNG in multiplayer *)
   ApiJack.HookCode(Ptr($763796), @Hook_ZvsAdd2Send);
   ApiJack.HookCode(Ptr($763BA4), @Hook_ZvsGet4Receive);
@@ -2202,7 +2260,6 @@ begin
   EventMan.GetInstance.On('OnAfterVfsInit', OnAfterVfsInit);
   EventMan.GetInstance.On('OnAfterWoG', OnAfterWoG);
   EventMan.GetInstance.On('OnBattleReplay', OnBattleReplay);
-  EventMan.GetInstance.On('OnBeforeBattleAction', OnBeforeBattleAction);
   EventMan.GetInstance.On('OnBeforeBattleReplay', OnBeforeBattleReplay);
   EventMan.GetInstance.On('OnBeforeBattleUniversal', OnBeforeBattleUniversal);
   EventMan.GetInstance.On('OnGenerateDebugInfo', OnGenerateDebugInfo);
