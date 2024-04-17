@@ -366,7 +366,7 @@ begin
 end; // .function ConvertFileInfoStruct
 
 const
-  MASK_ALL_FILES: myWStr = '*'#0;
+  MASK_ALL_FILES: myWStr = '*';
 
 function Hook_NtQueryDirectoryFile (OrigFunc: WinNative.TNtQueryDirectoryFile; FileHandle: HANDLE; Event: HANDLE; ApcRoutine: pointer; ApcContext: PVOID; Io: PIO_STATUS_BLOCK; Buffer: PVOID;
                                     BufLength: ULONG; InfoClass: integer (* FILE_INFORMATION_CLASS *); SingleEntry: BOOLEAN; {n} Mask: PUNICODE_STRING; RestartScan: BOOLEAN): NTSTATUS; stdcall;
