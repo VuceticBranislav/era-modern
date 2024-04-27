@@ -81,7 +81,8 @@ uses
   Network in 'Network.pas',
   ZlibUtils in 'ZlibUtils.pas',
   Scripts in 'Scripts.pas',
-  Lua in 'Lua\Lua.pas';
+  Lua in 'Lua\Lua.pas',
+  Json in 'Json.pas';
 
 begin
   FormatSettings.DecimalSeparator := '.';

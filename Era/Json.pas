@@ -1799,49 +1799,49 @@ var
     ridx := idx;
   end;
 
-{
-
-}
   function js_string(idx: integer; var ridx: integer; var o:
     TlkJSONbase): boolean;
 
     function strSpecialChars(const s: myAStr): myAStr;
     var
       i, j : integer;
+      utf8String, resultString: string;
     begin
-      i := Pos('\', s);
+      utf8String := UTF8ToString(s);
+      i := System.Pos('\', utf8String);
       if (i = 0) then
-        result := s
+        resultString := utf8String
       else
       begin
-        result := Copy(s, 1, i-1);
+        resultString := System.Copy(utf8String, 1, i-1);
         j := i;
         repeat
-          if (s[j] = '\') then
+          if (utf8String[j] = '\') then
           begin
             Inc(j);
-            case s[j] of
-              '\': result := result + '\';
-              '"': result := result + '"';
-              '''': result := result + '''';
-              '/': result := result + '/';
-              'b': result := result + #8;
-              'f': result := result + #12;
-              'n': result := result + #10;
-              'r': result := result + #13;
-              't': result := result + #9;
+            case utf8String[j] of
+              '\':  resultString := resultString + '\';
+              '"':  resultString := resultString + '"';
+              '''': resultString := resultString + '''';
+              '/':  resultString := resultString + '/';
+              'b':  resultString := resultString + #8;
+              'f':  resultString := resultString + #12;
+              'n':  resultString := resultString + #10;
+              'r':  resultString := resultString + #13;
+              't':  resultString := resultString + #9;
               'u':
                 begin
-                  result := result + myAStr(UTF8ToString(code2utf(strtoint('$' + copy(s, j + 1, 4)))));
+                  resultString := resultString + UTF8ToString(code2utf(strtoint('$' + copy(utf8String, j + 1, 4))));
                   Inc(j, 4);
                 end;
             end;
           end
           else
-            result := result + s[j];
+            resultString := resultString + utf8String[j];
           Inc(j);
-        until j > Length(s);
+        until j > Length(utf8String);
       end;
+      result := Utf8Encode(resultString);
     end;
 
   var
