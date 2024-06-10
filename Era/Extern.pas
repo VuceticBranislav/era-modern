@@ -33,6 +33,7 @@ uses
   Stores,
   StrLib,
   Trans,
+  Triggers,
   Tweaks,
   TypeWrappers,
   UtilsB2,
@@ -399,6 +400,11 @@ begin
   Erm.ZvsErmError(nil, 0, Error);
 end;
 
+function AllocErmFunc (FuncName: myPChar; {i} out FuncId: integer): TDwordBool; stdcall;
+begin
+  result := TDwordBool(ord(Erm.AllocErmFunc(FuncName, FuncId)));
+end;
+
 function FindNextObject (ObjType, ObjSubtype: integer; var x, y, z: integer; Direction: integer): integer; stdcall;
 begin
   result := ord(not Heroes.ZvsFindNextObjects(ObjType, ObjSubtype, x, y, z, Direction));
@@ -594,6 +600,7 @@ end;
 
 exports
   AdvErm.ExtendArrayLifetime,
+  AllocErmFunc,
   Ask,
   ClearIniCache,
   Core.ApiHook,
@@ -673,6 +680,7 @@ exports
   ToStaticStr,
   tr,
   Trans.ReloadLanguageData,
+  Triggers.SetRegenerationAbility,
   Tweaks.RandomRangeWithFreeParam,
   WriteSavegameSection,
   WriteStrToIni;

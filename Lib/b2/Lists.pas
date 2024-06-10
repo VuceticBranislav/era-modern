@@ -157,6 +157,7 @@ type
       procedure CustomSort (CompareFunc: TStringListCompareFunc; MinInd, MaxInd: integer);
       procedure LoadFromText (const Text, EndOfLineMarker: myAStr);
       function  ToText (const EndOfLineMarker: myAStr): myAStr;
+      function  GetKeys: UtilsB2.TArrayOfStr;
       
       property  Capacity:                 integer read fCapacity;
       property  Count:                    integer read fCount;
@@ -221,7 +222,7 @@ begin
     Self.fItemGuard       := SrcList.fItemGuard.Clone;
     GetMem(Self.fData, Self.Capacity * sizeof(pointer));
 
-    for i:=0 to SrcList.Count - 1 do begin
+    for i := 0 to SrcList.Count - 1 do begin
       if (SrcList.fData[i] = nil) or (not Self.OwnsItems) then begin
         Self.fData[i] := SrcList.fData[i];
       end else begin
@@ -257,8 +258,8 @@ begin
   end;
 
   FreeMem(Self.fData); Self.fData :=  nil;
-  Self.fCapacity  :=  0;
-  Self.fCount     :=  0;
+  Self.fCapacity :=  0;
+  Self.fCount    :=  0;
 end; // .procedure TList.Clear
 
 function TList.IsValidItem ((* n *) Item: pointer): boolean;
@@ -1212,6 +1213,20 @@ begin
     result := StrLib.Join(ClonedKeys, EndOfLineMarker);
   end;
 end; // .function TStringList.ToText
+
+function TStringList.GetKeys: UtilsB2.TArrayOfStr;
+var
+  i: integer;
+
+begin
+  result := nil;
+
+  SetLength(result, Self.fCount);
+
+  for i := 0 to Self.fCount - 1 do begin
+    result[i] := Self.fKeys[i];
+  end;
+end;
 
 function TStringList.GetItem (const Key: myAStr): (* n *) pointer;
 var

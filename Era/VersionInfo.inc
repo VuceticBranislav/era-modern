@@ -1,6 +1,6 @@
 VER_Major     = 3;
 VER_Minor     = 9;
-VER_Build     = 11;
+VER_Build     = 12;
 VER_Revision  = 0;
 VER_Sufix     = '-port';
 

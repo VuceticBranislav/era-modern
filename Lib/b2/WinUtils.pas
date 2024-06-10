@@ -44,6 +44,7 @@ type
     property Height: integer read fHeight;
   end; // .class TRawImage
 
+  TExceptionHandler = function (ExceptionPtrs: Windows.TExceptionPointers): integer;
   TWaitResult = (WR_WAITED, WR_ABANDONED_MUTEX, WR_TIMEOUT, WR_FAILED, WR_UNKNOWN);
 
 function IsValidHandle (Handle: THandle): boolean; inline;
@@ -53,7 +54,9 @@ function GetCurrentDirW: myWStr;
 function SetCurrentDirW (const DirPath: myWStr): boolean;
 function GetLongPathNameW (lpszShortPath, lpszLongPath: myPWChar; cchBuffer: integer): integer; stdcall; external kernel32;
 function GetLongPathW (const FilePath: myWStr; Success: pboolean = nil): myWStr;
+function GetComputerNameW: myWStr;
 function WaitForObjects (Objects: array of THandle; out ResObject: THandle; TimeoutMsec: integer = integer(INFINITE); WaitAll: boolean = false): TWaitResult;
+function AddVectoredExceptionHandler (First: LONGBOOL; Handler: TExceptionHandler): Windows.THandle; stdcall; external 'kernel32.dll';
 
 (* Returns UTC time in msec since Jan 1, 1970 *)
 function GetMicroTime: Int64;
@@ -317,6 +320,20 @@ begin
     result := FilePath;
   end;
 end; // .function GetLongPathW
+
+function GetComputerNameW: myWStr;
+var
+  Buffer: array [0..31] of myWChar;
+  BufLen: cardinal;
+
+begin
+  result := '';
+  BufLen := Length(Buffer);
+
+  if Windows.GetComputerNameW(@Buffer, BufLen) then begin
+    result := myPWChar(@Buffer);
+  end;
+end;
 
 function WaitForObjects (Objects: array of THandle; out ResObject: THandle; TimeoutMsec: integer = integer(INFINITE); WaitAll: boolean = false): TWaitResult;
 var

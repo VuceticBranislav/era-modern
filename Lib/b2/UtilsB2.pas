@@ -466,7 +466,7 @@ end;
 
 function DefItemGuardProc ({n} Item: pointer; ItemIsObject: boolean; {n} Guard: TCloneable): boolean;
 var
-(* U *) MyGuard:  TDefItemGuard;
+(* U *) MyGuard: TDefItemGuard;
 
 begin
   {!} Assert(Guard <> nil);
@@ -504,13 +504,13 @@ begin
   result := TClass(TMethod(Method).Data);
 end;
 
-function IfThen (const Condition: boolean; const SuccessResult, FailureResult: myAStr): myAStr; inline; overload; begin if Condition then result := SuccessResult else result := FailureResult; end;
-function IfThen (const Condition: boolean; const SuccessResult, FailureResult: integer): integer; inline; overload;     begin if Condition then result := SuccessResult else result := FailureResult; end;
-function IfThen (const Condition: boolean; const SuccessResult, FailureResult: pointer): pointer; inline; overload;     begin if Condition then result := SuccessResult else result := FailureResult; end;
+function IfThen (const Condition: boolean; const SuccessResult, FailureResult: myAStr): myAStr; inline; overload;   begin if Condition then result := SuccessResult else result := FailureResult; end;
+function IfThen (const Condition: boolean; const SuccessResult, FailureResult: integer): integer; inline; overload; begin if Condition then result := SuccessResult else result := FailureResult; end;
+function IfThen (const Condition: boolean; const SuccessResult, FailureResult: pointer): pointer; inline; overload; begin if Condition then result := SuccessResult else result := FailureResult; end;
 
- function InterlockedCompareExchange (var Destination: integer; NewValue, Comperand: integer): integer; stdcall; external 'kernel32' name 'InterlockedCompareExchange';   // BYME
- function InterlockedIncrement       (var Value: integer): integer; stdcall; external 'kernel32' name 'InterlockedIncrement';                                             // BYME
- function InterlockedDecrement       (var Value: integer): integer; stdcall; external 'kernel32' name 'InterlockedDecrement';                                             // BYME
+function InterlockedCompareExchange (var Destination: integer; NewValue, Comperand: integer): integer; stdcall; external 'kernel32' name 'InterlockedCompareExchange';
+function InterlockedIncrement       (var Value: integer): integer; stdcall; external 'kernel32' name 'InterlockedIncrement';
+function InterlockedDecrement       (var Value: integer): integer; stdcall; external 'kernel32' name 'InterlockedDecrement';
 
 procedure TInterfaceAwareObject.AfterConstruction;
 begin

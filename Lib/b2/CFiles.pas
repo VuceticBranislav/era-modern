@@ -5,7 +5,7 @@ AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
 }
 
 (***)  interface  (***)
-uses Math, UtilsB2, Legacy;
+uses Math, SysUtils, UtilsB2, Legacy;
 
 const
   MODE_OFF        = 0;
@@ -65,18 +65,27 @@ type
     
       (* Reading *)
       function  Read (Count: integer; {n} Buf: pointer): boolean;
+      procedure DoRead (Count: integer; {n} Buf: pointer);
       function  ReadByte (out Res: byte): boolean;
+      function  DoReadByte: byte;
       function  ReadInt (out Res: integer): boolean;
+      function  DoReadInt: integer;
       function  ReadStr (Count: integer; out Res: myAStr): boolean;
+      function  DoReadStr (Len: integer): myAStr;
       function  ReadAllToBuf (out Buf: pointer; out Size: integer): boolean;
       function  ReadAllToStr (out Str: myAStr): boolean;
 
       (* Writing *)
       function  Write (Count: integer; {n} Buf: pointer): boolean;
+      procedure DoWrite (Count: integer; {n} Buf: pointer);
       function  WriteByte (Data: byte): boolean;
+      procedure DoWriteByte (Data: byte);
       function  WriteWord (Data: word): boolean;
+      procedure DoWriteWord (Data: word);
       function  WriteInt (Data: integer): boolean;
-      function  WriteStr (Data: myAStr): boolean;
+      procedure DoWriteInt (Data: integer);
+      function  WriteStr (const Data: myAStr): boolean;
+      procedure DoWriteStr (const Data: myAStr);
       function  WriteFrom (Count: integer; Source: TAbstractFile): boolean;
       function  WriteAllFrom (Source: TAbstractFile): boolean;
 
@@ -125,24 +134,38 @@ var
 
 begin
   {!} Assert(Count >= 0);
-  TotalBytesRead  :=  0;
+  TotalBytesRead := 0;
   
   while
     (TotalBytesRead < Count)  and
     Self.ReadUpTo(Count - TotalBytesRead, UtilsB2.PtrOfs(Buf, TotalBytesRead), BytesRead)
   do begin
-    TotalBytesRead  :=  TotalBytesRead + BytesRead;
+    TotalBytesRead := TotalBytesRead + BytesRead;
   end;
   
-  result  :=  TotalBytesRead = Count;
-end; // .function TAbstractFile.Read
+  result := TotalBytesRead = Count;
+end;
+
+procedure TAbstractFile.DoRead (Count: integer; {n} Buf: pointer);
+var
+  Res: boolean;
+
+begin
+  Res := Self.Read(Count, Buf);
+  {!} Assert(Res, string('Failed to read ' + Legacy.IntToStr(Count) + ' bytes from TAbstractFile'));
+end;
 
 function TAbstractFile.ReadByte (out Res: byte): boolean;
 var
-  BytesRead:  integer;
+  BytesRead: integer;
 
 begin
   result  :=  Self.ReadUpTo(sizeof(Res), @Res, BytesRead);
+end;
+
+function TAbstractFile.DoReadByte: byte;
+begin
+  Self.DoRead(sizeof(result), @result);
 end;
 
 function TAbstractFile.ReadInt (out Res: integer): boolean;
@@ -150,14 +173,25 @@ begin
   result  :=  Self.Read(sizeof(Res), @Res);
 end;
 
+function TAbstractFile.DoReadInt: integer;
+begin
+  Self.DoRead(sizeof(result), @result);
+end;
+
 function TAbstractFile.ReadStr (Count: integer; out Res: myAStr): boolean;
 begin
   SetLength(Res, Count);
-  result  :=  Self.Read(Count, pointer(Res));
+  result := Self.Read(Count, pointer(Res));
   
   if not result then begin
     Res :=  '';
   end;
+end;
+
+function TAbstractFile.DoReadStr (Len: integer): myAStr;
+begin
+  SetLength(result, Len);
+  Self.DoRead(Len, pointer(result));
 end;
 
 function TAbstractFile.ReadAllToBuf (out Buf: pointer; out Size: integer): boolean;
@@ -258,6 +292,13 @@ begin
   result  :=  TotalBytesWritten = Count;
 end; // .function TAbstractFile.Write
 
+procedure TAbstractFile.DoWrite (Count: integer; {n} Buf: pointer);
+begin
+  if not Self.Write(Count, Buf) then begin
+    {!} Assert(false, string('Failed to write ' + Legacy.IntToStr(Count) + ' bytes to TAbstractFile'));
+  end;
+end;
+
 function TAbstractFile.WriteByte (Data: byte): boolean;
 var
   BytesWritten: integer;
@@ -266,9 +307,19 @@ begin
   result := Self.WriteUpTo(sizeof(Data), @Data, BytesWritten);
 end;
 
+procedure TAbstractFile.DoWriteByte (Data: byte);
+begin
+  Self.DoWrite(sizeof(Data), @Data);
+end;
+
 function TAbstractFile.WriteWord (Data: word): boolean;
 begin
   result := Self.Write(sizeof(Data), @Data);
+end;
+
+procedure TAbstractFile.DoWriteWord (Data: word);
+begin
+  Self.DoWrite(sizeof(Data), @Data);
 end;
 
 function TAbstractFile.WriteInt (Data: integer): boolean;
@@ -276,9 +327,19 @@ begin
   result := Self.Write(sizeof(Data), @Data);
 end;
 
-function TAbstractFile.WriteStr (Data: myAStr): boolean;
+procedure TAbstractFile.DoWriteInt (Data: integer);
+begin
+  Self.DoWrite(sizeof(Data), @Data);
+end;
+
+function TAbstractFile.WriteStr (const Data: myAStr): boolean;
 begin
   result := Self.Write(Length(Data), pointer(Data));
+end;
+
+procedure TAbstractFile.DoWriteStr (const Data: myAStr);
+begin
+  Self.DoWrite(Length(Data), pointer(Data));
 end;
 
 function TAbstractFile.WriteFrom (Count: integer; Source: TAbstractFile): boolean;

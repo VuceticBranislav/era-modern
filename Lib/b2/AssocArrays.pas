@@ -2170,6 +2170,7 @@ end;
 
 procedure TStrHashTable.EndIterate;
 begin
+  {!} Assert(Self.fLocked);
   Self.fLocked := false;
 end;
 
@@ -2656,6 +2657,7 @@ end;
 
 procedure TObjHashTable.EndIterate;
 begin
+  {!} Assert(Self.fLocked);
   Self.fLocked := false;
 end;
 
@@ -2786,3 +2788,4 @@ begin
 end;
 
 end.
+

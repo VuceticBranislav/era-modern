@@ -45,8 +45,8 @@ type
 const
   ERM_SCRIPTS_SECTION      : myAStr = 'Era.ErmScripts';
   ERT_STRINGS_SECTION      : myAStr = 'Era.ErtStrings';
-  FUNC_NAMES_SECTION       : myAStr = 'Era.FuncNames';
   GLOBAL_CONSTS_SECTION    : myAStr = 'Era.GlobalConsts';
+  FUNC_NAMES_SECTION       : myAStr = 'Era.FuncNames';
   ERM_SCRIPTS_PATH         : myAStr = 'Data\s';
   ERS_FILES_PATH           : myAStr = 'Data\s';
   EXTRACTED_SCRIPTS_PATH   : myAStr = GameExt.DEBUG_DIR + '\Scripts';
@@ -256,7 +256,8 @@ const
   TRIGGER_KEY_RELEASED                   = 77053;
   TRIGGER_BEFORE_BATTLE_PLACE_BATTLE_OBSTACLES = 77054;
   TRIGGER_AFTER_BATTLE_PLACE_BATTLE_OBSTACLES  = 77055;
-  {!} LAST_ERA_TRIGGER                   = TRIGGER_AFTER_BATTLE_PLACE_BATTLE_OBSTACLES;
+  TRIGGER_BATTLE_STACK_REGENERATION      = 77056;
+  {!} LAST_ERA_TRIGGER                   = TRIGGER_BATTLE_STACK_REGENERATION;
 
   INITIAL_FUNC_AUTO_ID = 95000;
 
@@ -346,9 +347,9 @@ type
     }
     ValType:  integer;
 
-    function GetType: integer; inline;
-    function GetIndexedPartType: integer; inline;
-    function GetCheckType: integer; inline;
+    function  GetType: integer; inline;
+    function  GetIndexedPartType: integer; inline;
+    function  GetCheckType: integer; inline;
     procedure SetType (NewType: integer); inline;
     procedure SetIndexedPartType (NewType: integer); inline;
     procedure SetCheckType (NewCheckType: integer); inline;
@@ -669,16 +670,16 @@ const
   {$J-}
   (* WoG funcs *)
   ZvsProcessCmd:      procedure (Cmd: PErmCmd; Dummy: integer = 0; IsPostInstr: longbool = false) cdecl = Ptr($741DF0);
-  ZvsFindErm:         UtilsB2.TProcedure  = Ptr($749955);
-  ZvsClearErtStrings: UtilsB2.TProcedure  = Ptr($7764F2);
-  ZvsClearErmScripts: UtilsB2.TProcedure  = Ptr($750191);
-  ZvsLoadErmScript:   TZvsLoadErmScript   = Ptr($72C297);
-  ZvsLoadErmTxt:      TZvsLoadErmTxt      = Ptr($72C8B1);
-  ZvsLoadErtFile:     TZvsLoadErtFile     = Ptr($72C641);
-  ZvsShowMessage:     TZvsShowMessage     = Ptr($70FB63);
-  ZvsCheckFlags:      TZvsCheckFlags      = Ptr($740DF1);
+  ZvsFindErm:         UtilsB2.TProcedure = Ptr($749955);
+  ZvsClearErtStrings: UtilsB2.TProcedure = Ptr($7764F2);
+  ZvsClearErmScripts: UtilsB2.TProcedure = Ptr($750191);
+  ZvsLoadErmScript:   TZvsLoadErmScript  = Ptr($72C297);
+  ZvsLoadErmTxt:      TZvsLoadErmTxt     = Ptr($72C8B1);
+  ZvsLoadErtFile:     TZvsLoadErtFile    = Ptr($72C641);
+  ZvsShowMessage:     TZvsShowMessage    = Ptr($70FB63);
   ZvsDisplay8Dialog:  function (Msg: myPChar; DialogPics: pointer; MsgType: Heroes.TMesType; TextAlignment: integer): integer cdecl = Ptr($7169A8);
-  ZvsGetFlags:        TZvsGetFlags        = Ptr($73F4AF);
+  ZvsCheckFlags:      TZvsCheckFlags     = Ptr($740DF1);
+  ZvsGetFlags:        TZvsGetFlags       = Ptr($73F4AF);
   ZvsGetNum:          function (SubCmd: PErmSubCmd; ParamInd: integer; DoEval: integer): longbool cdecl = Ptr($73E970);
   ZvsGetVal:          function (ValuePtr: pointer; ValueSize: byte): integer cdecl = Ptr($7418B0);
   ZvsPutVal:          function (ValuePtr: pointer; ValueSize: byte; SubCmd: PErmSubCmd; ParamInd: integer): integer cdecl = Ptr($7416FD);
@@ -772,10 +773,10 @@ var
 
   (* ERM tracking options *)
   TrackingOpts: record
-    Enabled:              boolean;
-    MaxRecords:           integer;
-    DumpCommands:         boolean;
-    IgnoreEmptyTriggers:  boolean;
+    Enabled:             boolean;
+    MaxRecords:          integer;
+    DumpCommands:        boolean;
+    IgnoreEmptyTriggers: boolean;
   end;
 
 
@@ -1057,19 +1058,18 @@ begin
   AdvErm.GetOrCreateAssocVar(FuncName).IntValue := TriggerId;
 end;
 
+(* Returns true if new ID was allocated, false if existing ID was reused *)
 function AllocErmFunc (const FuncName: myAStr; {i} out FuncId: integer): boolean;
 begin
   FuncId := integer(FuncNames[FuncName]);
   result := FuncId = 0;
 
   if result then begin
-    FuncId                       := FuncAutoId;
-    FuncNames[FuncName]          := Ptr(FuncId);
-    FuncIdToNameMap[Ptr(FuncId)] := TString.Create(FuncName);
-    AdvErm.GetOrCreateAssocVar(FuncName).IntValue := FuncId;
+    FuncId := FuncAutoId;
     inc(FuncAutoId);
+    NameTrigger(FuncId, FuncName);
   end;
-end; // .function AllocErmFunc
+end;
 
 procedure RegisterStdGlobalConsts;
 var
@@ -1089,16 +1089,18 @@ end;
 function GetTriggerReadableName (EventID: integer): myAStr;
 var
   BaseEventName: myAStr;
-
   x:             integer;
   y:             integer;
   z:             integer;
-
   ObjType:       integer;
   ObjSubtype:    integer;
 
 begin
   result := '';
+
+    if GetErmFuncName(EventID, result) then begin
+    exit;
+  end;
 
   case EventID of
     {*} TRIGGER_FU1..TRIGGER_FU29999:
@@ -1107,116 +1109,10 @@ begin
       result := 'OnErmTimer ' + Legacy.IntToStr(EventID - TRIGGER_TM1 + 1);
     {*} TRIGGER_HE0..TRIGGER_HE198:
       result := 'OnHeroInteraction ' + Legacy.IntToStr(EventID - TRIGGER_HE0);
-    {*} TRIGGER_BA0:      result :=  'OnBeforeBattle';
-    {*} TRIGGER_BA1:      result :=  'OnAfterBattle';
-    {*} TRIGGER_BR:       result :=  'OnBattleRound';
-    {*} TRIGGER_BG0:      result :=  'OnBeforeBattleAction';
-    {*} TRIGGER_BG1:      result :=  'OnAfterBattleAction';
-    {*} TRIGGER_MW0:      result :=  'OnWanderingMonsterReach';
-    {*} TRIGGER_MW1:      result :=  'OnWanderingMonsterDeath';
-    {*} TRIGGER_MR0:      result :=  'OnMagicBasicResistance';
-    {*} TRIGGER_MR1:      result :=  'OnMagicCorrectedResistance';
-    {*} TRIGGER_MR2:      result :=  'OnDwarfMagicResistance';
-    {*} TRIGGER_CM0:      result :=  'OnAdventureMapRightMouseClick';
-    {*} TRIGGER_CM1:      result :=  'OnTownMouseClick';
-    {*} TRIGGER_CM2:      result :=  'OnHeroScreenMouseClick';
-    {*} TRIGGER_CM3:      result :=  'OnHeroesMeetScreenMouseClick';
-    {*} TRIGGER_CM4:      result :=  'OnBattleScreenMouseClick';
-    {*} TRIGGER_CM5:      result :=  'OnAdventureMapLeftMouseClick';
-    {*} TRIGGER_AE0:      result :=  'OnUnequipArt';
-    {*} TRIGGER_AE1:      result :=  'OnEquipArt';
-    {*} TRIGGER_MM0:      result :=  'OnBattleMouseHint';
-    {*} TRIGGER_MM1:      result :=  'OnTownMouseHint';
-    {*} TRIGGER_MP:       result :=  'OnMp3MusicChange';
-    {*} TRIGGER_SN:       result :=  'OnSoundPlay';
-    {*} TRIGGER_MG0:      result :=  'OnBeforeAdventureMagic';
-    {*} TRIGGER_MG1:      result :=  'OnAfterAdventureMagic';
-    {*} TRIGGER_TH0:      result :=  'OnEnterTownHall';
-    {*} TRIGGER_TH1:      result :=  'OnLeaveTownHall';
-    {*} TRIGGER_IP0:      result :=  'OnBeforeBattleBeforeDataSend';
-    {*} TRIGGER_IP1:      result :=  'OnBeforeBattleAfterDataReceived';
-    {*} TRIGGER_IP2:      result :=  'OnAfterBattleBeforeDataSend';
-    {*} TRIGGER_IP3:      result :=  'OnAfterBattleAfterDataReceived';
-    {*} TRIGGER_CO0:      result :=  'OnOpenCommanderWindow';
-    {*} TRIGGER_CO1:      result :=  'OnCloseCommanderWindow';
-    {*} TRIGGER_CO2:      result :=  'OnAfterCommanderBuy';
-    {*} TRIGGER_CO3:      result :=  'OnAfterCommanderResurrect';
-    {*} TRIGGER_BA50:     result :=  'OnBeforeBattleForThisPcDefender';
-    {*} TRIGGER_BA51:     result :=  'OnAfterBattleForThisPcDefender';
-    {*} TRIGGER_BA52:     result :=  'OnBeforeBattleUniversal';
-    {*} TRIGGER_BA53:     result :=  'OnAfterBattleUniversal';
-    {*} TRIGGER_GM0:      result :=  'OnAfterLoadGame';
-    {*} TRIGGER_GM1:      result :=  'OnBeforeSaveGame';
-    {*} TRIGGER_PI:       result :=  'OnAfterErmInstructions';
-    {*} TRIGGER_DL:       result :=  'OnCustomDialogEvent';
-    {*} TRIGGER_HM:       result :=  'OnHeroMove';
     {*} TRIGGER_HM0..TRIGGER_HM198:
       result := 'OnHeroMove ' + Legacy.IntToStr(EventID - TRIGGER_HM0);
-    {*} TRIGGER_HL:   result :=  'OnHeroGainLevel';
     {*} TRIGGER_HL0..TRIGGER_HL198:
       result := 'OnHeroGainLevel ' + Legacy.IntToStr(EventID - TRIGGER_HL0);
-    {*} TRIGGER_BF:       result :=  'OnSetupBattlefield';
-    {*} TRIGGER_MF1:      result :=  'OnMonsterPhysicalDamage';
-    {*} TRIGGER_TL0:      result :=  'OnEverySecond';
-    {*} TRIGGER_TL1:      result :=  'OnEvery2Seconds';
-    {*} TRIGGER_TL2:      result :=  'OnEvery5Seconds';
-    {*} TRIGGER_TL3:      result :=  'OnEvery10Seconds';
-    {*} TRIGGER_TL4:      result :=  'OnEveryMinute';
-    (* Era Triggers *)
-    {*} TRIGGER_SAVEGAME_WRITE:               result := 'OnSavegameWrite';
-    {*} TRIGGER_SAVEGAME_READ:                result := 'OnSavegameRead';
-    {*} TRIGGER_KEYPRESS:                     result := 'OnKeyPressed';
-    {*} TRIGGER_OPEN_HEROSCREEN:              result := 'OnOpenHeroScreen';
-    {*} TRIGGER_CLOSE_HEROSCREEN:             result := 'OnCloseHeroScreen';
-    {*} TRIGGER_STACK_OBTAINS_TURN:           result := 'OnBattleStackObtainsTurn';
-    {*} TRIGGER_REGENERATE_PHASE:             result := 'OnBattleRegeneratePhase';
-    {*} TRIGGER_AFTER_SAVE_GAME:              result := 'OnAfterSaveGame';
-    {*} TRIGGER_BEFOREHEROINTERACT:           result := 'OnBeforeHeroInteraction';
-    {*} TRIGGER_AFTERHEROINTERACT:            result := 'OnAfterHeroInteraction';
-    {*} TRIGGER_ONSTACKTOSTACKDAMAGE:         result := 'OnStackToStackDamage';
-    {*} TRIGGER_ONAICALCSTACKATTACKEFFECT:    result := 'OnAICalcStackAttackEffect';
-    {*} TRIGGER_ONCHAT:                       result := 'OnChat';
-    {*} TRIGGER_ONGAMEENTER:                  result := 'OnGameEnter';
-    {*} TRIGGER_ONGAMELEAVE:                  result := 'OnGameLeave';
-    {*} TRIGGER_ONREMOTEEVENT:                result := 'OnRemoteEvent';
-    {*} TRIGGER_DAILY_TIMER:                  result := 'OnEveryDay';
-    {*} TRIGGER_ONBEFORE_BATTLEFIELD_VISIBLE: result := 'OnBeforeBattlefieldVisible';
-    {*} TRIGGER_BATTLEFIELD_VISIBLE:          result := 'OnBattlefieldVisible';
-    {*} TRIGGER_AFTER_TACTICS_PHASE:          result := 'OnAfterTacticsPhase';
-    {*} TRIGGER_OPEN_RECRUIT_DLG:             result := 'OnOpenRecruitDlg';
-    {*} TRIGGER_CLOSE_RECRUIT_DLG:            result := 'OnCloseRecruitDlg';
-    {*} TRIGGER_RECRUIT_DLG_MOUSE_CLICK:      result := 'OnRecruitDlgMouseClick';
-    {*} TRIGGER_TOWN_FORT_MOUSE_CLICK:        result := 'OnTownFortMouseClick';
-    {*} TRIGGER_KINGDOM_OVERVIEW_MOUSE_CLICK: result := 'OnKingdomOverviewMouseClick';
-    {*} TRIGGER_RECRUIT_DLG_RECALC:           result := 'OnRecruitDlgRecalc';
-    {*} TRIGGER_RECRUIT_DLG_ACTION:           result := 'OnRecruitDlgAction';
-    {*} TRIGGER_LOAD_HERO_SCREEN:             result := 'OnLoadHeroScreen';
-    {*} TRIGGER_BUILD_TOWN_BUILDING:          result := 'OnBuildTownBuilding';
-    {*} TRIGGER_OPEN_TOWN_SCREEN:             result := 'OnOpenTownScreen';
-    {*} TRIGGER_CLOSE_TOWN_SCREEN:            result := 'OnCloseTownScreen';
-    {*} TRIGGER_SWITCH_TOWN_SCREEN:           result := 'OnSwitchTownScreen';
-    {*} TRIGGER_PRE_TOWN_SCREEN:              result := 'OnPreTownScreen';
-    {*} TRIGGER_POST_TOWN_SCREEN:             result := 'OnPostTownScreen';
-    {*} TRIGGER_PRE_HEROSCREEN:               result := 'OnPreHeroScreen';
-    {*} TRIGGER_POST_HEROSCREEN:              result := 'OnPostHeroScreen';
-    {*} TRIGGER_DETERMINE_MON_INFO_DLG_UPGRADE: result := 'OnDetermineMonInfoDlgUpgrade';
-    {*} TRIGGER_ADVMAP_TILE_HINT:             result := 'OnAdvMapTileHint';
-    {*} TRIGGER_BEFORE_STACK_TURN:            result := 'OnBeforeBattleStackTurn';
-    {*} TRIGGER_CALC_TOWN_INCOME:             result := 'OnCalculateTownIncome';
-    {*} TRIGGER_BATTLE_REPLAY:                result := 'OnBattleReplay';
-    {*} TRIGGER_BEFORE_BATTLE_REPLAY:         result := 'OnBeforeBattleReplay';
-    {*} TRIGGER_BEFORE_LOCAL_EVENT:           result := 'OnBeforeLocalEvent';
-    {*} TRIGGER_AFTER_LOCAL_EVENT:            result := 'OnAfterLocalEvent';
-    {*} TRIGGER_WIN_GAME:                     result := 'OnWinGame';
-    {*} TRIGGER_LOSE_GAME:                    result := 'OnLoseGame';
-    {*} TRIGGER_TRANSFER_HERO:                result := 'OnTransferHero';
-    {*} TRIGGER_AFTER_HERO_GAIN_LEVEL:        result := 'OnAfterHeroGainLevel';
-    {*} TRIGGER_BATTLE_ACTION_END:            result := 'OnBattleActionEnd';
-    {*} TRIGGER_AFTER_BUILD_TOWN_BUILDING:    result := 'OnAfterBuildTownBuilding';
-    {*} TRIGGER_KEY_RELEASED:                 result := 'OnKeyReleased';
-    {*} TRIGGER_BEFORE_BATTLE_PLACE_BATTLE_OBSTACLES: result := 'OnBeforePlaceBattleObstacles';
-    {*} TRIGGER_AFTER_BATTLE_PLACE_BATTLE_OBSTACLES:  result := 'OnAfterPlaceBattleObstacles';
-    (* END Era Triggers *)
   else
     if EventID >= TRIGGER_OB_POS then begin
       if ((EventID and TRIGGER_OB_POS) or (EventID and TRIGGER_LE_POS)) <> 0 then begin
@@ -1234,9 +1130,7 @@ begin
           end;
         end;
 
-        result :=
-          BaseEventName + Legacy.IntToStr(x) + '/' +
-          Legacy.IntToStr(y) + '/' + Legacy.IntToStr(z);
+        result := BaseEventName + Legacy.IntToStr(x) + '/' + Legacy.IntToStr(y) + '/' + Legacy.IntToStr(z);
       end else begin
         ObjType    := (EventID shr 12) and 255;
         ObjSubtype := (EventID and 255) - 1;
@@ -1247,17 +1141,12 @@ begin
           BaseEventName := 'OnBeforeVisitObject ';
         end;
 
-        result :=
-          BaseEventName + Legacy.IntToStr(ObjType) + '/' + Legacy.IntToStr(ObjSubtype);
+        result := BaseEventName + Legacy.IntToStr(ObjType) + '/' + Legacy.IntToStr(ObjSubtype);
       end; // .else
     end else begin
-      if GetErmFuncName(EventID, result) then begin
-        // Ok
-      end else begin
-        result := 'OnErmFunction ' + Legacy.IntToStr(EventID);
-      end;
-    end; // .else
-  end; // .switch
+      result := 'OnErmFunction ' + Legacy.IntToStr(EventID);
+    end;
+  end; // .switch EventID
 end; // .function GetTriggerReadableName
 
 procedure SetZVar (Str: myPChar; const Value: myAStr); overload;
@@ -1668,7 +1557,21 @@ type
     IsNegative: boolean;
     StartIndex: integer;
     Count:      integer;
+
+    // Returns really compiled start index, not logical one
+    function GetRealStartIndex: integer;
+
+    property RealStartIndex: integer read GetRealStartIndex;
   end;
+
+function TErmLocalVar.GetRealStartIndex: integer;
+begin
+  result := Self.StartIndex;
+
+  if Self.IsNegative then begin
+    result := -Self.StartIndex - Self.Count + 1;
+  end;
+end;
 
 function PreprocessErm (const ScriptName, Script: myAStr): myAStr;
 const
@@ -2286,7 +2189,7 @@ var
         end; // .else
       end; // .else
     end; // .if
-  end; // .unction GetLocalVar
+  end; // .function GetLocalVar
 
   procedure HandleLocalVar (const VarName: myAStr; VarStartPos: integer; IsIndirectAddressing: longbool);
   var
@@ -2308,16 +2211,12 @@ var
       VarIndex := Low(integer);
 
       if IndexVar = nil then begin
-        if LocalVar.IsNegative then begin
-          VarIndex := -LocalVar.StartIndex - LocalVar.Count + 1 + ArrIndex;
-        end else begin
-          VarIndex := LocalVar.StartIndex + ArrIndex;
-        end;
+        VarIndex := LocalVar.RealStartIndex + ArrIndex;
 
         // The last condition part is an small hack to make an exception for SIZE constant
         if not Math.InRange(ArrIndex, 0, LocalVar.Count - 1) and (not IsAddr or (VarIndex <> LocalVar.Count)) then begin
           ShowError(VarPos, Legacy.Format('Array index %d is out of [%d..%d] range', [ArrIndex, 0, LocalVar.Count - 1]));
-          VarIndex := Alg.ToRange(VarIndex, LocalVar.StartIndex, LocalVar.StartIndex + LocalVar.Count - 1);
+          VarIndex := Alg.ToRange(VarIndex, LocalVar.RealStartIndex, LocalVar.RealStartIndex + LocalVar.Count - 1);
         end;
       end else begin
         // Allocate temporary compiler variable to hold var item pointer
@@ -2332,11 +2231,11 @@ var
 
         if IndexVar.VarType in ['f'..'t'] then begin
           Buf.Insert(Legacy.Format('!!VRy%d:S%d +%s F%d/%d/1; ', [
-            TempVar.StartIndex, LocalVar.StartIndex, IndexVar.VarType, LocalVar.StartIndex, LocalVar.StartIndex + LocalVar.Count - 1
+            TempVar.RealStartIndex, LocalVar.RealStartIndex, IndexVar.VarType, LocalVar.RealStartIndex, LocalVar.RealStartIndex + LocalVar.Count - 1
           ]), CmdStartBufPos);
         end else begin
           Buf.Insert(Legacy.Format('!!VRy%d:S%d +%s%d F%d/%d/1; ', [
-            TempVar.StartIndex, LocalVar.StartIndex, IndexVar.VarType, IndexVar.StartIndex, LocalVar.StartIndex, LocalVar.StartIndex + LocalVar.Count - 1
+            TempVar.RealStartIndex, LocalVar.RealStartIndex, IndexVar.VarType, IndexVar.RealStartIndex, LocalVar.RealStartIndex, LocalVar.RealStartIndex + LocalVar.Count - 1
           ]), CmdStartBufPos);
         end;
 
@@ -2656,7 +2555,7 @@ var
             end else begin
               Scanner.GotoNextChar;
             end;
-          end; // .case '%'
+          end; // .case '$'
 
           ';': begin
             Scanner.GotoNextChar;
@@ -2893,7 +2792,7 @@ end;
 
 procedure TScriptMan.LoadMapInternalScripts;
 const
-  SCRIPT_START_SIGNATURE = integer($4553565A); // 'ZVSE' big-end
+  SCRIPT_START_SIGNATURE = integer($4553565A);
 
 var
 {O} EventList:          {U} TList {of Heroes.PGlobalEvent};
@@ -3153,7 +3052,8 @@ var
   EndPos:   myPChar;
   Cost:     integer;
   CurrCost: integer;
-  I:        Integer;
+
+
 begin
   result := '';
 
@@ -3178,9 +3078,8 @@ begin
         end;
       end;
     until (EndPos^ = #0) or (Cost >= MAX_CONTEXT_COST);
-    //result := myAStr(SysUtils.WrapText(myAStr(StrLib.ExtractFromPchar(StartPos, EndPos - StartPos)), #10, [#0..#255], 100));
-    result := StrLib.ExtractFromPchar(StartPos, EndPos - StartPos);
-    for I := 0 to (length(result) div 75)-1 do Insert(#10, result, (I+1)*75);  // BYME
+
+    result := myAStr(SysUtils.WrapText(myAStr(StrLib.ExtractFromPchar(StartPos, EndPos - StartPos)), #10, [#0..#255], 100));
   end; // .if
 end; // .function GrabErmCmdContext
 
@@ -3674,7 +3573,7 @@ procedure RegisterErmEventNames;
 begin
   NameTrigger(TRIGGER_BA0,  'OnBeforeBattle');
   NameTrigger(TRIGGER_BA1,  'OnAfterBattle');
-  NameTrigger(TRIGGER_BR,   'OnCombatRound'); // name alias firsts
+  NameTrigger(TRIGGER_BR,   'OnCombatRound'); // name alias first
   NameTrigger(TRIGGER_BR,   'OnBattleRound');
   NameTrigger(TRIGGER_BG0,  'OnBeforeBattleAction');
   NameTrigger(TRIGGER_BG1,  'OnAfterBattleAction');
@@ -3777,6 +3676,7 @@ begin
   NameTrigger(TRIGGER_KEY_RELEASED,                 'OnKeyReleased');
   NameTrigger(TRIGGER_BEFORE_BATTLE_PLACE_BATTLE_OBSTACLES, 'OnBeforePlaceBattleObstacles');
   NameTrigger(TRIGGER_AFTER_BATTLE_PLACE_BATTLE_OBSTACLES,  'OnAfterPlaceBattleObstacles');
+  NameTrigger(TRIGGER_BATTLE_STACK_REGENERATION,    'OnBattleStackRegeneration');
 end; // .procedure RegisterErmEventNames
 
 procedure AssignEventParams (const Params: array of integer);
@@ -4816,7 +4716,7 @@ var
 
 begin
   if IsZStr <> 0 then begin
-  // Optimization: do not interpolate z-1..z-10, z1..z1000, temporary ert variables
+    // Optimization: do not interpolate z-1..z-10, z1..z1000, temporary ert variables
     if
       AdvErm.ServiceMemAllocator.OwnsPtr(Str)                                                    or
       ((cardinal(Str) >= cardinal(@z[Low(nz^)])) and (cardinal(Str) <= cardinal(@z[High(nz^)]))) or
@@ -6012,9 +5912,9 @@ end; // .function Hook_FindErm_AfterMapScripts
 (* Loads WoG options from file for current map only (not global) *)
 function LoadWoGOptions (FilePath: myPChar): boolean; ASSEMBLER;
 asm
-  PUSH $0FA0     // Size - 1000 integers
-  PUSH $2771920  // WoGOptions
-  PUSH EAX       // FilePath
+  PUSH $0FA0
+  PUSH $2771920
+  PUSH EAX // FilePath
   MOV EAX, $773867
   CALL EAX
   ADD ESP, $0C
@@ -7046,7 +6946,7 @@ begin
       ShowErmError('"!!VR:S" - cannot set float variable to non-numeric value');
       result := 0; exit;
     end; // .else
-  // BaseVarType IN PARAM_VARTYPES_STRINGS
+  // VarParamType IN PARAM_VARTYPES_STRINGS
   end else begin
     // VR(str):S(str)
     if ValueParamType in PARAM_VARTYPES_STRINGS then begin
@@ -7804,7 +7704,7 @@ begin
   SubCmd    := PErmSubCmd(ppointer(Context.EBP + $14)^);
   FuncId    := GetErmParamValue(@Cmd.Params[0], ValType);
   NumParams := pinteger(Context.EBP + $0C)^;
-   // * * * * * //
+  // * * * * * //
   FuncArgsGetSyntaxFlagsPassed := 0;
 
   for i := 0 to NumParams - 1 do begin
@@ -8103,6 +8003,66 @@ begin
     Context.RetAddr := Ptr($72D19E);
   end;
 end; // .function Hook_FU_EXT
+
+function Hook_IP_EXT (Context: ApiJack.PHookContext): longbool; stdcall;
+type
+  TResult = (CMD_HANDLED, UNKNOWN_CMD, CMD_ERROR);
+
+var
+  CmdChar:      myChar;
+  SubCmd:       PErmSubCmd;
+  NumParams:    integer;
+  Param:        PErmCmdParam;
+  ParamValue:   integer;
+  ParamValType: integer;
+  Res:          TResult;
+  MarkArrays:   boolean;
+  i:            integer;
+
+begin
+  CmdChar := myPChar(Context.EBP + $8)^;
+  Res     := UNKNOWN_CMD;
+
+  if CmdChar in ['M', 'S'] then begin
+    Res       := CMD_HANDLED;
+    SubCmd    := PErmSubCmd(ppointer(Context.EBP + $14)^);
+    NumParams := pinteger(Context.EBP + $0C)^;
+    // * * * * * //
+    if CmdChar = 'M' then begin
+      Param      := @SubCmd.Params[0];
+      MarkArrays := (GetErmParamValue(Param, ParamValType) = 0) and (ParamValType = VALTYPE_INT) and (Param.GetCheckType() = PARAM_CHECK_NONE);
+
+      for i := UtilsB2.IfThen(MarkArrays, 1, 0) to NumParams - 1 do begin
+        Param      := @SubCmd.Params[i];
+        ParamValue := GetErmParamValue(Param, ParamValType, FLAG_STR_EVALS_TO_ADDR_NOT_INDEX);
+
+        if (Param.GetCheckType() <> PARAM_CHECK_NONE) or (ParamValType <> VALTYPE_STR) then begin
+          ShowErmError('Invalid !!IP:M argument #' + Legacy.IntToStr(i + 1));
+          Res := CMD_ERROR;
+          break;
+        end;
+
+        if MarkArrays then begin
+          AdvErm.MarkArrayForNetSync(myPChar(ParamValue));
+        end else begin
+          AdvErm.MarkVarForNetSync(myPChar(ParamValue));
+        end;
+      end;
+    end else if CmdChar = 'S' then begin
+      if Heroes.IsNetworkGame then begin
+        AdvErm.NetSyncMarkedVars;
+      end else begin
+        AdvErm.ClearNetSyncCache;
+      end;
+    end; // .elseif
+  end; // .if
+
+  case Res of
+    CMD_HANDLED: begin result := false; Context.RetAddr := Ptr($768B4F); end;
+    CMD_ERROR:   begin result := false; Context.RetAddr := Ptr($7689C4); end;
+    else         begin result := true;                                   end;
+  end;
+end; // .function Hook_IP_EXT
 
 function Hook_OW_C (Context: ApiJack.PHookContext): longbool; stdcall;
 var
@@ -8423,7 +8383,7 @@ begin
       if StrLen >= 0 then begin
         Buf := Heroes.MemAllocFunc(StrLen + 1);
         Read(StrLen, pbyte(Buf));
-        Buf[StrLen]        := #0;
+        Buf[StrLen]            := #0;
         ErtStrings[Ptr(Index)] := Buf;
       end;
     end; // .for
@@ -8716,6 +8676,9 @@ begin
 
   // Add FU:A/G commands
   ApiJack.HookCode(Ptr($72D181), @Hook_FU_EXT);
+
+  // Add IP:M/S commands
+  ApiJack.HookCode(Ptr($768B32), @Hook_IP_EXT);
 
   // Add extended OW:C?(currentPlayer)/?(uiPlayer) syntax
   ApiJack.HookCode(Ptr($737BCE), @Hook_OW_C);

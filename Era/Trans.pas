@@ -260,7 +260,7 @@ begin
     end;
   end;
 
-    with Files.Locate(GameExt.GetMapResourcePath(LANG_DIR) + '\*.json', Files.ONLY_FILES) do begin
+  with Files.Locate(GameExt.GetMapResourcePath(LANG_DIR) + '\*.json', Files.ONLY_FILES) do begin
     while FindNext do begin
       if Files.ReadFileContents(FoundPath, FileContents) then begin
         result.Add(RscLists.TResource.Create(MapDirName + '\' + FoundName, FileContents));
@@ -290,6 +290,7 @@ begin
   MapLangResources := LoadMapLangResources;
   ImportMapLangResources;
   LoadGlobalLangFiles;
+  EventMan.GetInstance.Fire('OnAfterReloadLanguageData');
 end;
 
 procedure OnAfterWoG (Event: GameExt.PEvent); stdcall;

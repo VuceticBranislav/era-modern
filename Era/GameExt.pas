@@ -46,7 +46,7 @@ const
   DONT_FALLBACK_TO_ORIGINAL = false;
 
 type
-  EAssertFailure = class (Legacy.Exception);
+  EAssertFailure = class (Legacy.Exception) end;
 
   PEraEventParams = ^TEraEventParams;
   TEraEventParams = array [0..15] of integer;
@@ -129,7 +129,7 @@ var
 begin
   with Files.Locate(GameDir + '\' + PLUGINS_PATH + '\*.' + Ext, Files.ONLY_FILES) do begin
     while FindNext do begin
-      if FoundRec.Rec.Size > 0 then begin
+      if (FoundRec.Rec.Size > 0) then begin
         DllName := Legacy.AnsiLowerCase(FoundName);
         FileExt := StrLib.ExtractExt(FoundName);
 
@@ -141,12 +141,12 @@ begin
             string(Legacy.Format('Failed to load plugin "%s", because "%s" is also present. Duplicate plugin files with different extensions detected.', [FoundPath, ForbiddenPluginPath]))
           );
 
-        // Providing Era handle in v1 for compatibility reasons
-        PINTEGER(ERM_V_1)^ := hEra;
+          // Providing Era handle in v1 for compatibility reasons
+          PINTEGER(ERM_V_1)^ := hEra;
 
-        DllHandle := Windows.LoadLibraryA(myPChar(FoundPath));
-        {!} Assert(DllHandle <> 0, string('Failed to load DLL at "' + FoundPath + '"'));
-        PluginsList.AddObj(DllName, Ptr(DllHandle));
+          DllHandle := Windows.LoadLibraryA(myPChar(FoundPath));
+          {!} Assert(DllHandle <> 0, string('Failed to load DLL at "' + FoundPath + '"'));
+          PluginsList.AddObj(DllName, Ptr(DllHandle));
         end;
       end;  // .if
     end; // .while
@@ -474,10 +474,10 @@ begin
   EventMan.GetInstance.Fire('OnAfterStructRelocations');
 end; // .procedure Init
 
-// Explicitly cast the 'Message' parameter to a string in all instances of the Assert method. Literal strings do not require casting.
 procedure AssertHandler (const Mes, FileName: string; LineNumber: integer; Address: pointer);
 var
   CrashMes: myAStr;
+
 begin
   CrashMes := StrLib.BuildStr
   (

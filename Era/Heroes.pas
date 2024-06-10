@@ -60,6 +60,9 @@ const
   NUM_BATTLE_STACKS          = 42;
   NUM_BATTLE_STACKS_PER_SIDE = 21;
 
+  (* Multiple constants *)
+  {$INCLUDE HeroesConsts}
+
   (*  BattleMon  *)
   NO_STACK          = -1;
   STACK_STRUCT_SIZE = 1352;
@@ -255,9 +258,9 @@ type
     (* Dummy *)
   end;
 
-  PLod  = ^TLod;
-  TLod  = packed record
-    Dummy:  array [0..399] of byte;
+  PLod = ^TLod;
+  TLod = packed record
+    Dummy: array [0..399] of byte;
   end;
 
   PFontCharInfo = ^TFontCharInfo;
@@ -882,8 +885,10 @@ type
     Bibl:         TExtString;                     // +3DE
     Spell:        array [0..69] of byte;          // +3EA db*46 = zaklinanie (est'/net)
     LSpell:       array [0..69] of byte;          // +430 db*46 = uroven' zaklinaniya (>=1)
-    PSkill:       array [0..3] of byte;           // +476 db*4  = pervichnye navyki
+    PSkill:       array [0..3]  of byte;          // +476 db*4  = pervichnye navyki
     _u8:          array [0..23] of byte;
+
+    function HasArtOnDoll (ArtId: integer): boolean;
   end; // .record THero
 
   THeroes = packed array [0..999] of THero;
@@ -981,6 +986,12 @@ type
   TTowns = packed array [0..999] of TTown;
   PTowns = ^TTowns;
 
+  PTownMonTypes = ^TTownMonTypes;
+  TTownMonTypes = packed array [0..1] of packed array [0..6] of integer;
+
+  PMonAssignmentsPerTown = ^TMonAssignmentsPerTown;
+  TMonAssignmentsPerTown = packed array [0..999] of TTownMonTypes;
+
   PTownManager = ^TTownManager;
   TTownManager = packed record
     Unk1: array [0..$38 - 1] of byte;
@@ -1059,10 +1070,17 @@ type
 
   PBattleStack = ^TBattleStack;
   TBattleStack = packed record
-    Unk1:    array [0..$34 - 1] of byte;
-    MonType: integer; // +0x34
-    Pos:     integer; // +0x38
-    Unk2:    array [$3C..$548 - 1] of byte;
+    Unk1:      array [0..$34 - 1] of byte;
+    MonType:   integer; // +0x34
+    Pos:       integer; // +0x38
+    Unk2:      array [$3C..$58 - 1] of byte;
+    HpLost:    integer;
+    Unk3:      array [$5C..$C0 - 1] of byte;
+    HitPoints: integer;
+    Unk4:      array [$C4..$F4 - 1] of byte;
+    Side:      integer;
+    Index:     integer; // 0..21
+    Unk5:      array [$FC..$548 - 1] of byte;
   end; // .record TBattleStack
 
   PPCombatManager = ^PCombatManager;
@@ -1189,12 +1207,13 @@ const
   Spells:       PSpells  = Ptr($7BD2C0);
   NumSpellsPtr: pinteger = Ptr($7751ED + 3);
 
-  TextBuf:        PGeneralPurposeTextBuf = Ptr($697428);
-  MonInfos:       PMonInfos = Ptr($7D0C90);
-  NumMonstersPtr: pinteger  = Ptr($733326);
-  ArtInfos:       PArtInfos = Ptr($7B6DA0);
-  NumArtsPtr:     pinteger  = Ptr($7324BD);
-  NumHeroes:      pinteger  = Ptr($7116B2);
+  TextBuf:               PGeneralPurposeTextBuf = Ptr($697428);
+  MonInfos:              PMonInfos = Ptr($7D0C90);
+  MonAssignmentsPerTown: PMonAssignmentsPerTown = Ptr($6747B4);
+  NumMonstersPtr:        pinteger  = Ptr($733326);
+  ArtInfos:              PArtInfos = Ptr($7B6DA0);
+  NumArtsPtr:            pinteger  = Ptr($7324BD);
+  NumHeroes:             pinteger  = Ptr($7116B2);
 {$J-}
   (* Variable is protected with two crit sections: pint(SOUND_MANAGER)^ + $a8 and pint(SOUND_MANAGER)^ + $c0 *)
   CurrentMp3Track: PCurrentMp3Track = Ptr($6A32F0);
@@ -1971,8 +1990,13 @@ end;
 
 procedure GetGameState (out GameState: TGameState);
 begin
-  GameState.RootDlgId    := WndManagerPtr^.GetRootDlgId;
-  GameState.CurrentDlgId := WndManagerPtr^.GetCurrentDlgId;
+  GameState.RootDlgId    := 0;
+  GameState.CurrentDlgId := 0;
+
+  if WndManagerPtr^ <> nil then begin
+    GameState.RootDlgId    := WndManagerPtr^.GetRootDlgId;
+    GameState.CurrentDlgId := WndManagerPtr^.GetCurrentDlgId;
+  end;
 end;
 
 function GetMapSize: integer; assembler; {$W+}
@@ -2039,6 +2063,11 @@ begin
   end;
 
   result := (i >= PLAYER_FIRST) and GetPlayer(i).IsThisPcHumanPlayer;
+end;
+
+function THero.HasArtOnDoll (ArtId: integer): boolean;
+begin
+  result := PatchApi.Call(THISCALL_, Ptr($4D9460), [@Self, ArtId]) <> 0;
 end;
 
 function GetThisPcHumanPlayerId: integer;
@@ -2382,12 +2411,13 @@ end; // .function DisplayComplexDialog
 
 procedure OnAfterStructRelocations (Event: GameExt.PEvent); stdcall;
 begin
-  SecSkillNames := ppointer($4E6C00)^;
-  SecSkillDescs := ppointer($4E6C10)^;
-  SecSkillTexts := ppointer($4E6C1A)^;
-  MonInfos      := ppointer($6747B0)^;
-  ArtInfos      := ppointer($660B68)^;
-  Spells        := ppointer($687FA8)^;
+  SecSkillNames         := ppointer($4E6C00)^;
+  SecSkillDescs         := ppointer($4E6C10)^;
+  SecSkillTexts         := ppointer($4E6C1A)^;
+  MonInfos              := ppointer($6747B0)^;
+  MonAssignmentsPerTown := ppointer($428605)^;
+  ArtInfos              := ppointer($660B68)^;
+  Spells                := ppointer($687FA8)^;
 end;
 
 begin

@@ -35,7 +35,9 @@ uses
   StrLib,
   Trans,
   UtilsB2,
-  WinNative, Legacy;
+  WinNative,
+  WinUtils,
+  WogDialogs, Legacy;
 
 type
   (* Import *)
@@ -46,7 +48,7 @@ const
   // f (Value: pchar; MaxResLen: integer; DefValue, Key, SectionName, FileName: pchar): integer; cdecl;
   ZvsReadStrIni  = Ptr($773A46);
   // f (Res: PINTEGER; DefValue: integer; Key, SectionName, FileName: pchar): integer; cdecl;
-  // ZvsReadIntIni  = Ptr($7739D1);
+  ZvsReadIntIni  = Ptr($7739D1);
   // f (Value: pchar; Key, SectionName, FileName: pchar): integer; cdecl;
   ZvsWriteStrIni = Ptr($773B34);
   // f (Value, Key, SectionName, FileName: pchar): integer; cdecl;
@@ -69,9 +71,12 @@ var
   (* Desired level of CPU loading *)
   CpuTargetLevel: integer;
 
-  FixGetHostByNameOpt:  boolean;
-  UseOnlyOneCpuCoreOpt: boolean;
-  DebugRng:             integer;
+  AutoSelectPcIpMaskOpt: myAStr;
+  LastUsedPcIp:          integer = 0;
+  IsSelectingPcIp:       boolean = false;
+
+  UseOnlyOneCpuCoreOpt:  boolean;
+  DebugRng:              integer;
 
 
 (* Generates random value in specified range with additional custom parameter used only in deterministic generators to produce different outputs for sequence of generations *)
@@ -134,6 +139,7 @@ var
   ZvsLibGamePath:        myAStr;
   IsLocalPlaceObject:    boolean = true;
   DlgLastEvent:          Heroes.TMouseEventInfo;
+  ComputerName:          myAStr;
 
   Mp3TriggerHandledEvent: THandle;
   IsMp3Trigger:           boolean = false;
@@ -216,17 +222,17 @@ begin
 
     if BiasedRangeLen = RangeLen then begin
       BiasedRangeLen := 0;
-  end;
+    end;
 
-  MaxUnbiasedValue := High(cardinal) - BiasedRangeLen;
+    MaxUnbiasedValue := High(cardinal) - BiasedRangeLen;
 
-  while (cardinal(result) > MaxUnbiasedValue) and (i <= MAX_UNBIAS_ATTEMPTS) do begin
-    Inc(Self.fState.fAttemptParam, 39437491);
-    result := Crypto.FastHash(@Self.fState, sizeof(Self.fState));
-    Inc(i);
-  end;
+    while (cardinal(result) > MaxUnbiasedValue) and (i <= MAX_UNBIAS_ATTEMPTS) do begin
+      Inc(Self.fState.fAttemptParam, 39437491);
+      result := Crypto.FastHash(@Self.fState, sizeof(Self.fState));
+      Inc(i);
+    end;
 
-  result := MinValue + integer(cardinal(result) mod RangeLen);
+    result := MinValue + integer(cardinal(result) mod RangeLen);
   end;
 end;
 
@@ -515,12 +521,12 @@ begin
   
   if Heroes.UNIQUE_SYSTEM_ID_OPT^ = #0 then begin
     Randomize;
-    RandomValue :=  (integer(Windows.GetTickCount) + Random(MAXLONGINT)) and UNIQUE_ID_MASK;
+    RandomValue := (integer(Windows.GetTickCount) + Random(MAXLONGINT)) and UNIQUE_ID_MASK;
     SetLength(RandomStr, UNIQUE_ID_LEN);
     
     for i:=1 to UNIQUE_ID_LEN do begin
-      RandomStr[i]  :=  Legacy.UpCase(StrLib.ByteToHexChar(RandomValue and $F));
-      RandomValue   :=  RandomValue shr 4;
+      RandomStr[i] :=  Legacy.UpCase(StrLib.ByteToHexChar(RandomValue and $F));
+      RandomValue  :=  RandomValue shr 4;
     end;
     
     UtilsB2.CopyMem(Length(RandomStr) + 1, pointer(RandomStr), Heroes.UNIQUE_SYSTEM_ID_OPT);
@@ -623,49 +629,72 @@ begin
   Ini.SaveIni(Heroes.GAME_SETTINGS_FILE);
 end; // .procedure WriteGameSettings
 
-function Hook_GetHostByName (Hook: PatchApi.THiHook; Name: myPChar): WinSock.PHostEnt; stdcall;
+function Ip4ToStr (ip: integer): myAStr;
+begin
+  result := Legacy.Format('%d.%d.%d.%d', [ip and $FF, (ip shr 8) and $FF, (ip shr 16) and $FF, (ip shr 24) and $FF]);
+end;
+
+function Hook_GetHostByName (OrigFunc: pointer; Name: myPChar): WinSock.PHostEnt; stdcall;
 type
   PEndlessPIntArr = ^TEndlessPIntArr;
-  TEndlessPIntArr = array [0..MAXLONGINT div 4 - 1] of PINTEGER;
-  
+  TEndlessPIntArr = array [0..MAXLONGINT div 4 - 1] of pinteger;
+  TInt32          = packed array [0..3] of byte;
+
 var
-{U} HostEnt:  WinSock.PHostEnt;
-{U} Addrs:    PEndlessPIntArr;
-    i:        integer;
+{On} AddrList:        {U} TStrList {of TObject};
+{U}  Addrs:           PEndlessPIntArr;
+     SelectedAddrInd: integer;
+     AddrStr:         myAStr;
+     i:               integer;
 
-  function IsLocalAddr (Addr: integer): boolean;
-  type
-    TInt32 = packed array [0..3] of byte;
-  
-  begin
-    result := (TInt32(Addr)[0] = 10) or ((TInt32(Addr)[0] = 172) and Math.InRange(TInt32(Addr)[1],
-                                                                                  16, 31)) or
-                                        ((TInt32(Addr)[0] = 192) and (TInt32(Addr)[1] = 168));
-  end;
-    
 begin
+  AddrList := nil;
+  // * * * * * //
+  result := Ptr(PatchApi.Call(PatchApi.STDCALL_, OrigFunc, [Name]));
+
+  if (result = nil) or ((Name <> nil) and (Name <> ComputerName)) or (result.h_length <> sizeof(integer)) then begin
+    exit;
+  end;
+
+  Addrs := pointer(result.h_addr_list);
+
   {!} Windows.EnterCriticalSection(InetCriticalSection);
-  
-  result := Ptr(PatchApi.Call(PatchApi.STDCALL_, Hook.GetDefaultFunc(), [Name]));
-  HostEnt := result;
-  
-  if HostEnt.h_length = sizeof(integer) then begin
-    Addrs := pointer(HostEnt.h_addr_list);
-    
-    if (Addrs[0] <> nil) and IsLocalAddr(Addrs[0]^) then begin
-      i := 1;
 
-      while (Addrs[i] <> nil) and IsLocalAddr(Addrs[i]^) do begin
-        Inc(i);
+  if (not IsSelectingPcIp) and (Addrs[0] <> nil) then begin
+    IsSelectingPcIp := true;
+    AddrList        := DataLib.NewStrList(not UtilsB2.OWNS_ITEMS, DataLib.CASE_SENSITIVE);
+    i               := 0;
+    SelectedAddrInd := -1;
+
+    while (SelectedAddrInd = -1) and (Addrs[i] <> nil) do begin
+      if (Addrs[i]^ = LastUsedPcIp) then begin
+        SelectedAddrInd := i;
+      end else begin
+        AddrStr := Ip4ToStr(Addrs[i]^);
+
+        if (AutoSelectPcIpMaskOpt <> '') and StrLib.Match(AddrStr, AutoSelectPcIpMaskOpt) then begin
+          SelectedAddrInd := i;
+        end else if i < WogDialogs.MAX_OPTIONS_DLG_ITEMS then begin
+          AddrList.Add(AddrStr);
+        end;
       end;
 
-      if Addrs[i] <> nil then begin
-        UtilsB2.Exchange(Addrs[0]^, Addrs[i]^);
-      end;
-    end; // .if
+      Inc(i);
+    end;
+
+    if SelectedAddrInd = -1 then begin
+      SelectedAddrInd := WogDialogs.ShowRadioDlg(Trans.tr('era.select_ip_address', []) + ':', AddrList.GetKeys);
+    end;
+
+    LastUsedPcIp := Addrs[SelectedAddrInd]^;
+    UtilsB2.Exchange(Addrs[0]^, Addrs[SelectedAddrInd]^);
+
+    IsSelectingPcIp := false;
   end; // .if
-  
+
   {!} Windows.LeaveCriticalSection(InetCriticalSection);
+  // * * * * * //
+  SysUtils.FreeAndNil(AddrList);
 end; // .function Hook_GetHostByName
 
 function Hook_ApplyDamage_Ebx (Context: Core.PHookContext): longbool; stdcall;
@@ -772,7 +801,7 @@ const
 begin
   ZvsLibGamePath := Legacy.ExtractFileDir(myAStr(ParamStr(0)));
   {!} Assert(Length(ZvsLibGamePath) > 0);
-  // Increase string ref count for C++ Builder string
+  // Increase string ref count for C++ Builder Ansistring
   Inc(PINTEGER(UtilsB2.PtrOfs(pointer(ZvsLibGamePath), -8))^);
 
   PPAnsiChar(Context.EBP - EBP_LOCAL_GAME_PATH)^ :=  myPChar(ZvsLibGamePath);
@@ -1182,9 +1211,9 @@ end;
 
 function Hook_ZvsAdd2Send (Context: ApiJack.PHookContext): longbool; stdcall;
 const
-  BUF_ADDR    = $2846C60;
+  BUF_ADDR                = $2846C60;
   DEST_PLAYER_ID_VAR_ADDR = $281187C;
-  BUF_POS_VAR = -$0C;
+  BUF_POS_VAR             = -$0C;
 
 type
   PWoGBattleSyncBuffer = ^TWoGBattleSyncBuffer;
@@ -1227,6 +1256,21 @@ begin
   end;
 
   result := true;
+end;
+
+procedure Hook_ZvsTriggerIp (OrigFunc: pointer; TriggerSubtype: integer); stdcall;
+const
+  ATTACKER_BEFORE_DATA_SEND = 0;
+  DEFENDER_BEFORE_DATA_SEND = 2;
+
+begin
+  PatchApi.Call(CDECL_, OrigFunc, [TriggerSubtype]);
+
+  if TriggerSubtype = ATTACKER_BEFORE_DATA_SEND then begin
+    EventMan.GetInstance.Fire('$OnBeforeBattleBeforeDataSend');
+  end else if TriggerSubtype = DEFENDER_BEFORE_DATA_SEND then begin
+    EventMan.GetInstance.Fire('$OnAfterBattleBeforeDataSend');
+  end;
 end;
 
 procedure OnBeforeBattleUniversal (Event: GameExt.PEvent); stdcall;
@@ -2030,17 +2074,8 @@ begin
   (* Fix game version to enable map generator *)
   Heroes.GameVersion^ :=  Heroes.SOD_AND_AB;
   
-  (* Fix gethostbyname function to return external IP address at first place *)
-  if FixGetHostByNameOpt then begin
-    Core.p.WriteHiHook
-    (
-      Windows.GetProcAddress(Windows.GetModuleHandleA(myPChar('ws2_32.dll')), myPChar('gethostbyname')),
-      PatchApi.SPLICE_,
-      PatchApi.EXTENDED_,
-      PatchApi.STDCALL_,
-      @Hook_GetHostByName
-    );
-  end;
+  (* Hook gethostbyname function to implement desired IP address selection *)
+  ApiJack.StdSplice(Windows.GetProcAddress(Windows.GetModuleHandleA('ws2_32.dll'), 'gethostbyname'), @Hook_GetHostByName, ApiJack.CONV_STDCALL, 1);
 
   (* Fix ApplyDamage calls, so that !?MF1 damage is displayed correctly in log *)
   Core.ApiHook(@Hook_ApplyDamage_Ebx_Local7,  Core.HOOKTYPE_BRIDGE, Ptr($43F95B + 5));
@@ -2201,6 +2236,9 @@ begin
   ApiJack.HookCode(Ptr($763796), @Hook_ZvsAdd2Send);
   ApiJack.HookCode(Ptr($763BA4), @Hook_ZvsGet4Receive);
 
+  (* Introduce new internal triggers $OnBeforeBattleBeforeDataSend and $OnAfterBattleBeforeDataSend *)
+  ApiJack.StdSplice(Ptr($74D160), @Hook_ZvsTriggerIp, ApiJack.CONV_CDECL, 1);
+
   (* Replace Heroes PRNG with custom switchable PRNGs *)
   ApiJack.StdSplice(Ptr($61841F), @Hook_SRand, ApiJack.CONV_CDECL, 1);
   ApiJack.StdSplice(Ptr($61842C), @Hook_Rand, ApiJack.CONV_STDCALL, 0);
@@ -2256,6 +2294,7 @@ begin
   GlobalRng                 := QualitativeRng;
   IsMainThread              := true;
   Mp3TriggerHandledEvent    := Windows.CreateEvent(nil, false, false, nil);
+  ComputerName              := WinUtils.GetComputerNameW;
 
   EventMan.GetInstance.On('OnAfterVfsInit', OnAfterVfsInit);
   EventMan.GetInstance.On('OnAfterWoG', OnAfterWoG);
