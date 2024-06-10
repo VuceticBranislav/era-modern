@@ -82,7 +82,8 @@ uses
   ZlibUtils in 'ZlibUtils.pas',
   Scripts in 'Scripts.pas',
   Lua in 'Lua\Lua.pas',
-  Json in 'Json.pas';
+  Json in 'Json.pas',
+  WogEvo in 'WogEvo.pas';
 
 begin
   FormatSettings.DecimalSeparator := '.';

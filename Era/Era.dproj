@@ -159,6 +159,7 @@ $(PostBuildEvent)]]></PostBuildEvent>
         <DCCReference Include="Scripts.pas"/>
         <DCCReference Include="Lua\Lua.pas"/>
         <DCCReference Include="Json.pas"/>
+        <DCCReference Include="WogEvo.pas"/>
         <None Include="VersionInfo.inc"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
