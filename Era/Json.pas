@@ -1831,7 +1831,7 @@ var
               't':  resultString := resultString + #9;
               'u':
                 begin
-                  resultString := resultString + UTF8ToString(code2utf(strtoint('$' + copy(utf8String, j + 1, 4))));
+                  resultString := resultString + UTF8ToString(code2utf(SysUtils.strtoint('$' + copy(utf8String, j + 1, 4))));
                   Inc(j, 4);
                 end;
             end;

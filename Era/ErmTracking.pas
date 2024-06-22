@@ -1,13 +1,21 @@
 unit ErmTracking;
-{
-DESCRIPTION: Provides ERM receivers and triggers tracking support
-AUTHOR:      Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
-}
+(*
+  Description: Provides ERM receivers and triggers tracking support
+  Author:      Alexander Shostak aka Berserker
+*)
 
 (***)  interface  (***)
+
 uses
-  SysUtils, UtilsB2,
-  GameExt, Erm, Legacy;
+  SysUtils,
+
+  Core,
+  FilesEx,
+  StrLib,
+  UtilsB2,
+
+  Erm,
+  GameExt, Legacy;
 
 type
   TTrackEventType        = (TRACKEDEVENT_START_TRIGGER, TRACKEDEVENT_END_TRIGGER, TRACKEDEVENT_CMD);
@@ -47,7 +55,7 @@ type
    
    public
     constructor Create (TrackingBufSize: integer);
-    
+
     procedure Reset ();
     function  SetDumpCommands (ShouldDumpCommands: boolean): {SELF} TEventTracker;
     function  SetIgnoreEmptyTriggers (ShouldIgnoreEmptyTriggers: boolean): {SELF} TEventTracker;
@@ -61,7 +69,6 @@ type
 
 
 (***) implementation (***)
-uses StrLib, FilesEx, Core;
 
 
 constructor TEventTracker.Create (TrackingBufSize: integer);
@@ -93,7 +100,7 @@ end; // .function TEventTracker.AddRecord
 procedure TEventTracker.Reset ();
 begin
   fBufPos           := 0;
-  fNumTrackedEvents := 0; 
+  fNumTrackedEvents := 0;
 end;
 
 function TEventTracker.SetDumpCommands (ShouldDumpCommands: boolean): {SELF} TEventTracker;
@@ -128,7 +135,7 @@ end; // .procedure TEventTracker.TrackTrigger
 procedure TEventTracker.TrackCmd (Addr: myPChar);
 var
 {U} Rec: PTrackedEvent;
-   
+
 begin
   Rec := Self.AddRecord();
   // * * * * * //
@@ -138,8 +145,8 @@ begin
   Rec.Addr         := Addr;
   word(Rec.Name)   := pword(Addr)^;
   Rec.SourceCode   := '';
-  
-  if fDumpCommands then begin
+
+  if Self.fDumpCommands then begin
     Rec.SourceCode := Self.DumpCmd(Addr);
   end;
 end; // .procedure TEventTracker.TrackCmd
@@ -166,7 +173,7 @@ var
     j: integer;
 
   begin
-    with Writer do begin   
+    with Writer do begin
       EmptyLine;
       WriteIndentation;
 
@@ -217,7 +224,7 @@ var
 
         Write(']');
       end; // .if
-      
+
       EmptyLine;
       EmptyLine;
 
@@ -249,7 +256,7 @@ begin
   Event := nil;
   // * * * * * //
   Writer := FilesEx.WriteFormattedOutput(FilePath);
-  
+
   with Writer do begin
     Line('Dump of the last ' + Legacy.IntToStr(fNumTrackedEvents) + ' tracked events.');
 
@@ -300,7 +307,21 @@ begin
   StartAddr := Addr;
   // * * * * * //
   while (not (Addr^ in [#0, ';'])) do begin
-    inc(Addr);
+    while (not (Addr^ in [#0, ';', '^'])) do begin
+      Inc(Addr);
+    end;
+
+    if Addr^ = '^' then begin
+      Inc(Addr);
+
+      while (not (Addr^ in [#0, '^'])) do begin
+        Inc(Addr);
+      end;
+
+      if Addr^ = '^' then begin
+        Inc(Addr);
+      end;
+    end;
   end;
 
   if Addr^ = ';' then begin
@@ -309,7 +330,7 @@ begin
 
   CmdLen := integer(Addr) - integer(StartAddr);
   SetLength(result, CmdLen);
-  
+
   if CmdLen > 0 then begin
     UtilsB2.CopyMem(CmdLen, StartAddr, @result[1]);
   end;

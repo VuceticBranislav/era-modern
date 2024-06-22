@@ -1,15 +1,34 @@
 unit GameExt;
 (*
-  Game extension support.
-  Author: Alexander Shostak aka Berserker.
+  Description: Game extension support. Era entry point.
+  Author:      Alexander Shostak aka Berserker.
 *)
 
 (***)  interface  (***)
 uses
-  Windows, Math, SysUtils, PatchApi,
-  UtilsB2, DataLib, CFiles, Files, FilesEx, Crypto, StrLib, Core,
-  Lists, CmdApp, Log, WinUtils,
-  VfsImport, BinPatching, EventMan, DlgMes, Legacy;
+  Math,
+  SysUtils,
+  Windows,
+
+  BinPatching,
+  CmdApp,
+  Core,
+  Crypto,
+  DataLib,
+  DlgMes,
+  Files,
+  FilesEx,
+  Lists,
+  Log,
+  StrLib,
+  UtilsB2,
+  WinUtils,
+
+  EraLog,
+  EraSettings,
+  EventMan,
+  PatchApi,
+  VfsImport, Legacy;
 
 type
   (* Import *)
@@ -18,8 +37,7 @@ type
   TEvent      = EventMan.TEvent;
   PEvent      = EventMan.PEvent;
 
-const
-  {$I VersionInfo.inc}
+const {$I VersionInfo.inc}
   (* Command line arguments *)
   CMDLINE_ARG_MODLIST : myAStr = 'modlist';
 
@@ -28,19 +46,21 @@ const
   DEFAULT_MOD_LIST_FILE    : myAStr = MODS_DIR + '\list.txt';
   PLUGINS_PATH             : myAStr = 'EraPlugins';
   PATCHES_PATH             : myAStr = 'EraPlugins';
-  DEBUG_DIR                = myAStr('Debug\Era');
   DEBUG_MAPS_DIR           : myAStr = 'DebugMaps';
   RUNTIME_DIR              : myAStr = 'Runtime';
   RANDOM_MAPS_DIR          : myAStr = 'Random_Maps';
   SAVED_GAMES_DIR          : myAStr = 'Games';
-  DEBUG_EVENT_LIST_PATH    : myAStr = DEBUG_DIR + '\event list.txt';
-  DEBUG_PATCH_LIST_PATH    : myAStr = DEBUG_DIR + '\patch list.txt';
-  DEBUG_MOD_LIST_PATH      : myAStr = DEBUG_DIR + '\mod list.txt';
-  DEBUG_X86_PATCH_LIST_PATH: myAStr = DEBUG_DIR + '\x86 patches.txt';
+  DEBUG_EVENT_LIST_PATH    : myAStr = EraSettings.DEBUG_DIR + '\event list.txt';
+  DEBUG_PATCH_LIST_PATH    : myAStr = EraSettings.DEBUG_DIR + '\patch list.txt';
+  DEBUG_MOD_LIST_PATH      : myAStr = EraSettings.DEBUG_DIR + '\mod list.txt';
+  DEBUG_X86_PATCH_LIST_PATH: myAStr = EraSettings.DEBUG_DIR + '\x86 patches.txt';
 
   CONST_STR = -1;
 
   NO_EVENT_DATA = nil;
+
+
+
 
   FALLBACK_TO_ORIGINAL      = true;
   DONT_FALLBACK_TO_ORIGINAL = false;
@@ -59,9 +79,7 @@ type
   end;
 
 
-var
-    ERA_VERSION_STR:  myAStr;
-    ERA_VERSION_INT:  Integer;
+var ERA_VERSION_STR: myAStr; ERA_VERSION_INT: Integer;
 {O} PluginsList:      DataLib.TStrList {OF TDllHandle};
     hEra:             Windows.THandle;
     DumpVfsOpt:       boolean;
@@ -433,8 +451,12 @@ begin
   Files.ForcePath(GameDir + '\' + RANDOM_MAPS_DIR);
   Files.ForcePath(GameDir + '\' + SAVED_GAMES_DIR);
 
-  // Era started, load settings, initialize logging subsystem
-  EventMan.GetInstance.Fire('OnEraStart', NO_EVENT_DATA, 0);
+  EraSettings.LoadSettings(GameDir);
+  EraLog.InstallLoggers(GameDir);
+  Log.Write('Core', 'CheckVersion', 'Result: ' + ERA_VERSION_STR);
+
+  // Allow other units to load necessary settings
+  EventMan.GetInstance.Fire('$OnLoadEraSettings', NO_EVENT_DATA, 0);
 
   // Run VFS
   ModListFilePath := CmdApp.GetArg(CMDLINE_ARG_MODLIST);
@@ -446,7 +468,7 @@ begin
   VfsImport.MapModsFromListA(myPChar(GameDir), myPChar(ModsDir), myPChar(ModListFilePath));
   Log.Write('Core', 'ReportModList', #13#10 + myAStr(VfsImport.GetMappingsReportA));
 
-  if DumpVfsOpt then begin
+  if EraSettings.GetDebugBoolOpt('Debug.DumpVirtualFileSystem', false) then begin
     Log.Write('Core', 'DumpVFS', #13#10 + myAStr(VfsImport.GetDetailedMappingsReportA));
   end;
 
@@ -499,9 +521,7 @@ begin
   //raise EAssertFailure.Create(string(CrashMes)) at Address;
 end; // .procedure AssertHandler
 
-begin
-  ERA_VERSION_STR        := Legacy.Format('%d.%d.%d%s', [VER_Major, VER_Minor, VER_Build, VER_Sufix]);
-  ERA_VERSION_INT        := VER_Major*1000 + VER_Minor*100 + VER_Build;
+begin ERA_VERSION_STR := Legacy.Format('%d.%d.%d%s', [VER_Major, VER_Minor, VER_Build, VER_Sufix]); ERA_VERSION_INT := VER_Major*1000 + VER_Minor*100 + VER_Build;
   AssertErrorProc        := AssertHandler;
   PluginsList            := DataLib.NewStrList(not UtilsB2.OWNS_ITEMS, DataLib.CASE_INSENSITIVE);
   MemRedirections        := DataLib.NewList(not UtilsB2.OWNS_ITEMS);

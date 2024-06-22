@@ -1,11 +1,11 @@
 unit DebugMaps;
-{
-DESCRIPTION:  Adds support for *.dbgmap binary debug map files. Allows to convert offset from PE module
-              base into human-readable label with possible source file/line information.
-AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
-}
+(*
+  Description: Adds support for *.dbgmap binary debug map files. Allows to convert offset from PE module
+               base into human-readable label with possible source file/line information.
+  Author:      Alexander Shostak aka Berserker
+*)
 
-interface
+(***)  interface  (***)
 
 uses
   SysUtils, UtilsB2, Math, Legacy;
@@ -42,7 +42,8 @@ type
   end; // .class TDebugMap
 
 
-implementation
+(***)  implementation  (***)
+
 
 function TDebugMap.IsEmpty: boolean;
 begin
@@ -150,11 +151,15 @@ begin
       end else begin
         break;
       end;
-    end; // .while
-    
-    if (Left <= Right) or (Right >= 0) then begin
-      LabelOffset := Offset - Self.Labels[Right].Offset;
-      result      := Self.Labels[Right].Name;
+    end;
+
+    if Right >= 0 then begin
+      if Left > Right then begin
+        MiddleInd := Right;
+      end;
+
+      LabelOffset := Offset - Self.Labels[MiddleInd].Offset;
+      result      := Self.Labels[MiddleInd].Name;
 
       if LabelOffset > 0 then begin
         result := result + ' + ' + Legacy.IntToStr(uint(LabelOffset));
@@ -179,15 +184,19 @@ begin
         break;
       end;
     end; // .while
-    
-    if ((Left <= Right) or (Right >= 0)) and Math.InRange(Self.LineInfos[Right].ModuleInd, 0, length(Self.Modules) - 1) then begin
-      LineOffset := Offset - Self.LineInfos[Right].Offset;
+
+    if (Right >= 0) and Math.InRange(Self.LineInfos[Right].ModuleInd, 0, length(Self.Modules) - 1) then begin
+      if Left > Right then begin
+        MiddleInd := Right;
+      end;
+
+      LineOffset := Offset - Self.LineInfos[MiddleInd].Offset;
 
       if result <> '' then begin
         result := result + ' ';
       end;
-      
-      result := result + 'in ' + Self.Modules[Self.LineInfos[Right].ModuleInd].Name + ' on line ' + Legacy.IntToStr(uint(Self.LineInfos[Right].Line));
+
+      result := result + 'in ' + Self.Modules[Self.LineInfos[MiddleInd].ModuleInd].Name + ' on line ' + Legacy.IntToStr(uint(Self.LineInfos[MiddleInd].Line));
 
       if LineOffset > 0 then begin
         result := result + ' offset ' + Legacy.IntToStr(uint(LineOffset));

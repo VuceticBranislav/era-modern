@@ -48,8 +48,10 @@ type
   TWaitResult = (WR_WAITED, WR_ABANDONED_MUTEX, WR_TIMEOUT, WR_FAILED, WR_UNKNOWN);
 
 function IsValidHandle (Handle: THandle): boolean; inline;
+function GetCursorLocalPos (Wnd: Windows.HWND): Windows.TPoint;
 function TakeScreenshot (hWnd: THandle; HideCursor: boolean; out Res: TRawImage): boolean;
 function GetExePath: myWStr;
+function CaptureClientAreaScreenshot (Wnd: HWND; out Res: TRawImage): boolean;
 function GetCurrentDirW: myWStr;
 function SetCurrentDirW (const DirPath: myWStr): boolean;
 function GetLongPathNameW (lpszShortPath, lpszLongPath: myPWChar; cchBuffer: integer): integer; stdcall; external kernel32;
@@ -108,14 +110,37 @@ begin
   end;
 end; // .destructor TRawImage.Destroy
 
-function TakeScreenshot (hWnd: THandle; HideCursor: boolean; out Res: TRawImage): boolean;
+function GetCursorLocalPos (Wnd: Windows.HWND): Windows.TPoint;
+var
+  CursorPos: Windows.TPoint;
+
+begin
+  GetCursorPos(CursorPos);
+  ScreenToClient(Wnd, CursorPos);
+
+  result := CursorPos;
+end;
+
+procedure InitBgraBitmapInfo (var BitmapInfo: TBitmapInfo; Width, Height: integer);
 const
   BITS_PER_PIXEL  = 32;
   BYTES_PER_PIXEL = BITS_PER_PIXEL div 8;
 
+begin
+  BitmapInfo.bmiHeader.biSize         := sizeof(BITMAPINFOHEADER);
+  BitmapInfo.bmiHeader.biWidth        := Width;
+  BitmapInfo.bmiHeader.biHeight       := -Height; // Top to bottom line scan
+  BitmapInfo.bmiHeader.biPlanes       := 1;
+  BitmapInfo.bmiHeader.biBitCount     := BITS_PER_PIXEL;
+  BitmapInfo.bmiHeader.biCompression  := BI_RGB;
+  BitmapInfo.bmiHeader.biSizeImage    := Width * Height * BYTES_PER_PIXEL;
+  BitmapInfo.bmiHeader.biClrUsed      := 0;
+  BitmapInfo.bmiHeader.biClrImportant := 0;
+end;
+
+function TakeScreenshot (hWnd: THandle; HideCursor: boolean; out Res: TRawImage): boolean;
 var
 {U} Buf:                 PBgraBuf;
-    BufSize:             integer;
     WindowDeviceContext: HDC;
     ImageDeviceContext:  HDC;
     WindowInfo:          TWindowInfo;
@@ -172,7 +197,7 @@ var
       CursorInfo.cbSize := sizeof(CursorInfo);
       GetCursorInfo(CursorInfo);
 
-      if CursorInfo.flags = CURSOR_SHOWING then begin
+      if true or (CursorInfo.flags = CURSOR_SHOWING) then begin
         hCursor := CopyIcon(CursorInfo.hCursor);
 
         if hCursor <> 0 then begin
@@ -205,33 +230,20 @@ begin
       GetVisibleRect;
       VisibleRectWidth  := VisibleRect.Right  - VisibleRect.Left + 1;
       VisibleRectHeight := VisibleRect.Bottom - VisibleRect.Top  + 1;
-      BufSize           := VisibleRectWidth * VisibleRectHeight * BYTES_PER_PIXEL;
-      GetMem(Buf, BufSize);
+      InitBgraBitmapInfo(BitmapInfo, VisibleRectWidth, VisibleRectHeight);
+      GetMem(Buf, BitmapInfo.bmiHeader.biSizeImage);
       Res := TRawImage.Create(Buf, OWNS_BUF, VisibleRectWidth, VisibleRectHeight);
 
-      BitmapInfo.bmiHeader.biSize         := sizeof(BITMAPINFOHEADER);
-      BitmapInfo.bmiHeader.biWidth        := VisibleRectWidth;
-      BitmapInfo.bmiHeader.biHeight       := -VisibleRectHeight; // Top to bottom line scan
-      BitmapInfo.bmiHeader.biPlanes       := 1;
-      BitmapInfo.bmiHeader.biBitCount     := BITS_PER_PIXEL;
-      BitmapInfo.bmiHeader.biCompression  := BI_RGB;
-      BitmapInfo.bmiHeader.biSizeImage    := BufSize;
-      BitmapInfo.bmiHeader.biClrUsed      := 0;
-      BitmapInfo.bmiHeader.biClrImportant := 0;
-
       ImageDeviceContext := CreateCompatibleDC(WindowDeviceContext);
-      ImageHandle        := CreateCompatibleBitmap(WindowDeviceContext, VisibleRectWidth,
-                                                   VisibleRectHeight);
+      ImageHandle        := CreateCompatibleBitmap(WindowDeviceContext, VisibleRectWidth, VisibleRectHeight);
 
       OldImage := SelectObject(ImageDeviceContext, ImageHandle);
-      BitBlt(ImageDeviceContext, 0, 0, VisibleRectWidth, VisibleRectHeight, WindowDeviceContext,
-             VisibleRect.Left, VisibleRect.Top, SRCCOPY);
+      BitBlt(ImageDeviceContext, 0, 0, VisibleRectWidth, VisibleRectHeight, WindowDeviceContext, VisibleRect.Left, VisibleRect.Top, SRCCOPY);
       ReleaseDC(hWnd, WindowDeviceContext); WindowDeviceContext := 0;
       DrawCursor;
 
       SelectObject(ImageDeviceContext, OldImage);
-      GetDIBits(ImageDeviceContext, ImageHandle, 0, VisibleRectHeight, Buf, BitmapInfo,
-                DIB_RGB_COLORS);
+      GetDIBits(ImageDeviceContext, ImageHandle, 0, VisibleRectHeight, Buf, BitmapInfo, DIB_RGB_COLORS);
 
       DeleteObject(ImageHandle);
       DeleteDC(ImageDeviceContext);
@@ -242,6 +254,64 @@ begin
     ReleaseDC(hWnd, WindowDeviceContext);
   end;
 end; // .function TakeScreenshot
+
+(* Captures windows client area as bgra screenshot even if window is partially shown *)
+function CaptureClientAreaScreenshot (Wnd: HWND; out Res: TRawImage): boolean;
+var
+{U} Buf:               PBgraBuf;
+    WndDeviceContext:  HDC;
+    TempDeviceContext: HDC;
+    ClientRect:        TRect;
+    Width:             integer;
+    Height:            integer;
+    OldGraphic:        HGDIOBJ;
+    ScreenshotBitmap:  HBITMAP;
+    BitmapInfo:        TBitmapInfo;
+
+begin
+  {!} Assert(Res = nil);
+  Buf               := nil;
+  WndDeviceContext  := GetDC(Wnd);
+  TempDeviceContext := 0;
+  OldGraphic        := 0;
+  ScreenshotBitmap  := 0;
+  result            := WndDeviceContext <> 0;
+
+  if not result then begin
+    exit;
+  end;
+
+  try
+    GetClientRect(Wnd, &ClientRect);
+    Width             := ClientRect.Right  - ClientRect.Left;
+    Height            := ClientRect.Bottom - ClientRect.Top;
+    TempDeviceContext := CreateCompatibleDC(WndDeviceContext);
+    ScreenshotBitmap  := CreateCompatibleBitmap(WndDeviceContext, Width, Height);
+    OldGraphic        := SelectObject(TempDeviceContext, ScreenshotBitmap);
+
+    BitBlt(TempDeviceContext, 0, 0, Width, Height, WndDeviceContext, ClientRect.Left, ClientRect.Top, SRCCOPY);
+
+    SelectObject(TempDeviceContext, OldGraphic);
+
+    InitBgraBitmapInfo(BitmapInfo, Width, Height);
+    GetMem(Buf, BitmapInfo.bmiHeader.biSizeImage);
+    Res := TRawImage.Create(Buf, OWNS_BUF, Width, Height);
+
+    GetDIBits(TempDeviceContext, ScreenshotBitmap, 0, Height, Buf, BitmapInfo, DIB_RGB_COLORS);
+  finally
+    if WndDeviceContext <> 0 then begin
+      ReleaseDC(Wnd, WndDeviceContext);
+    end;
+
+    if TempDeviceContext <> 0 then begin
+      DeleteDC(TempDeviceContext);
+    end;
+
+    if ScreenshotBitmap <> 0 then begin
+      DeleteObject(ScreenshotBitmap);
+    end;
+  end;
+end; // .function CaptureClientAreaScreenshot
 
 function GetExePath: myWStr;
 const

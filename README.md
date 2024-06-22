@@ -28,9 +28,9 @@
     Contains ERA and VFS projects as well as B2 library.<br/>
     <br/></i>
     Original commits containing code are from <a href="https://github.com/ethernidee">ethernidee</a> repositories:<br/>
-    ERA: <a href="https://github.com/ethernidee/era/tree/3cbbc33f9a6cdd6b168ae3a97f7536bb8aad1356"><strong>3cbbc33</strong></a><br/>
+    ERA: <a href="https://github.com/ethernidee/era/tree/83748fff4c34b964f6c28f74f634ae1a65804b18"><strong>83748ff</strong></a><br/>
     VFS: <a href="https://github.com/ethernidee/vfs/tree/f18d56dcb7ddee787c01680b98f078fe409359e9"><strong>f18d56d</strong></a><br/>
-    B2:   <a href="https://github.com/ethernidee/b2/tree/affdb17729c35be41ccc5192ba3b61c62830e600"><strong>affdb17</strong></a>
+    B2:   <a href="https://github.com/ethernidee/b2/tree/9576993b8612b5b982f070069cc9ab70690aeda3"><strong>9576993</strong></a>
   </p>
 </div>
 

@@ -21,22 +21,25 @@ uses
   Crypto,
   DataLib,
   DlgMes,
-  Erm,
-  EventMan,
   FastRand,
   Files,
   FilesEx,
-  GameExt,
-  Heroes,
   Ini,
-  Lodman,
   PatchApi,
-  Stores,
   StrLib,
-  Trans,
   UtilsB2,
   WinNative,
   WinUtils,
+
+  EraSettings,
+  Erm,
+  EventMan,
+  GameExt,
+  Graph,
+  Heroes,
+  Lodman,
+  Stores,
+  Trans,
   WogDialogs, Legacy;
 
 type
@@ -89,7 +92,8 @@ procedure ProcessUnhandledException (ExceptionRecord: Windows.PExceptionRecord; 
 
 
 const
-  RNG_SAVE_SECTION : myAStr = 'Era.RNG';
+  RNG_SAVE_SECTION : myAStr      = 'Era.RNG';
+  CRASH_SCREENHOST_PATH : myAStr = EraSettings.DEBUG_DIR + '\screenshot.jpg';
 
   DL_GROUP_INDEX_MARKER = 100000; // DL frame index column is DL_GROUP_INDEX_MARKER * groupIndex + frameIndex
 
@@ -141,7 +145,7 @@ var
   ZvsLibGamePath:        myAStr;
   IsLocalPlaceObject:    boolean = true;
   DlgLastEvent:          Heroes.TMouseEventInfo;
-  ComputerName:          myAStr;
+  ComputerName:          myWStr;
   IsCrashing:            boolean;
 
   Mp3TriggerHandledEvent: THandle;
@@ -455,7 +459,7 @@ var
 
   function ReadValue (const Key: myAStr; const DefVal: myAStr = ''): myAStr;
   begin
-    if Ini.ReadStrFromIni(Key, Heroes.GAME_SETTINGS_SECTION, GameSettingsFilePath, result) then begin
+    if Ini.ReadStrFromIni(Key, EraSettings.GAME_SETTINGS_SECTION, GameSettingsFilePath, result) then begin
       result := Legacy.Trim(result);
     end else begin
       result := DefVal;
@@ -498,7 +502,7 @@ begin
     CALL EAX
   end;
 
-  GameSettingsFilePath := GameExt.GameDir + '\' + Heroes.GAME_SETTINGS_FILE;
+  GameSettingsFilePath := GameExt.GameDir + '\' + EraSettings.GAME_SETTINGS_FILE;
 
   ReadInt('Show Intro',             Heroes.SHOW_INTRO_OPT);
   ReadInt('Music Volume',           Heroes.MUSIC_VOLUME_OPT);
@@ -538,11 +542,11 @@ begin
     (
       'Unique System ID',
       RandomStr,
-      Heroes.GAME_SETTINGS_SECTION,
-      Heroes.GAME_SETTINGS_FILE
+      EraSettings.GAME_SETTINGS_SECTION,
+      EraSettings.GAME_SETTINGS_FILE
     );
     
-    Ini.SaveIni(Heroes.GAME_SETTINGS_FILE);
+    Ini.SaveIni(EraSettings.GAME_SETTINGS_FILE);
   end; // .if
   
   ReadStr('Network default Name',   Heroes.NETWORK_DEF_NAME_OPT);
@@ -572,8 +576,8 @@ procedure WriteGameSettings;
     (
       Key,
       Legacy.IntToStr(Value^),
-      Heroes.GAME_SETTINGS_SECTION,
-      Heroes.GAME_SETTINGS_FILE
+      EraSettings.GAME_SETTINGS_SECTION,
+      EraSettings.GAME_SETTINGS_FILE
     );
   end;
   
@@ -583,8 +587,8 @@ procedure WriteGameSettings;
     (
       Key,
       Value,
-      Heroes.GAME_SETTINGS_SECTION,
-      Heroes.GAME_SETTINGS_FILE
+      EraSettings.GAME_SETTINGS_SECTION,
+      EraSettings.GAME_SETTINGS_FILE
     );
   end;
    
@@ -629,7 +633,7 @@ begin
   WriteStr('AppPath',                Heroes.APP_PATH_OPT);
   WriteStr('CDDrive',                Heroes.CD_DRIVE_OPT);
   
-  Ini.SaveIni(Heroes.GAME_SETTINGS_FILE);
+  Ini.SaveIni(EraSettings.GAME_SETTINGS_FILE);
 end; // .procedure WriteGameSettings
 
 function Ip4ToStr (ip: integer): myAStr;
@@ -655,11 +659,15 @@ begin
   // * * * * * //
   result := Ptr(PatchApi.Call(PatchApi.STDCALL_, OrigFunc, [Name]));
 
-  if (result = nil) or ((Name <> nil) and (Name <> ComputerName)) or (result.h_length <> sizeof(integer)) then begin
+  if (result = nil) or ((Name <> nil) and (string(Name) <> ComputerName)) or (result.h_length <> sizeof(integer)) then begin
     exit;
   end;
 
   Addrs := pointer(result.h_addr_list);
+
+  if (Addrs[0] = nil) or (Addrs[1] = nil) then begin
+    exit;
+  end;
 
   {!} Windows.EnterCriticalSection(InetCriticalSection);
 
@@ -873,7 +881,7 @@ begin
   result          := not Core.EXEC_DEF_CODE;
 end; // .function Hook_ZvsEnter2Monster2
 
-function Hook_StartBattle (OrigFunc: pointer; AdvMan: Heroes.PAdvManager; PackedCoords: integer; AttackerHero: Heroes.PHero; AttackerArmy: Heroes.PArmy; DefenderPlayerId: integer;
+function Hook_StartBattle (OrigFunc: pointer; WndMan: Heroes.PWndManager; PackedCoords: integer; AttackerHero: Heroes.PHero; AttackerArmy: Heroes.PArmy; DefenderPlayerId: integer;
                            DefenderTown: Heroes.PTown; DefenderHero: Heroes.PHero; DefenderArmy: Heroes.PArmy; Seed, Unk10: integer; IsBank: boolean): integer; stdcall;
 
 const
@@ -910,7 +918,7 @@ begin
     CombatId := DEFAULT_COMBAT_ID;
   end;
 
-  result    := PatchApi.Call(THISCALL_, OrigFunc, [AdvMan, PackedCoords, AttackerHero, AttackerArmy, DefenderPlayerId, DefenderTown, DefenderHero, DefenderArmy, Seed, Unk10, IsBank]);
+  result    := PatchApi.Call(THISCALL_, OrigFunc, [WndMan, PackedCoords, AttackerHero, AttackerArmy, DefenderPlayerId, DefenderTown, DefenderHero, DefenderArmy, Seed, Unk10, IsBank]);
   GlobalRng := QualitativeRng;
 end; // .function Hook_StartBattle
 
@@ -1816,7 +1824,7 @@ end; // .function Hook_Show3PicDlg_PrepareDialogStruct
 
 procedure DumpWinPeModuleList;
 const
-  DEBUG_WINPE_MODULE_LIST_PATH = GameExt.DEBUG_DIR + '\pe modules.txt';
+  DEBUG_WINPE_MODULE_LIST_PATH = EraSettings.DEBUG_DIR + '\pe modules.txt';
 
 var
   i: integer;
@@ -1839,7 +1847,7 @@ end; // .procedure DumpWinPeModuleList
 
 procedure DumpExceptionContext (ExcRec: Windows.PExceptionRecord; Context: Windows.PContext);
 const
-  DEBUG_EXCEPTION_CONTEXT_PATH = GameExt.DEBUG_DIR + '\exception context.txt';
+  DEBUG_EXCEPTION_CONTEXT_PATH = EraSettings.DEBUG_DIR + '\exception context.txt';
 
 var
   ExceptionText: myAStr;
@@ -1946,9 +1954,9 @@ begin
   {!} ExceptionsCritSection.Enter;
 
   if not IsCrashing then begin
-    IsCrashing               := true;
-    Erm.ErmEnabled^          := false;
-    Erm.TrackingOpts.Enabled := false;
+    IsCrashing      := true;
+    Erm.ErmEnabled^ := false;
+    Files.ClearDir(GameExt.GameDir + '\' + EraSettings.DEBUG_DIR);
     DumpExceptionContext(ExceptionRecord, Context);
     EventMan.GetInstance.Fire('OnGenerateDebugInfo');
     Windows.MessageBoxA(Heroes.hWnd^, myPChar('Game crashed. All debug information is inside ' + DEBUG_DIR + ' subfolder'), '', Windows.MB_OK);
@@ -1968,8 +1976,17 @@ begin
   result := EXCEPTION_CONTINUE_SEARCH;
 end;
 
+procedure CaptureCrashScreenshot;
+begin
+  Graph.TakeScreenshot(GameExt.GameDir + '\' + CRASH_SCREENHOST_PATH, 70);
+end;
+
 procedure OnGenerateDebugInfo (Event: PEvent); stdcall;
 begin
+  if EraSettings.GetOpt('Debug.CaptureScreenshotOnCrash').Bool(true) then begin
+    CaptureCrashScreenshot;
+  end;
+
   DumpWinPeModuleList;
 end;
 
@@ -2252,6 +2269,14 @@ begin
   Core.p.WriteDataPatch(Ptr($77180E), [myAStr('90909090909090909090909090')]);
 end; // .procedure OnAfterWoG
 
+procedure OnLoadEraSettings (Event: GameExt.PEvent); stdcall;
+begin
+  CpuTargetLevel          := EraSettings.GetOpt('CpuTargetLevel')    .Int(50);
+  AutoSelectPcIpMaskOpt   := EraSettings.GetOpt('AutoSelectPcIpMask').Str('');
+  UseOnlyOneCpuCoreOpt    := EraSettings.GetOpt('UseOnlyOneCpuCore') .Bool(false);
+  DebugRng                := EraSettings.GetOpt('Debug.Rng')         .Int(0);
+end;
+
 procedure OnAfterCreateWindow (Event: GameExt.PEvent); stdcall;
 begin
   (* Repeat top-level handler installation, because other plugins and dlls could interfere *)
@@ -2277,6 +2302,7 @@ begin
   Mp3TriggerHandledEvent    := Windows.CreateEvent(nil, false, false, nil);
   ComputerName              := WinUtils.GetComputerNameW;
 
+  EventMan.GetInstance.On('$OnLoadEraSettings', OnLoadEraSettings);
   EventMan.GetInstance.On('OnAfterCreateWindow', OnAfterCreateWindow);
   EventMan.GetInstance.On('OnAfterVfsInit', OnAfterVfsInit);
   EventMan.GetInstance.On('OnAfterWoG', OnAfterWoG);

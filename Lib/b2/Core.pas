@@ -1,10 +1,11 @@
 unit Core;
-{
-DESCRIPTION: Low-level functions
-AUTHOR:      Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
-}
+(*
+  Description: Low-level functions
+  Author:      Alexander Shostak aka Berserker
+*)
 
 (***)  interface  (***)
+
 uses
   Windows, PsApi, Math, StrUtils, SysUtils,
   hde32, PatchApi, ApiJack,
@@ -50,7 +51,7 @@ type
     Opcode: byte;
     Ofs:    integer;
   end; // .record THookRec
-  
+
   PHookContext = ^THookContext;
 
   THookContext = packed record
@@ -126,7 +127,8 @@ function  FindModuleByAddr ({n} Addr: pointer; ModuleList: TModuleList;
                             out ModuleInd: integer): boolean;
 
 var
-  AbortOnError: boolean = false; // if set to false, NotifyError does nothing
+  AbortOnError: boolean = false; // if set to false, NotifyError does not terminate application after showing error message
+
   (* Patching provider *)
   GlobalPatcher: PatchApi.TPatcher;
   p:             PatchApi.TPatcherInstance;
@@ -239,7 +241,7 @@ begin
     fModuleList := Core.GetModuleList;
     fModuleList.Sort;
     SetLength(fModulesOrderByAddr, fModuleList.Count);
-    
+
     for i := 0 to fModuleList.Count - 1 do begin
       fModulesOrderByAddr[i] := i;
     end;
@@ -267,7 +269,7 @@ var
 
 begin
   ModInfo := TModuleInfo(fModuleList.Values[fModulesOrderByAddr[OrderTableInd]]);
-  
+
   if cardinal(Addr) < cardinal(ModInfo.BaseAddr) then begin
     result := -1;
   end else if cardinal(Addr) >= cardinal(ModInfo.EndAddr) then begin
@@ -275,7 +277,7 @@ begin
   end else begin
     result := 0;
   end;
-end; // .function TModuleContext.CompareModuleToAddr
+end;
 
 procedure TModuleContext.Lock;
 begin
@@ -404,7 +406,7 @@ begin
         end;
       end; // .if
     end; // .if
-    
+
     result := result + ')';
   end; // .if
 end; // .function TModuleContext.AddrToStr
@@ -427,7 +429,7 @@ begin
 
   if not result then begin
     result := Windows.VirtualProtect(Dst, Count, Windows.PAGE_EXECUTE_READWRITE, @OldPageProtect);
-    
+
     if result then begin
       UtilsB2.CopyMem(Count, Src, Dst);
       result := Windows.VirtualProtect(Dst, Count, OldPageProtect, @OldPageProtect);
@@ -453,7 +455,7 @@ var
    Delta:  integer;
    BufPos: integer;
    Disasm: hde32.TDisasm;
- 
+
  begin
   {!} Assert(CodeSize >= sizeof(THookRec));
   {!} Assert(OldCodeAddr <> nil);
@@ -462,14 +464,14 @@ var
   UtilsB2.CopyMem(CodeSize, OldCodeAddr, @result[0]);
   Delta  := integer(NewCodeAddr) - integer(OldCodeAddr);
   BufPos := 0;
-  
+
   while BufPos < CodeSize do begin
     Disasm.Disassemble(UtilsB2.PtrOfs(OldCodeAddr, BufPos));
-    
+
     if (Disasm.Len = sizeof(THookRec)) and ((Disasm.Opcode = OPCODE_JUMP) or (Disasm.Opcode = OPCODE_CALL)) then begin
       Dec(pinteger(@result[BufPos + 1])^, Delta);
     end;
-    
+
     Inc(BufPos, Disasm.Len);
   end;
  end; // .function PreprocessCode
@@ -494,7 +496,7 @@ begin
   end else begin
     HookRec.Opcode := OPCODE_CALL;
   end;
-  
+
   if HookType = HOOKTYPE_BRIDGE then begin
     // Allocate memory block for bridge and assign pointers to its parts
     GetMem(BridgeCode, sizeof(TBridgeCodePart1) + sizeof(TBridgeCodePart2) + PatchSize);
@@ -543,7 +545,7 @@ begin
     result := result + Disasm.Len;
     Code   := UtilsB2.PtrOfs(Code, Disasm.Len);
   end;
-end; // .function CalcHookSize
+end;
 
 function ApiHook (HandlerAddr: pointer; HookType: integer; CodeAddr: pointer): {n} pointer;
 begin
@@ -634,7 +636,7 @@ end;
 
 function Ret (NumArgs: integer): pointer;
 begin
-  case NumArgs of 
+  case NumArgs of
     0: result := @Ret0;
     1: result := @Ret4;
     2: result := @Ret8;
@@ -697,13 +699,13 @@ var
 begin
   {!} Assert(ModuleList <> nil);
   result := Addr <> nil;
-  
+
   if result then begin
     i := 0;
 
     while (i < ModuleList.Count) and not (TObject(ModuleList.Values[i]) as TModuleInfo).OwnsAddr(Addr) do begin
       Inc(i);
-    end; 
+    end;
 
     result := i < ModuleList.Count;
 

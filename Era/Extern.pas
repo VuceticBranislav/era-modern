@@ -190,6 +190,11 @@ begin
   Lodman.GlobalRedirectFile(OldFileName, NewFileName);
 end;
 
+function TakeScreenshot (FilePath: myPChar; Quality: integer; Flags: integer): TDwordBool; stdcall;
+begin
+  result := ord(Graph.TakeScreenshot(FilePath, Quality, Flags));
+end;
+
 function tr (const Key: myPChar; const Params: array of myPChar): myPChar; stdcall;
 var
   ParamList:   UtilsB2.TArrayOfStr;
@@ -607,10 +612,14 @@ exports
   Core.Hook,
   Core.WriteAtCode,
   DecorateInt,
+  Erm.DisableErmTracking,
+  Erm.EnableErmTracking,
   Erm.ExtractErm,
   Erm.GetDialog8SelectablePicsMask name '_GetDialog8SelectablePicsMask',
   Erm.GetPreselectedDialog8ItemId name '_GetPreselectedDialog8ItemId',
   Erm.ReloadErm,
+  Erm.ResetErmTracking,
+  Erm.RestoreErmTracking,
   Erm.SetDialog8SelectablePicsMask name '_SetDialog8SelectablePicsMask',
   Erm.SetPreselectedDialog8ItemId name '_SetPreselectedDialog8ItemId',
   Erm_CompareStrings,
@@ -677,6 +686,7 @@ exports
   ShowMessage,
   Splice,
   SplitMix32,
+  TakeScreenshot,
   ToStaticStr,
   tr,
   Trans.ReloadLanguageData,

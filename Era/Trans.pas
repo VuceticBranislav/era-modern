@@ -1,17 +1,33 @@
 unit Trans;
-{
-DESCRIPTION:  Game localization support.
-AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
-}
+(*
+  Description: Game localization support
+  Author:      Alexander Shostak aka Berserker
+*)
 
 (***)  interface  (***)
+
 uses
-  Windows, SysUtils, UtilsB2, DataLib, TypeWrappers,
-  Files, StrLib, Json, Core,
-  GameExt, RscLists, Heroes, EventMan, Legacy;
+  Windows,
+  SysUtils,
+
+  Core,
+  DataLib,
+  DlgMes,
+  Files,
+  Json,
+  StrLib,
+  TypeWrappers,
+  UtilsB2,
+
+  EraSettings,
+  EventMan,
+  GameExt,
+  Heroes,
+  RscLists, Legacy;
 
 
 type
+  (* Import *)
   TDict   = DataLib.TDict;
   TString = TypeWrappers.TString;
 
@@ -25,7 +41,7 @@ const
   DONT_OVERRIDE_KEYS = false;
 
 
-function SetLanguage (NewLanguage: myAStr): boolean;
+function SetLanguage (const NewLanguage: myAStr): boolean;
 procedure ReloadLanguageData; stdcall;
 function  tr (const Key: myAStr; const Params: array of myAStr): myAStr;
 
@@ -53,7 +69,7 @@ var
 const
   BoolToStr: array [false..true] of myAStr = ('0', '1');
 
-function SetLanguage (NewLanguage: myAStr): boolean;
+function SetLanguage (const NewLanguage: myAStr): boolean;
 var
   i: integer;
 
@@ -242,7 +258,7 @@ begin
   UpdateLocaleConfig;
 end;
 
-(* Loads map langauge files as resource list without any parsing *)
+(* Loads map language files as resource list without any parsing *)
 function LoadMapLangResources: {O} RscLists.TResourceList;
 var
   MapDirName:   myAStr;
@@ -291,6 +307,11 @@ begin
   ImportMapLangResources;
   LoadGlobalLangFiles;
   EventMan.GetInstance.Fire('OnAfterReloadLanguageData');
+end;
+
+procedure OnLoadEraSettings (Event: GameExt.PEvent); stdcall;
+begin
+  SetLanguage(EraSettings.GetOpt('Language').Str('en'));
 end;
 
 procedure OnAfterWoG (Event: GameExt.PEvent); stdcall;
@@ -349,7 +370,7 @@ var
   Error: myAStr;
 
 begin
-  Error := MapLangResources.Export(GameExt.GameDir + '\' + GameExt.DEBUG_DIR);
+  Error := MapLangResources.Export(GameExt.GameDir + '\' + EraSettings.DEBUG_DIR);
 
   if Error <> '' then begin
     Heroes.PrintChatMsg('{~r}' + Error + '{~r}');
@@ -359,6 +380,7 @@ end;
 begin
   LangDict         := DataLib.NewDict(UtilsB2.OWNS_ITEMS, DataLib.CASE_SENSITIVE);
   MapLangResources := RscLists.TResourceList.Create;
+  EventMan.GetInstance.On('$OnLoadEraSettings', OnLoadEraSettings);
   EventMan.GetInstance.On('OnAfterWoG', OnAfterWoG);
   EventMan.GetInstance.On('OnBeforeScriptsReload', OnBeforeScriptsReload);
   EventMan.GetInstance.On('OnGenerateDebugInfo', OnGenerateDebugInfo);

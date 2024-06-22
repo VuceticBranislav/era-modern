@@ -26,7 +26,7 @@ type
     Operation:    myAStr;
     Description:  myAStr;
   end; // .record TLogRec
-  
+
   TLogger = class abstract
     function  Write (const EventSource, Operation, Description: myAStr): boolean; virtual; abstract;
     function  Read (out LogRec: TLogRec): boolean; virtual; abstract;
@@ -44,13 +44,13 @@ type
           fListOfRecords: Classes.TList;
           fPos:           integer;
           fLocked:        boolean;
-    
+
     (***) public (***)
       constructor Create;
       destructor Destroy; override;
 
       function  Write (const EventSource, Operation, Description: myAStr): boolean; override;
-      function  Read (out LogRec: TLogRec): boolean; override;    
+      function  Read (out LogRec: TLogRec): boolean; override;
       function  IsLocked: boolean; override;
       procedure Lock; override;
       procedure Unlock; override;
@@ -59,7 +59,7 @@ type
       function  GetCount(out Count: integer): boolean; override;
   end; // .class TMemLogger
 
-  
+
 (*-----------------  unit WRAPPERS for TLOGGER METHODS  ----------------------*)
 
 function  Write (const EventSource, Operation, Description: myAStr): boolean;
@@ -102,7 +102,7 @@ end;
 function TMemLogger.Write (const EventSource, Operation, Description: myAStr): boolean;
 var
 {U} LogRec: PLogRec;
-  
+
 begin
   LogRec := nil;
   // * * * * * //
@@ -110,7 +110,7 @@ begin
     Enter;
 
     result := not Self.fLocked;
-    
+
     if result then begin
       Self.Lock;
 
@@ -125,7 +125,7 @@ begin
     end;
 
     Leave;
-  end; // .if  
+  end; // .if
 end; // .function TMemLogger.Write
 
 function TMemLogger.Read (out LogRec: TLogRec): boolean;
@@ -134,7 +134,7 @@ begin
     Enter;
 
     result := Self.fPos < Self.fListOfRecords.Count;
-    
+
     if result then begin
       LogRec := PLogRec(Self.fListOfRecords[Self.fPos])^;
       Inc(Self.fPos);
@@ -196,13 +196,13 @@ begin
     Enter;
 
     result := NewPos < Self.fListOfRecords.Count;
-    
+
     if result then begin
       Self.fPos := NewPos;
     end;
 
     Leave;
-  end; // .with  
+  end; // .with
 end; // .function TMemLogger.Seek
 
 function TMemLogger.GetCount (out Count: integer): boolean;
@@ -260,11 +260,11 @@ end;
 procedure InstallLogger (NewLogger: TLogger; FreeOldLogger: boolean);
 begin
   {!} Assert(NewLogger <> nil);
-  
+
   if FreeOldLogger then begin
     Legacy.FreeAndNil(Logger);
   end;
-  
+
   Logger := NewLogger;
 end;
 

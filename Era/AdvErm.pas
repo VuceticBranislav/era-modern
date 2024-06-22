@@ -1,13 +1,39 @@
 unit AdvErm;
-{
-DESCRIPTION: Era custom Memory implementation
-AUTHOR:      Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
-}
+(*
+  Description: Era custom Memory implementation
+  Author:      Alexander Shostak aka Berserker
+*)
 
 (***)  interface  (***)
+
 uses
-  Windows, SysUtils, Math, Crypto, UtilsB2, AssocArrays, DataLib, StrLib, TypeWrappers, Files, ApiJack, Alg,
-  PatchApi, Core, GameExt, Erm, Stores, Triggers, Heroes, Lodman, Network, Trans, EventMan, DlgMes, Legacy;
+  Math,
+  SysUtils,
+  Windows,
+
+  Alg,
+  ApiJack,
+  AssocArrays,
+  Core,
+  Crypto,
+  DataLib,
+  DlgMes,
+  Files,
+  PatchApi,
+  StrLib,
+  TypeWrappers,
+  UtilsB2,
+
+  EraSettings,
+  Erm,
+  EventMan,
+  GameExt,
+  Heroes,
+  Lodman,
+  Network,
+  Stores,
+  Trans,
+  Triggers, Legacy;
 
 const
   AUTO_ALLOC_SLOT = -1;
@@ -57,7 +83,7 @@ const
   (* Hint code flags *)
   CODE_TYPE_SUBTYPE = $01000000;
 
-  ERM_MEMORY_DUMP_FILE : myAStr = GameExt.DEBUG_DIR + '\erm memory dump.txt';
+  ERM_MEMORY_DUMP_FILE : myAStr = EraSettings.DEBUG_DIR + '\erm memory dump.txt';
 
 type
   (* Import *)
@@ -2839,7 +2865,7 @@ begin
   result            := PatchApi.Call(THISCALL_, OrigFunc, [Self, MapTile, Unk1, Unk2]);
 end;
 
-function Hook_ZvsHintWindow (OrigFunc: pointer; Self: Heroes.PAdvManager; x, y, z: integer): integer; stdcall;
+function Hook_ZvsHintWindow (OrigFunc: pointer; Self: Heroes.PWndManager; x, y, z: integer): integer; stdcall;
 begin
   Heroes.TextBuf[0] := #0;
   TileHintEventType := TILE_POPUP_EVENT;

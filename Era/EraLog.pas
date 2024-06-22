@@ -1,11 +1,23 @@
 unit EraLog;
-{
-DESCRIPTION:  Logging support
-AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
-}
+(*
+  Description: Logging support
+  Author:      Alexander Shostak aka Berserker
+*)
+
 
 (***)  interface  (***)
-uses Windows, SysUtils, UtilsB2, Files, ConsoleAPI, Log, StrLib, Concur, DlgMes, Legacy;
+
+uses
+  Concur,
+  ConsoleAPI,
+  Log,
+  StrLib,
+  SysUtils,
+  Windows,
+
+  EraSettings,
+  VfsImport, Legacy;
+
 
 type
   TLogger = class (Log.TLogger)
@@ -24,39 +36,44 @@ type
     function  GetPos (out Pos: integer): boolean; override;
     function  Seek (NewPos: integer): boolean; override;
     function  GetCount (out Count: integer): boolean; override;
-  end; // .class TLogger
+  end;
 
-  TMemoryLogger  = class (TLogger)
+  TFakeLogger  = class (TLogger)
     function Write (const EventSource, Operation, Description: myAStr): boolean; override;
   end;
   
   TConsoleLogger  = class (TLogger)
-    (***) protected (***)
-      {O} fCon: ConsoleAPI.TConsole;
+   protected
+   {O} fCon: ConsoleAPI.TConsole;
     
-    (***) public (***)
-      constructor Create (const Title: myAStr);
-      destructor  Destroy; override;
-      
-      function Write (const EventSource, Operation, Description: myAStr): boolean; override;
-  end; // .class TConsoleLogger
+   public
+    constructor Create (const Title: myAStr);
+    destructor  Destroy; override;
+
+    function Write (const EventSource, Operation, Description: myAStr): boolean; override;
+  end;
   
   TFileLogger = class (TLogger)
-    (***) protected (***)
-      {O} fFile: Windows.THandle;
-      
-    (***) public (***)
-      constructor Create (const FilePath: myAStr);
-      destructor  Destroy; override;
-      
-      function Write (const EventSource, Operation, Description: myAStr): boolean; override;
+   protected
+   {O} fFile: Windows.THandle;
+
+   public
+    constructor Create (const FilePath: myAStr);
+    destructor  Destroy; override;
+
+    function Write (const EventSource, Operation, Description: myAStr): boolean; override;
   end;
+
+
+procedure InstallLoggers (const GameDir: myAStr);
 
 
 (***) implementation (***)
 
 
 const
+  LOG_FILE_NAME = myAStr('log.txt');
+
   BR                     = myAStr(#13#10);
   RECORD_BEGIN_SEPARATOR : myAStr = '>> ';
   RECORD_END_SEPARATOR   : myAStr = BR + BR;
@@ -126,7 +143,7 @@ begin
   result := false;
 end;
 
-function TMemoryLogger.Write (const EventSource, Operation, Description: myAStr): boolean;
+function TFakeLogger.Write (const EventSource, Operation, Description: myAStr): boolean;
 begin
   result := true;
 end;
@@ -175,7 +192,11 @@ end; // .function TConsoleLogger.Write
 constructor TFileLogger.Create (const FilePath: myAStr);
 begin
   inherited Create;
-  Self.fFile := Windows.CreateFileA(myPChar(FilePath), Windows.GENERIC_WRITE, Windows.FILE_SHARE_READ or Windows.FILE_SHARE_DELETE, nil, Windows.CREATE_ALWAYS, Windows.FILE_ATTRIBUTE_NORMAL, 0);
+
+  Self.fFile := Windows.CreateFileA(
+    myPChar(FilePath), Windows.GENERIC_WRITE, Windows.FILE_SHARE_READ or Windows.FILE_SHARE_DELETE, nil, Windows.CREATE_ALWAYS,
+    Windows.FILE_ATTRIBUTE_NORMAL, 0
+  );
 end;
 
 destructor TFileLogger.Destroy;
@@ -217,5 +238,27 @@ begin
     Leave;
   end; // .with  
 end; // .function TFileLogger.Write
+
+procedure VfsLogger (Operation, Msg: myPChar); stdcall;
+begin
+  Log.Write('VFS', Operation, Msg);
+end;
+
+procedure InstallLoggers (const GameDir: myAStr);
+begin
+  if EraSettings.IsDebug then begin
+    if Legacy.AnsiLowerCase(EraSettings.GetOpt('Debug.LogDestination').Str('File')) = 'file' then begin
+      Log.InstallLogger(EraLog.TFileLogger.Create(GameDir + '\' + EraSettings.DEBUG_DIR + '\' + LOG_FILE_NAME), true);
+    end else begin
+      Log.InstallLogger(EraLog.TConsoleLogger.Create('Era Log'), true);
+    end;
+  end else begin
+    Log.InstallLogger(EraLog.TFakeLogger.Create, true);
+  end;
+
+  if EraSettings.GetDebugBoolOpt('Debug.LogVirtualFileSystem', false) then begin
+    VfsImport.SetLoggingProc(@VfsLogger);
+  end;
+end;
 
 end.

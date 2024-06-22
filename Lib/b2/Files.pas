@@ -143,7 +143,9 @@ function  ReadFileContents (FileHandle: integer; out FileContents: myAStr): bool
 function  WriteFileContents (const FileContents, FilePath: myAStr): boolean;
 function  AppendFileContents (const FileContents, FilePath: myAStr): boolean;
 function  DeleteDir (const DirPath: myAStr): boolean;
+function  ClearDir (const DirPath: myAStr): boolean;
 function  GetFileSize (const FilePath: myAStr; out Res: integer): boolean;
+
 function  Scan
 (
   const FileMask:         myAStr;
@@ -658,7 +660,7 @@ begin
   Legacy.FreeAndNil(MyFile);
 end; // .function AppendFileContents
 
-function DeleteDir (const DirPath: myAStr): boolean;
+function ClearDir (const DirPath: myAStr): boolean;
 var
 {O} Locator:  TFileLocator;
 {O} FileInfo: TFileItemInfo;
@@ -666,28 +668,38 @@ var
     FilePath: myAStr;
 
 begin
-  Locator   :=  TFileLocator.Create;
-  FileInfo  :=  nil;
+  Locator  := TFileLocator.Create;
+  FileInfo := nil;
   // * * * * * //
-  result          :=  true;
-  Locator.DirPath :=  DirPath;
+  result          := true;
+  Locator.DirPath := DirPath;
   Locator.InitSearch('*');
+
   while result and Locator.NotEnd do begin
-    FileName  :=  Locator.GetNextItem(CFiles.TItemInfo(FileInfo));
+    FileName := Locator.GetNextItem(CFiles.TItemInfo(FileInfo));
+
     if (FileName <> '.') and (FileName <> '..') then begin
-      FilePath  :=  DirPath + '\' + FileName;
+      FilePath := DirPath + '\' + FileName;
+
       if (FileInfo.Data.dwFileAttributes and Windows.FILE_ATTRIBUTE_DIRECTORY) <> 0 then begin
-        result  :=  DeleteDir(FilePath);
+        result := DeleteDir(FilePath);
       end else begin
-        result  :=  Legacy.DeleteFile(FilePath);
+        result := Legacy.DeleteFile(FilePath);
       end;
     end;
+
     Legacy.FreeAndNil(FileInfo);
-  end; // .while
+  end;
+
   Locator.FinitSearch;
-  result  :=  result and Legacy.RemoveDir(DirPath);
   // * * * * * //
   Legacy.FreeAndNil(Locator);
+end; // .function ClearDir
+
+function DeleteDir (const DirPath: myAStr): boolean;
+begin
+  ClearDir(DirPath);
+  result := Legacy.RemoveDir(DirPath);
 end; // .function DeleteDir
 
 function GetFileSize (const FilePath: myAStr; out Res: integer): boolean;

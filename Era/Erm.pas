@@ -18,20 +18,22 @@ uses
   Crypto,
   DataLib,
   DlgMes,
-  EventMan,
   FastRand,
   Files,
-  GameExt,
-  Heroes,
   Ini,
   Lists,
-  Network,
-  RscLists,
   StrLib,
   TextScan,
-  Trans,
   TypeWrappers,
-  UtilsB2, Legacy;
+  UtilsB2,
+
+  EraSettings,
+  EventMan,
+  GameExt,
+  Heroes,
+  Network,
+  RscLists,
+  Trans, Legacy;
 
 type
   (* Import *)
@@ -49,7 +51,7 @@ const
   FUNC_NAMES_SECTION       : myAStr = 'Era.FuncNames';
   ERM_SCRIPTS_PATH         : myAStr = 'Data\s';
   ERS_FILES_PATH           : myAStr = 'Data\s';
-  EXTRACTED_SCRIPTS_PATH   : myAStr = GameExt.DEBUG_DIR + '\Scripts';
+  EXTRACTED_SCRIPTS_PATH   : myAStr = EraSettings.DEBUG_DIR + '\Scripts';
   ERM_TRACKING_REPORT_PATH : myAStr = DEBUG_DIR + '\erm tracking.erm';
 
   (* Erm command conditions *)
@@ -781,6 +783,8 @@ var
     IgnoreEmptyTriggers: boolean;
   end;
 
+  ErmTrackingEnabledBackup: boolean;
+
 
 procedure SetZVar (Str: myPChar; const Value: myAStr); overload;
 procedure SetZVar (Str, Value: myPChar); overload;
@@ -814,6 +818,12 @@ procedure SetErmCurrHero (NewInd: integer); overload;
 procedure SetErmCurrHero ({n} NewHero: Heroes.PHero); overload;
 function  GetErmCurrHero: {n} Heroes.PHero;
 function  GetErmCurrHeroId: integer; // or -1
+
+(* ERM tracking runtime control *)
+procedure DisableErmTracking; stdcall;
+procedure EnableErmTracking; stdcall;
+procedure RestoreErmTracking; stdcall;
+procedure ResetErmTracking; stdcall;
 
 (* Integration with WoG Native Dialogs: possibility to set preselected item for DisplayComplexDialog and text alignment for ShowParsedDlg8Items *)
 function  GetPreselectedDialog8ItemId: integer; stdcall;
@@ -1364,6 +1374,39 @@ begin
   end; // .for
 end; // .procedure ExecErmCmd
 
+procedure DisableErmTracking;
+begin
+  if EraSettings.GetOpt('Debug.AllowRuntimeErmTrackingControl').Bool(true) then begin
+    TrackingOpts.Enabled := false;
+  end;
+end;
+
+procedure EnableErmTracking;
+begin
+  if EraSettings.GetOpt('Debug.AllowRuntimeErmTrackingControl').Bool(true) then begin
+    TrackingOpts.Enabled := true;
+  end;
+end;
+
+procedure DoRestoreErmTracking;
+begin
+  TrackingOpts.Enabled := ErmTrackingEnabledBackup;
+end;
+
+procedure RestoreErmTracking;
+begin
+  if EraSettings.GetOpt('Debug.AllowRuntimeErmTrackingControl').Bool(true) then begin
+    TrackingOpts.Enabled := ErmTrackingEnabledBackup;
+  end;
+end;
+
+procedure ResetErmTracking;
+begin
+  if EraSettings.GetOpt('Debug.AllowRuntimeErmTrackingControl').Bool(true) then begin
+    EventTracker.Reset;
+  end;
+end;
+
 procedure OnEraSaveScripts (Event: GameExt.PEvent); stdcall;
 begin
   (* Save function names and auto ID *)
@@ -1377,6 +1420,22 @@ end;
 
 procedure RegisterErmEventNames; forward;
 
+procedure OnLoadEraSettings (Event: GameExt.PEvent); stdcall;
+begin
+  ErmLegacySupport := EraSettings.GetOpt('ErmLegacySupport').Bool(false);
+
+  with TrackingOpts do begin
+    Enabled                  := EraSettings.GetDebugBoolOpt('Debug.TrackErm');
+    ErmTrackingEnabledBackup := Enabled;
+
+    if Enabled then begin
+      MaxRecords          := Math.Max(1, EraSettings.GetOpt('Debug.TrackErm.MaxRecords').Int(10000));
+      DumpCommands        := EraSettings.GetOpt('Debug.TrackErm.DumpCommands')       .Bool(true);
+      IgnoreEmptyTriggers := EraSettings.GetOpt('Debug.TrackErm.IgnoreEmptyTriggers').Bool(true);
+    end;
+  end;
+end;
+
 procedure OnEraLoadScripts (Event: GameExt.PEvent); stdcall;
 begin
   (* Read function names and auto ID *)
@@ -1389,11 +1448,16 @@ begin
   FuncIdToNameMap := DataLib.FlipDict(FuncNames);
   RegisterErmEventNames;
 
-  (* Load scripts *)
-  // Hack to fix HD mods load from battle functionality, using GOTO and leaving dirty memory state
-  ErmTriggerDepth := 0;
-
+  EventTracker.Reset;
+  DoRestoreErmTracking;
+  ErmEnabled^ := true;
   ScriptMan.LoadScriptsFromSavedGame;
+end;
+
+procedure OnGameLeft (Event: GameExt.PEvent); stdcall;
+begin
+  // Prevent ERM triggers (real time, Mp3, keyboard, etc) to be called outside of main game loop
+  ErmEnabled^ := false;
 end;
 
 function Hook_LoadErtFile (Context: Core.PHookContext): longbool; stdcall;
@@ -2753,10 +2817,8 @@ procedure TScriptMan.ClearScripts;
 begin
   EventMan.GetInstance.Fire('OnBeforeClearErmScripts');
   fScripts.Clear;
-
-  if TrackingOpts.Enabled then begin
-    EventTracker.Reset;
-  end;
+  EventTracker.Reset;
+  DoRestoreErmTracking;
 end;
 
 procedure TScriptMan.SaveScripts;
@@ -3081,7 +3143,7 @@ begin
       end;
     until (EndPos^ = #0) or (Cost >= MAX_CONTEXT_COST);
 
-    result := myAStr(SysUtils.WrapText(myAStr(StrLib.ExtractFromPchar(StartPos, EndPos - StartPos)), #10, [#0..#255], 100));
+    result := myAStr(SysUtils.WrapText(string(StrLib.ExtractFromPchar(StartPos, EndPos - StartPos)), #10, [#0..#255], 100));
   end; // .if
 end; // .function GrabErmCmdContext
 
@@ -3662,7 +3724,8 @@ begin
   NameTrigger(TRIGGER_PRE_HEROSCREEN,               'OnPreHeroScreen');
   NameTrigger(TRIGGER_POST_HEROSCREEN,              'OnPostHeroScreen');
   NameTrigger(TRIGGER_DETERMINE_MON_INFO_DLG_UPGRADE, 'OnDetermineMonInfoDlgUpgrade');
-  NameTrigger(TRIGGER_ADVMAP_TILE_HINT,             'OnAdvMapTileHint');
+  NameTrigger(TRIGGER_ADVMAP_TILE_HINT,             'OnAdvMapTileHint'); // Name alias first
+  NameTrigger(TRIGGER_ADVMAP_TILE_HINT,             'OnAdventureMapTileHint');
   NameTrigger(TRIGGER_BEFORE_STACK_TURN,            'OnBeforeBattleStackTurn');
   NameTrigger(TRIGGER_CALC_TOWN_INCOME,             'OnCalculateTownIncome');
   NameTrigger(TRIGGER_BATTLE_REPLAY,                'OnBattleReplay');
@@ -5749,7 +5812,6 @@ begin
   AfterTriggers:
 
   finally // begin resources finalization block //
-
   Dec(ErmTriggerDepth);
 
   if HasEventHandlers then begin
@@ -5818,9 +5880,6 @@ const
   GLOBAL_EVENT_SIZE = 52;
 
 begin
-  // Hack to fix HD mods load from battle functionality, using GOTO and leaving dirty memory state
-  ErmTriggerDepth := 0;
-
   // Skip internal map events: GEp_ = GEp1 - [sizeof(_GlbEvent_) = 52]
   pinteger(Context.EBP - $3F4)^ := pinteger(pinteger(Context.EBP - $24)^ + $88)^ - GLOBAL_EVENT_SIZE;
   ErmErrReported                := false;
@@ -8425,10 +8484,7 @@ end;
 procedure OnGenerateDebugInfo (Event: PEvent); stdcall;
 begin
   ExtractErm;
-
-  if TrackingOpts.Enabled then begin
-    EventTracker.GenerateReport(GameExt.GameDir + '\' + ERM_TRACKING_REPORT_PATH);
-  end;
+  EventTracker.GenerateReport(GameExt.GameDir + '\' + ERM_TRACKING_REPORT_PATH);
 end;
 
 procedure OnBeforeClearErmScripts (Event: GameExt.PEvent); stdcall;
@@ -8731,11 +8787,7 @@ begin
   Core.ApiHook(@Hook_ERM2String2, Core.HOOKTYPE_JUMP, Ptr($741D32));
 
   (* Enable ERM tracking and pre-command initialization *)
-  with TrackingOpts do begin
-    if Enabled then begin
-      EventTracker := ErmTracking.TEventTracker.Create(MaxRecords).SetDumpCommands(DumpCommands).SetIgnoreEmptyTriggers(IgnoreEmptyTriggers);
-    end;
-  end;
+  EventTracker := ErmTracking.TEventTracker.Create(TrackingOpts.MaxRecords).SetDumpCommands(TrackingOpts.DumpCommands).SetIgnoreEmptyTriggers(TrackingOpts.IgnoreEmptyTriggers);
 end; // .procedure OnAfterWoG
 
 procedure OnAfterStructRelocations (Event: GameExt.PEvent); stdcall;
@@ -8798,14 +8850,16 @@ begin
 
   InitFastIntOptimizationStructs;
 
-  EventMan.GetInstance.On('OnSavegameWrite',          OnSavegameWrite);
-  EventMan.GetInstance.On('OnSavegameRead',           OnSavegameRead);
-  EventMan.GetInstance.On('OnBeforeWoG',              OnBeforeWoG);
-  EventMan.GetInstance.On('OnAfterWoG',               OnAfterWoG);
-  EventMan.GetInstance.On('$OnEraSaveScripts',        OnEraSaveScripts);
   EventMan.GetInstance.On('$OnEraLoadScripts',        OnEraLoadScripts);
-  EventMan.GetInstance.On('OnBeforeClearErmScripts',  OnBeforeClearErmScripts);
-  EventMan.GetInstance.On('OnGenerateDebugInfo',      OnGenerateDebugInfo);
+  EventMan.GetInstance.On('$OnEraSaveScripts',        OnEraSaveScripts);
+  EventMan.GetInstance.On('$OnLoadEraSettings',       OnLoadEraSettings);
   EventMan.GetInstance.On('OnAfterStructRelocations', OnAfterStructRelocations);
+  EventMan.GetInstance.On('OnAfterWoG',               OnAfterWoG);
+  EventMan.GetInstance.On('OnBeforeClearErmScripts',  OnBeforeClearErmScripts);
+  EventMan.GetInstance.On('OnBeforeWoG',              OnBeforeWoG);
+  EventMan.GetInstance.On('OnGameLeft',               OnGameLeft);
+  EventMan.GetInstance.On('OnGenerateDebugInfo',      OnGenerateDebugInfo);
   EventMan.GetInstance.On('OnRemoteErmFuncCall',      OnRemoteErmFuncCall);
+  EventMan.GetInstance.On('OnSavegameRead',           OnSavegameRead);
+  EventMan.GetInstance.On('OnSavegameWrite',          OnSavegameWrite);
 end.

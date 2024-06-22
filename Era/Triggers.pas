@@ -1,10 +1,11 @@
 unit Triggers;
-{
-DESCRIPTION:  Extends ERM with new triggers
-AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
-}
+(*
+  Description: Extends ERM with new triggers
+  Author:      Alexander Shostak aka Berserker
+*)
 
 (***)  interface  (***)
+
 uses
   Math,
   SysUtils,
@@ -15,13 +16,15 @@ uses
   Core,
   DataLib,
   DlgMes,
+  PatchApi,
+  UtilsB2,
+
+  EraSettings,
   Erm,
   EventMan,
   GameExt,
   Heroes,
-  PatchApi,
   Tweaks,
-  UtilsB2,
   WogEvo, Legacy;
 
 type
@@ -163,7 +166,7 @@ begin
       GameExt.GenerateDebugInfo;
 
       if RootDlgId = Heroes.ADVMAP_DLGID then begin
-        Heroes.PrintChatMsg('{~white}Debug information was dumped to ' + GameExt.DEBUG_DIR +'{~}');
+        Heroes.PrintChatMsg('{~white}Debug information was dumped to ' + EraSettings.DEBUG_DIR +'{~}');
       end;
     end else if (wParam = KEY_F12) and (RootDlgId = Heroes.ADVMAP_DLGID) then begin
       Erm.ReloadErm;
@@ -512,6 +515,7 @@ var
 
         if MainGameLoopDepth = 0 then begin
           Erm.FireErmEvent(Erm.TRIGGER_ONGAMELEAVE);
+          EventMan.GetInstance.Fire('OnGameLeft');
         end;
       end;
     end;
@@ -546,6 +550,32 @@ begin
     FastQuitToGameMenu(Heroes.MainMenuTarget^);
   end;
 end; // .procedure Hook_ExecuteManager
+
+function Hook_LoadSavegame (OrigFunc: pointer; GameMan: Heroes.PGameManager; FileName: myPChar; PreventLoading: boolean; Dummy: integer): integer; stdcall;
+const
+  VAR_PLAYER_INDEX = $69D860;
+  VAR_PLAYER_BIT   = $69CD10;
+
+var
+  ShouldSimulateEnterLeaveEvents: boolean;
+
+begin
+  ShouldSimulateEnterLeaveEvents := MainGameLoopDepth > 0;
+
+  if ShouldSimulateEnterLeaveEvents then begin
+    Erm.FireErmEvent(Erm.TRIGGER_ONGAMELEAVE);
+    EventMan.GetInstance.Fire('OnGameLeft');
+  end;
+
+  result := PatchApi.Call(THISCALL_, OrigFunc, [GameMan, FileName, PreventLoading, Dummy]);
+
+  pinteger(VAR_PLAYER_INDEX)^ := Heroes.CurrentPlayerId^;
+  pinteger(VAR_PLAYER_BIT)^   := 1 shl Heroes.CurrentPlayerId^;
+
+  if ShouldSimulateEnterLeaveEvents and (result <> 0) then begin
+    Erm.FireErmEvent(Erm.TRIGGER_ONGAMEENTER);
+  end;
+end;
 
 procedure RaiseExceptionEx (Code: integer; const Args: array of integer);
 begin
@@ -1100,6 +1130,9 @@ begin
   
   (* Main game cycle (AdvMgr, CombatMgr): OnEnterGame, OnLeaveGame and MapFolder settings*)
   ApiJack.StdSplice(Ptr($4B0BA0), @Hook_ExecuteManager, ApiJack.CONV_THISCALL, 1);
+
+  (* Hook LoadSavegame to trigger OnEnterGame and OnLeaveGame if game loading is performed inside ExecuteManager function *)
+  ApiJack.StdSplice(Ptr($4BEFF0), @Hook_LoadSavegame, ApiJack.CONV_THISCALL, 4);
 
   (* Set top level main loop exception handler *)
   ApiJack.HookCode(Ptr($4F824A), @Hook_MainGameLoop);
