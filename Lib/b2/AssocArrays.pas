@@ -299,6 +299,7 @@ type
     procedure AddValue (Hash: integer; const Key, PreprocessedKey: myAStr; {OUn} NewValue: pointer; ItemInd: integer);
     procedure Rehash (NewCapacity: integer);
     procedure Grow;
+    procedure ShrinkIfReasonable;
     procedure Shrink;
 
    public
@@ -392,6 +393,7 @@ type
     procedure AddValue (Hash: integer; {OUn} NewValue: pointer; ItemInd: integer);
     procedure Rehash (NewCapacity: integer);
     procedure Grow;
+    procedure ShrinkIfReasonable;
     procedure Shrink;
 
    public
@@ -2033,7 +2035,6 @@ var
      ModCapacityMask: integer;
 
 begin
-  {!} Assert(not Self.fLocked);
   ModCapacityMask := Self.fModCapacityMask;
   PreprocessedKey := Self.GetPreprocessedKey(Key);
   PrevItem        := nil;
@@ -2070,15 +2071,20 @@ begin
       System.FillChar(PrevItem^, sizeof(PrevItem^), #0);
     end;
 
-    if (Self.fSize <= Self.fMinSize) and (Self.fCapacity > Self.MIN_CAPACITY) then begin
-      Self.Shrink;
-    end;
+    Self.ShrinkIfReasonable;
   end; // .if
 end; // .function TStrHashTable.DeleteItem
 
 procedure TStrHashTable.Grow;
 begin
   Self.Rehash(Self.fCapacity * Self.GROWTH_FACTOR);
+end;
+
+procedure TStrHashTable.ShrinkIfReasonable;
+begin
+  if not Self.fLocked and (Self.fSize <= Self.fMinSize) and (Self.fCapacity > Self.MIN_CAPACITY) then begin
+    Self.Shrink;
+  end;
 end;
 
 procedure TStrHashTable.Shrink;
@@ -2097,6 +2103,7 @@ var
   ModCapacityMask: integer;
 
 begin
+  {!} Assert(not Self.fLocked);
   OldItems        := Self.fItems;
   OldItem         := @OldItems[0];
   OldItemsEnd     := @OldItems[Self.fCapacity];
@@ -2172,6 +2179,7 @@ procedure TStrHashTable.EndIterate;
 begin
   {!} Assert(Self.fLocked);
   Self.fLocked := false;
+  Self.ShrinkIfReasonable;
 end;
 
 procedure TStrHashTable.Assign (Source: UtilsB2.TCloneable);
@@ -2525,7 +2533,6 @@ var
      ModCapacityMask: integer;
 
 begin
-  {!} Assert(not Self.fLocked);
   ModCapacityMask := Self.fModCapacityMask;
   PrevItem        := nil;
   Item            := Self.FindItem(Self.KeyToHash(Key), ItemInd);
@@ -2561,15 +2568,20 @@ begin
       System.FillChar(PrevItem^, sizeof(PrevItem^), #0);
     end;
 
-    if (Self.fSize <= Self.fMinSize) and (Self.fCapacity > Self.MIN_CAPACITY) then begin
-      Self.Shrink;
-    end;
+    Self.ShrinkIfReasonable;
   end; // .if
 end; // .function TObjHashTable.DeleteItem
 
 procedure TObjHashTable.Grow;
 begin
   Self.Rehash(Self.fCapacity * Self.GROWTH_FACTOR);
+end;
+
+procedure TObjHashTable.ShrinkIfReasonable;
+begin
+  if not Self.fLocked and (Self.fSize <= Self.fMinSize) and (Self.fCapacity > Self.MIN_CAPACITY) then begin
+    Self.Shrink;
+  end;
 end;
 
 procedure TObjHashTable.Shrink;
@@ -2588,6 +2600,7 @@ var
   ModCapacityMask: integer;
 
 begin
+  {!} Assert(not Self.fLocked);
   OldItems        := Self.fItems;
   OldItem         := @OldItems[0];
   OldItemsEnd     := @OldItems[Self.fCapacity];
@@ -2659,6 +2672,7 @@ procedure TObjHashTable.EndIterate;
 begin
   {!} Assert(Self.fLocked);
   Self.fLocked := false;
+  Self.ShrinkIfReasonable;
 end;
 
 procedure TObjHashTable.Assign (Source: UtilsB2.TCloneable);
@@ -2723,7 +2737,7 @@ begin
   Source.EndIterate;
 end;
 
-function NewAssocArr (HashFunc: THashFunc; {n} KeyPreprocessFunc: TKeyPreprocessFunc; OwnsItems,ItemsAreObjects: boolean; ItemType: TClass; AllowNil: boolean): TAssocArray;
+function NewAssocArr (HashFunc: THashFunc; {n} KeyPreprocessFunc: TKeyPreprocessFunc; OwnsItems, ItemsAreObjects: boolean; ItemType: TClass; AllowNil: boolean): TAssocArray;
 var
 {O} ItemGuard: UtilsB2.TDefItemGuard;
 
@@ -2762,7 +2776,7 @@ begin
   ItemGuard.ItemType := ItemType;
   ItemGuard.AllowNil := AllowNil;
   result             := TObjArray.Create(OwnsItems, ItemsAreObjects, @UtilsB2.DefItemGuardProc, UtilsB2.TItemGuard(ItemGuard));
-end; // .function NewObjArr
+end;
 
 function NewSimpleObjArr: TObjArray;
 var
@@ -2770,8 +2784,8 @@ var
 
 begin
   ItemGuard :=  nil;
-  result    := TObjArray.Create (not UtilsB2.OWNS_ITEMS, not UtilsB2.ITEMS_ARE_OBJECTS, @UtilsB2.NoItemGuardProc, ItemGuard);
-end; // .function NewSimpleObjArr
+  result    := TObjArray.Create(not UtilsB2.OWNS_ITEMS, not UtilsB2.ITEMS_ARE_OBJECTS, @UtilsB2.NoItemGuardProc, ItemGuard);
+end;
 
 function NewSimpleStrBinTree (HashFunc: THashFunc; {n} KeyPreprocessFunc: TKeyPreprocessFunc): TStrBinTree;
 var

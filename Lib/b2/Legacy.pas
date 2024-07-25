@@ -848,7 +848,7 @@ begin
   System.Move(Source, Dest, Count);
 end;
 
-function StrPas(const Str: PAnsiChar): AnsiString;
+function StrPas(const Str: myPChar): myAStr;
 begin
   Result := Str;
 end;

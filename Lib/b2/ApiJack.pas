@@ -7,8 +7,12 @@
 (***)  interface  (***)
 
 uses
-  Windows, SysUtils, Math,
-  UtilsB2, PatchForge, Legacy;
+  Math,
+  SysUtils,
+  Windows,
+
+  PatchForge,
+  UtilsB2, Legacy;
 
 type
   TCallingConv = (
@@ -49,9 +53,18 @@ type
   THookContext = packed record
     EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX: integer;
     RetAddr:                                pointer;
+
+    // Returns N-th argument address, starting from zero
+    function GetCdeclArg (ArgN: integer): PInt32Value;
+    function GetThiscallArg (ArgN: integer): PInt32Value;
+    function GetFastcallArg (ArgN: integer): PInt32Value;
+
+    property CdeclArgs[ArgN: integer]:    PInt32Value read GetCdeclArg;
+    property ThiscallArgs[ArgN: integer]: PInt32Value read GetThiscallArg;
+    property FastcallArgs[ArgN: integer]: PInt32Value read GetFastcallArg;
   end;
 
-  THookHandler = function (Context: PHookContext): LONGBOOL;
+  THookHandler = function (Context: PHookContext): LONGBOOL; stdcall;
 
   (* Writes arbitrary data to any write-protected section *)
   TWriteAtCode = function (NumBytes: integer; {n} Src, {n} Dst: pointer): boolean; stdcall;
@@ -67,8 +80,12 @@ type
 function StdSplice (OrigFunc, HandlerFunc: pointer; CallingConv: TCallingConv; NumArgs: integer; {n} CustomParam: pinteger = nil; {n} AppliedPatch: PAppliedPatch = nil): pointer;
 
 (* Writes call to user handler at specified location. If handler returns true, overwritten commands are executed
-   in original way. Otherwise they are skipped and Context.RetAddr is used to determine return address. *)
+   in original way. Otherwise they are skipped and Context.RetAddr is used to determine return address.
+   Returns address to a default code bridge *)
 function HookCode (Addr: pointer; HandlerFunc: THookHandler; {n} AppliedPatch: PAppliedPatch = nil): pointer;
+
+(* Calculates the size of the code block, which will be overwritten during hook/splice placement *)
+function CalcHookPatchSize (Addr: pointer): integer;
 
 (* Installs new code writing routine. Returns the previous one or nil *)
 function SetCodeWriter (CodeWriter: TWriteAtCode): {n} TWriteAtCode;
@@ -76,6 +93,9 @@ function SetCodeWriter (CodeWriter: TWriteAtCode): {n} TWriteAtCode;
 
 (***)  implementation  (***)
 
+
+const
+  RET_ADDR_SIZE = sizeof(integer);
 
 type
   (* Import *)
@@ -365,7 +385,7 @@ begin
   result := pointer(p.Pos);
 
   // Write original code bridge
-  OverwrittenCodeSize := PatchForge.GetCodeSize(Addr, sizeof(PatchForge.TJumpCall32Rec));
+  OverwrittenCodeSize := CalcHookPatchSize(Addr);
   p.WriteCode(Addr, PatchForge.TFixedCodeSizeDetector.Create(OverwrittenCodeSize));
   p.Jump(PatchForge.JMP, UtilsB2.PtrOfs(Addr, OverwrittenCodeSize));
 
@@ -398,6 +418,36 @@ begin
   // * * * * * //
   p.Release;
 end; // .function HookCode
+
+function CalcHookPatchSize (Addr: pointer): integer;
+begin
+  result := PatchForge.GetCodeSize(Addr, sizeof(PatchForge.TJumpCall32Rec));
+end;
+
+function THookContext.GetCdeclArg (ArgN: integer): PInt32Value;
+begin
+  result := Ptr(Self.ESP + (RET_ADDR_SIZE + sizeof(integer) * ArgN));
+end;
+
+function THookContext.GetThiscallArg (ArgN: integer): PInt32Value;
+begin
+  if ArgN = 0 then begin
+    result := @Self.ECX;
+  end else begin
+    result := Ptr(Self.ESP + (RET_ADDR_SIZE + sizeof(integer) * (ArgN - 1)));
+  end;
+end;
+
+function THookContext.GetFastcallArg (ArgN: integer): PInt32Value;
+begin
+  if ArgN = 0 then begin
+    result := @Self.ECX;
+  end else if ArgN = 1 then begin
+    result := @Self.EDX;
+  end else begin
+    result := Ptr(Self.ESP + (RET_ADDR_SIZE + sizeof(integer) * (ArgN - 2)));
+  end;
+end;
 
 procedure TAppliedPatch.Rollback;
 begin

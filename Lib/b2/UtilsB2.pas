@@ -72,7 +72,22 @@ type
   TArrayOfByte     = array of byte;
   TArrayOfInt      = array of integer;
   TArrayOfStr      = array of myAStr;
+  TArrayOfChar     = array of myChar;
   TArrayOfWideChar = array of myWChar;
+
+  PInt32Value = ^TInt32Value;
+  TInt32Value = packed record
+    case byte of
+      0: (int:      integer);
+      1: (ptr:      pointer);
+      2: (pchar:    myPChar);
+      3: (byte:     byte);
+      4: (bool:     boolean);
+      5: (word:     word);
+      6: (float:    single);
+      7: (longbool: longbool);
+      8: (ppointer: ppointer);
+  end;
 
   TCharSet  = set of myChar;
 

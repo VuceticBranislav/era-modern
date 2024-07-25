@@ -1,7 +1,7 @@
 unit Extern;
 (*
-  DESCRIPTION: API Wrappers for plugins
-  AUTHOR:      Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
+  Description: API Wrappers for plugins
+  Author:      Alexander Shostak aka Berserker
 *)
 
 (***)  interface  (***)
@@ -9,6 +9,7 @@ unit Extern;
 
 uses
   Math,
+  ShlwApi,
   SysUtils,
   Windows,
 
@@ -49,6 +50,12 @@ type
   TErmXVars = array [1..16] of integer;
 
   TDwordBool = integer; // 0 or 1
+
+  PAppliedPatch = ^TAppliedPatch;
+  TAppliedPatch = packed record
+  {O} Data: UtilsB2.PEndlessByteArr;
+      Size: integer;
+  end;
 
 
 (***) implementation (***)
@@ -140,6 +147,19 @@ begin
   Erm.ExecErmCmd(CmdStr);
 end;
 
+(* Compiles single ERM command without !! prefix and conditions and saves its compiled code in persisted memory storage.
+   Returns non-nil opaque pointer on success and nil on failure. Trailing semicolon is optional *)
+function PersistErmCmd (CmdStr: myPChar): {n} pointer; stdcall;
+begin
+  result := Erm.CompileErmCmd(CmdStr);
+end;
+
+(* Executes previously compiled and persisted ERM command. Use PersistErmCmd API for compilation *)
+procedure ExecPersistedErmCmd (PersistedCmd: pointer); stdcall;
+begin
+  Erm.ZvsProcessCmd(@Erm.PCompiledErmCmd(PersistedCmd).Cmd);
+end;
+
 procedure FireErmEvent (EventID: integer); stdcall;
 begin
   Erm.FireErmEvent(EventID);
@@ -202,15 +222,39 @@ var
   i:           integer;
 
 begin
-  SetLength(ParamList, length(Params));
+  SetLength(ParamList, Length(Params) and not 1);
 
-  for i := 0 to High(Params) do begin
+  for i := 0 to Length(ParamList) - 1 do begin
     ParamList[i] := Params[i];
   end;
 
   Translation := Trans.tr(Key, ParamList);
   result      := Externalize(Translation);
-end; // .function tr
+end;
+
+var
+  trTempBuf: myAStr;
+
+function trTemp (const Key: myPChar; const Params: array of myPChar): myPChar; stdcall;
+var
+  ParamList: UtilsB2.TArrayOfStr;
+  i:         integer;
+
+begin
+  SetLength(ParamList, Length(Params) and not 1);
+
+  for i := 0 to Length(ParamList) - 1 do begin
+    ParamList[i] := Params[i];
+  end;
+
+  trTempBuf := Trans.tr(Key, ParamList);
+  result    := myPChar(trTempBuf);
+end;
+
+function trStatic (const Key: myPChar): myPChar; stdcall;
+begin
+  result := Memory.UniqueStrings[myPChar(Trans.tr(Key, []))];
+end;
 
 function SetLanguage (NewLanguage: myPChar): TDwordBool; stdcall;
 begin
@@ -272,6 +316,8 @@ begin
   result := ApiJack.StdSplice(OrigFunc, HandlerFunc, ApiJack.TCallingConv(CallingConv), NumArgs, CustomParam, ApiJack.PAppliedPatch(AppliedPatch));
 end;
 
+(* Installs new hook at specified address. Returns pointer to bridge with original code. Optionally specify address of a pointer to write applied patch structure pointer to.
+   It will allow to rollback the patch later. *)
 function HookCode (Addr: pointer; HandlerFunc: THookHandler; {n} AppliedPatch: ppointer): pointer; stdcall;
 begin
   if AppliedPatch <> nil then begin
@@ -282,6 +328,38 @@ begin
   result := ApiJack.HookCode(Addr, HandlerFunc, ApiJack.PAppliedPatch(AppliedPatch));
 end;
 
+function CalcHookPatchSize (Addr: pointer): integer; stdcall;
+begin
+  result := ApiJack.CalcHookPatchSize(Addr);
+end;
+
+(* The patch will be rollback and internal memory and freed. Do not use it anymore *)
+procedure RollbackAppliedPatch ({O} AppliedPatch: pointer); stdcall;
+begin
+  {!} Assert(AppliedPatch <> nil);
+  ApiJack.PAppliedPatch(AppliedPatch).Rollback;
+  Dispose(AppliedPatch);
+end;
+
+(* Frees applied patch structure. Use it if you don't plan to rollback it anymore *)
+procedure FreeAppliedPatch ({O} AppliedPatch: pointer); stdcall;
+begin
+  if AppliedPatch <> nil then begin
+    Dispose(AppliedPatch);
+  end;
+end;
+
+(* Deprecated legacy. Use HookCode instead *)
+function ApiHook (HandlerAddr: pointer; HookType: integer; CodeAddr: pointer): {n} pointer; stdcall;
+begin
+  result := Core.Hook(CodeAddr, HookType, HandlerAddr);
+end;
+
+procedure Hook (HandlerAddr: pointer; HookType: integer; PatchSize: integer; CodeAddr: pointer); stdcall;
+begin
+  Heroes.ShowMessage('"Hook" function is not supported anymore. Use "HookCode" instead');
+end;
+
 function GetArgXVars: PErmXVars; stdcall;
 begin
   result := @Erm.ArgXVars;
@@ -290,6 +368,11 @@ end;
 function GetRetXVars: PErmXVars; stdcall;
 begin
   result := @Erm.RetXVars;
+end;
+
+function GetTriggerReadableName (EventId: integer): {O} myPChar; stdcall;
+begin
+  result := Externalize(Erm.GetTriggerReadableName(EventId));
 end;
 
 procedure RegisterErmReceiver (const Cmd: myPChar; {n} Handler: TErmCmdHandler; ParamsConfig: integer); stdcall;
@@ -396,6 +479,104 @@ begin
   result := StrLib.ComparePchars(Addr1, Addr2);
 end;
 
+(* Returns substring of original string in the form of new trigger-local ert z-var index *)
+function Erm_Substr (Str: myPChar; Offset, Count: integer): integer; stdcall;
+var
+  Res:    myAStr;
+  StrLen: integer;
+
+begin
+  result := 0;
+
+  if Erm.ErmTriggerDepth > 0 then begin
+    StrLen := Windows.LStrLenA(Str);
+    Res    := '';
+
+    if Offset < 0 then begin
+      Offset := Math.Max(0, StrLen + Offset);
+    end;
+
+    if Count < 0 then begin
+      Inc(Count, StrLen);
+    end;
+
+    if (StrLen > 0) and (Offset < StrLen) and (Count > 0) then begin
+      Count := Math.Min(StrLen - Offset, Count);
+      SetLength(Res, Count);
+      UtilsB2.CopyMem(Count, @Str[Offset], pointer(Res));
+    end;
+
+    result := Erm.CreateTriggerLocalErt(myPChar(Res), Length(Res));
+  end;
+end;
+
+function Erm_StrPos (Where, What: myPChar; Offset: integer): integer; stdcall;
+var
+  WhereLen: integer;
+  FoundPos: myPChar;
+
+begin
+  result := -1;
+
+  if Offset <> 0 then begin
+    if Offset < 0 then begin
+      exit;
+    end;
+
+    WhereLen := StrLib.StrLen(Where);
+
+    if Offset >= WhereLen then begin
+      exit;
+    end;
+
+    FoundPos := ShlwApi.StrStrA(UtilsB2.PtrOfs(Where, Offset), What);
+  end else begin
+    FoundPos := ShlwApi.StrStrA(Where, What);
+  end;
+
+  if FoundPos <> nil then begin
+    result := integer(FoundPos) - integer(Where);
+  end;
+end;
+
+(* Replaces What strings inside Where string with Replacement strings and returns new trigger-local ert z-var index *)
+function Erm_StrReplace (Where, What, Replacement: myPChar): integer; stdcall;
+var
+  Res: myAStr;
+
+begin
+  result := 0;
+
+  if Erm.ErmTriggerDepth > 0 then begin
+    Res    := Legacy.StringReplace(Where, What, Replacement, [Legacy.rfReplaceAll]);
+    result := Erm.CreateTriggerLocalErt(myPChar(Res), Length(Res));
+  end;
+end;
+
+(* Trims string and returns new trigger-local ert z-var index *)
+function Erm_StrTrim (Str: myPChar): integer; stdcall;
+var
+  Res: myAStr;
+
+begin
+  result := 0;
+
+  if Erm.ErmTriggerDepth > 0 then begin
+    Res    := Legacy.Trim(Str);
+    result := Erm.CreateTriggerLocalErt(myPChar(Res), Length(Res));
+  end;
+end;
+
+(* Interpolates ERM variables inside string (%v1, etc) and returns newtrigger-local ert z-var index *)
+function Erm_Interpolate (Str: myPChar): integer; stdcall;
+begin
+  result := 0;
+
+  if Erm.ErmTriggerDepth > 0 then begin
+    result := Erm.CreateTriggerLocalErt(Erm.InterpolateErmStr(Str));
+  end;
+end;
+
 procedure ShowErmError (Error: myPChar); stdcall;
 begin
   if Error = nil then begin
@@ -445,7 +626,7 @@ var
   ProcessGuid: myAStr;
 
 (* Returns 32-character unique key for current game process. The ID will be unique between multiple game runs. *)
-procedure GetProcessGuid (Buf: myPChar); stdcall;
+function GetProcessGuid: myPChar; stdcall;
 var
   ProcessGuidBuf: array [0..sizeof(GameExt.ProcessStartTime) - 1] of byte;
 
@@ -460,7 +641,7 @@ begin
     ProcessGuid := StrLib.BinToHex(sizeof(ProcessGuidBuf), @ProcessGuidBuf);
   end;
 
-  UtilsB2.CopyMem(Length(ProcessGuid) + 1, myPChar(ProcessGuid), Buf);
+  result := myPChar(ProcessGuid);
 end;
 
 function IsCampaign: TDwordBool; stdcall;
@@ -606,10 +787,10 @@ end;
 exports
   AdvErm.ExtendArrayLifetime,
   AllocErmFunc,
+  ApiHook,
   Ask,
+  CalcHookPatchSize,
   ClearIniCache,
-  Core.ApiHook,
-  Core.Hook,
   Core.WriteAtCode,
   DecorateInt,
   Erm.DisableErmTracking,
@@ -625,19 +806,26 @@ exports
   Erm_CompareStrings,
   Erm_CustomStableSortInt32Array,
   Erm_FillInt32Array,
+  Erm_Interpolate,
   Erm_IntLog2,
   Erm_Pow,
   Erm_RevertInt32Array,
   Erm_SortInt32Array,
   Erm_SortStrArray,
   Erm_Sqrt,
+  Erm_StrPos,
+  Erm_StrReplace,
+  Erm_StrTrim,
+  Erm_Substr,
   ExecErmCmd,
+  ExecPersistedErmCmd,
   FatalError,
   FindNextObject,
   FireErmEvent,
   FireEvent,
   FireRemoteEvent,
   FormatQuantity,
+  FreeAppliedPatch,
   GameExt.GenerateDebugInfo,
   GameExt.GetRealAddr,
   GameExt.RedirectMemoryBlock,
@@ -652,6 +840,7 @@ exports
   GetMapFileName,
   GetProcessGuid,
   GetRetXVars,
+  GetTriggerReadableName,
   GetVersion,
   GetVersionNum,
   GlobalRedirectFile,
@@ -659,6 +848,7 @@ exports
   Hash32,
   Heroes.GetGameState,
   Heroes.LoadTxt,
+  Hook,
   HookCode,
   Ini.ClearAllIniCache,
   IsCampaign,
@@ -669,6 +859,7 @@ exports
   NotifyError,
   PatchExists,
   PcxPngExists,
+  PersistErmCmd,
   PluginExists,
   ReadSavegameSection,
   ReadStrFromIni,
@@ -676,6 +867,7 @@ exports
   RegisterErmReceiver,
   RegisterHandler,
   ReportPluginVersion,
+  RollbackAppliedPatch,
   SaveIni,
   SetAssocVarIntValue,
   SetAssocVarStrValue,
@@ -693,6 +885,8 @@ exports
   Triggers.FastQuitToGameMenu,
   Triggers.SetRegenerationAbility,
   Triggers.SetStdRegenerationEffect,
+  trStatic,
+  trTemp,
   Tweaks.RandomRangeWithFreeParam,
   WriteSavegameSection,
   WriteStrToIni;

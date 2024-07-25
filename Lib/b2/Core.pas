@@ -1,16 +1,31 @@
 unit Core;
 (*
-  Description: Low-level functions
+  Description: Low-level patching/debugging functions.
   Author:      Alexander Shostak aka Berserker
+  Requires:    patcher_x86.dll by baratorch (maybe changed by replacing WriteAtCode with WriteAtCode_Standalone).
 *)
 
 (***)  interface  (***)
 
 uses
-  Windows, PsApi, Math, StrUtils, SysUtils,
-  hde32, PatchApi, ApiJack,
-  UtilsB2, Alg, WinWrappers, DlgMes, CFiles, Files, DataLib, StrLib, Concur,
-  DebugMaps, Legacy;
+  Math,
+  PsApi,
+  StrUtils,
+  SysUtils,
+  Windows,
+
+  Alg,
+  ApiJack,
+  Concur,
+  DataLib,
+  DebugMaps,
+  DlgMes,
+  Files,
+  hde32,
+  PatchApi,
+  StrLib,
+  UtilsB2,
+  WinWrappers, Legacy;
 
 type
   (* Import *)
@@ -37,6 +52,7 @@ const
   OPCODE_RET_IW  = $C2;
   OPCODE_RETF    = $CB;
   OPCODE_RETF_IW = $CA;
+  OPCODE_NOP     = $90;
 
   RET_OPCODES = [OPCODE_RET, OPCODE_RET_IW, OPCODE_RETF, OPCODE_RETF_IW];
 
@@ -50,7 +66,7 @@ type
   THookRec = packed record
     Opcode: byte;
     Ofs:    integer;
-  end; // .record THookRec
+  end;
 
   PHookContext = ^THookContext;
 
@@ -72,7 +88,7 @@ type
     procedure EvaluateDerivatives;
     function  OwnsAddr ({n} Addr: pointer): boolean;
     function  ToStr: myAStr;
-  end; // .class TModuleInfo
+  end;
 
   TModuleList = {O} TStrList {of TModuleInfo};
 
@@ -107,24 +123,21 @@ type
 
 
 function  WriteAtCode (Count: integer; Src, Dst: pointer): boolean; stdcall;
-(* For HOOKTYPE_BRIDGE hook functions return address to call original routine.
-   It's expected that PatchSize covers integer number of commands *)
-function  Hook (HandlerAddr: pointer; HookType: integer; PatchSize: integer;
-                CodeAddr: pointer): {n} pointer; stdcall;
-function  ApiHook (HandlerAddr: pointer; HookType: integer;
-                   CodeAddr: pointer): {n} pointer; stdcall;
-function  CalcHookSize (Code: pointer): integer;
-function  GetStdcallArg (Context: PHookContext; ArgN: integer): pinteger; inline;
+
+(* For HOOKTYPE_BRIDGE hook functions return address to call original routine. It's expected that PatchSize covers integer number of commands *)
+function  Hook (CodeAddr: pointer; HookType: integer; HandlerAddr: pointer): {n} pointer; stdcall;
+
 procedure KillThisProcess;
 procedure GenerateException;
 procedure NotifyError (const Err: myAStr);
 procedure FatalError (const Err: myAStr);
-// Returns address of assember ret-routine which will clean the arguments and return
+
+(* Returns address of assember ret-routine which will clean the arguments and return *)
+
 function  Ret (NumArgs: integer): pointer;
 procedure SetDebugMapsDir (const Dir: myAStr);
 function  GetModuleList: TModuleList;
-function  FindModuleByAddr ({n} Addr: pointer; ModuleList: TModuleList;
-                            out ModuleInd: integer): boolean;
+function  FindModuleByAddr ({n} Addr: pointer; ModuleList: TModuleList; out ModuleInd: integer): boolean;
 
 var
   AbortOnError: boolean = false; // if set to false, NotifyError does not terminate application after showing error message
@@ -435,60 +448,25 @@ begin
       result := Windows.VirtualProtect(Dst, Count, OldPageProtect, @OldPageProtect);
     end;
   end;
-end; // .function WriteAtCode_Standalone
+end;
 
-function Hook (HandlerAddr: pointer; HookType: integer; PatchSize: integer; CodeAddr: pointer): {n} pointer;
-type
-  TBytes = array of byte;
-
+function Hook (CodeAddr: pointer; HookType: integer; HandlerAddr: pointer): {n} pointer;
 var
-{O} BridgeCode:    pointer; // Memory is not freed or tracked
-    BridgePart1:   PBridgeCodePart1;
-    BridgeDefCode: pointer;
-    BridgePart2:   PBridgeCodePart2;
-    NopCount:      integer;
-    NopBuf:        TBytes;
-    HookRec:       THookRec;
-
- function PreprocessCode (CodeSize: integer; OldCodeAddr, NewCodeAddr: pointer): TBytes;
- var
-   Delta:  integer;
-   BufPos: integer;
-   Disasm: hde32.TDisasm;
-
- begin
-  {!} Assert(CodeSize >= sizeof(THookRec));
-  {!} Assert(OldCodeAddr <> nil);
-  {!} Assert(NewCodeAddr <> nil);
-  SetLength(result, CodeSize);
-  UtilsB2.CopyMem(CodeSize, OldCodeAddr, @result[0]);
-  Delta  := integer(NewCodeAddr) - integer(OldCodeAddr);
-  BufPos := 0;
-
-  while BufPos < CodeSize do begin
-    Disasm.Disassemble(UtilsB2.PtrOfs(OldCodeAddr, BufPos));
-
-    if (Disasm.Len = sizeof(THookRec)) and ((Disasm.Opcode = OPCODE_JUMP) or (Disasm.Opcode = OPCODE_CALL)) then begin
-      Dec(pinteger(@result[BufPos + 1])^, Delta);
-    end;
-
-    Inc(BufPos, Disasm.Len);
-  end;
- end; // .function PreprocessCode
-
- function FieldOffset (RecAddr, FieldAddr: pointer): integer;
- begin
-   {!} Assert(cardinal(FieldAddr) >= cardinal(RecAddr));
-   result := cardinal(FieldAddr) - cardinal(RecAddr);
- end;
+  NopBuf:    array [0..63] of byte;
+  NopCount:  integer;
+  HookRec:   THookRec;
+  PatchSize: integer;
 
 begin
-  {!} Assert(HandlerAddr <> nil);
-  {!} Assert(Math.InRange(HookType, HOOKTYPE_JUMP, HOOKTYPE_BRIDGE));
-  {!} Assert(PatchSize >= sizeof(THookRec));
   {!} Assert(CodeAddr <> nil);
-  BridgeCode := nil;
+  {!} Assert(Math.InRange(HookType, HOOKTYPE_JUMP, HOOKTYPE_BRIDGE));
+  {!} Assert(HandlerAddr <> nil);
   // * * * * * //
+  if HookType = HOOKTYPE_BRIDGE then begin
+    result := ApiJack.HookCode(CodeAddr, HandlerAddr);
+    exit;
+  end;
+
   result := nil;
 
   if HookType = HOOKTYPE_JUMP then begin
@@ -497,75 +475,29 @@ begin
     HookRec.Opcode := OPCODE_CALL;
   end;
 
-  if HookType = HOOKTYPE_BRIDGE then begin
-    // Allocate memory block for bridge and assign pointers to its parts
-    GetMem(BridgeCode, sizeof(TBridgeCodePart1) + sizeof(TBridgeCodePart2) + PatchSize);
-    BridgePart1   := BridgeCode;
-    BridgeDefCode := UtilsB2.PtrOfs(BridgeCode, sizeof(BridgePart1^));
-    BridgePart2   := UtilsB2.PtrOfs(BridgeCode, sizeof(BridgePart1^) + PatchSize);
-
-    // Copy preprocessed default code to destination
-    UtilsB2.CopyMem(PatchSize, @PreprocessCode(PatchSize, CodeAddr, BridgeDefCode)[0], BridgeDefCode);
-
-    // Copy bridge parts to destination and fill in required fields
-    BridgePart1^                     := BridgeCodePart1;
-    BridgePart1.HandlerAddr          := HandlerAddr;
-    BridgePart1.OffsetToAfterDefCode := PatchSize + sizeof(BridgePart1^)
-                                        - FieldOffset(BridgePart1, @BridgePart1.Label_ExecDefCode)
-                                        + FieldOffset(BridgePart2,
-                                                      @BridgePart2.Label_DontExecDefCode);
-    BridgePart2^                     := BridgeCodePart2;
-    BridgePart2.RetAddr              := UtilsB2.PtrOfs(CodeAddr, sizeof(THookRec));
-
-    HandlerAddr := BridgeCode;
-    result      := BridgeDefCode;
-  end; // .if
-
+  PatchSize   := ApiJack.CalcHookPatchSize(CodeAddr);
   HookRec.Ofs := integer(HandlerAddr) - integer(CodeAddr) - sizeof(THookRec);
-  {!} Assert(WriteAtCode(sizeof(THookRec), @HookRec, CodeAddr));
-  NopCount    := PatchSize - sizeof(THookRec);
+
+  if not WriteAtCode(sizeof(THookRec), @HookRec, CodeAddr) then begin
+    {!} Assert(false, string(Legacy.Format('Failed to write hook at %x', [integer(CodeAddr)])));
+  end;
+
+  NopCount := PatchSize - sizeof(THookRec);
 
   if NopCount > 0 then begin
-    SetLength(NopBuf, NopCount);
-    Legacy.FillChar(NopBuf[0], NopCount, myChar($90));
-    {!} Assert(WriteAtCode(NopCount, pointer(NopBuf), UtilsB2.PtrOfs(CodeAddr, sizeof(THookRec))));
+    FillChar(NopBuf[0], NopCount, Chr(OPCODE_NOP));
+
+    if not WriteAtCode(NopCount, @NopBuf[0], UtilsB2.PtrOfs(CodeAddr, sizeof(THookRec))) then begin
+      {!} Assert(false, string(Legacy.Format('Failed to write hook at %x', [integer(CodeAddr)])));
+    end;
   end;
 end; // .function Hook
 
-function CalcHookSize (Code: pointer): integer;
-var
-  Disasm: hde32.TDisasm;
-
-begin
-  {!} Assert(Code <> nil);
-  result := 0;
-
-  while result < sizeof(THookRec) do begin
-    Disasm.Disassemble(Code);
-    result := result + Disasm.Len;
-    Code   := UtilsB2.PtrOfs(Code, Disasm.Len);
-  end;
-end;
-
-function ApiHook (HandlerAddr: pointer; HookType: integer; CodeAddr: pointer): {n} pointer;
-begin
-  if HookType = HOOKTYPE_BRIDGE then begin
-    result := ApiJack.HookCode(CodeAddr, HandlerAddr);
-  end else begin
-    result := Hook(HandlerAddr, HookType, CalcHookSize(CodeAddr), CodeAddr);
-  end;
-end;
-
-function GetStdcallArg (Context: PHookContext; ArgN: integer): pinteger;
-begin
-  result := Ptr(Context.ESP + (4 + 4 * ArgN));
-end;
-
 procedure KillThisProcess; assembler;
 asm
-  XOR EAX, EAX
-  MOV ESP, EAX
-  MOV [EAX], EAX
+  xor eax, eax   // zero register
+  mov esp, eax   // zero stack pointer (no recovery possibly)
+  mov [eax], eax // trigger exception without any possible recovery
 end;
 
 procedure GenerateException; assembler;

@@ -124,13 +124,13 @@ begin
   // * * * * * //
   Rec.EventType    := EventType;
   Rec.TriggerId    := TriggerId;
-  Rec.TriggerLevel := Erm.ErmTriggerDepth;
+  Rec.TriggerLevel := Erm.ErmTriggerDepth + ord(EventType = TRACKEDEVENT_END_TRIGGER);
   Rec.SourceCode   := '';
 
   UtilsB2.CopyMem(sizeof(Rec.v), @v[low(Rec.v)], @Rec.v);
   UtilsB2.CopyMem(sizeof(Rec.f), @f[low(Rec.f)], @Rec.f);
   UtilsB2.CopyMem(sizeof(Rec.x), @Erm.x[1], @Rec.x);
-end; // .procedure TEventTracker.TrackTrigger
+end;
 
 procedure TEventTracker.TrackCmd (Addr: myPChar);
 var

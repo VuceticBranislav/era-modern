@@ -165,7 +165,7 @@ type
   (* Fast temp memory allocator for ERM inline strings storage during commands execution *)
   TServiceMemAllocator = record
     BufPos: integer;
-    Buf:       array [0..10485760 - 1] of myChar;
+    Buf:       array [0..3000000 - 1] of myChar;
     BufBorder: integer;
 
     procedure Init;
@@ -1845,11 +1845,15 @@ begin
           // K(str)/(ind)/[?](strchar) Get/set string character at position
           3:
             begin
-              result := CheckCmdParamsEx(Params, NumParams, [ACTION_SET, ACTION_SET or TYPE_INT, TYPE_STR]) and (Params[1].Value.v >= 0);
+              result := CheckCmdParamsEx(Params, NumParams, [ACTION_SET, ACTION_SET or TYPE_INT, TYPE_ANY]) and (Params[1].Value.v >= 0);
 
               if result then begin
                 if Params[2].OperGet then begin
-                  Params[2].RetPchar(myPChar(@Params[0].Value.pc[Params[1].Value.v]), 1);
+                  if Params[2].IsStr then begin
+                    Params[2].RetPchar(myPChar(@Params[0].Value.pc[Params[1].Value.v]), 1);
+                  end else begin
+                    Params[2].RetInt(ord(Params[0].Value.pc^));
+                  end;
                 end else begin
                   Params[0].Value.pc[Params[1].Value.v] := myPChar(Params[2].Value.v)^;
                 end;
@@ -2873,7 +2877,7 @@ begin
   result            := PatchApi.Call(THISCALL_, OrigFunc, [Self, x, y, z]);
 end;
 
-function Hook_ZvsCheckObjHint (C: Core.PHookContext): longbool; stdcall;
+function Hook_ZvsCheckObjHint (C: ApiJack.PHookContext): longbool; stdcall;
 var
 {U} HintSection: TObjDict;
 {U} StrValue:    TString;
@@ -3376,7 +3380,7 @@ begin
   Legacy.FreeAndNil(Buf);
 end; // .procedure DumpErmMemory
 
-function Hook_DumpErmVars (Context: Core.PHookContext): LONGBOOL; stdcall;
+function Hook_DumpErmVars (Context: ApiJack.PHookContext): LONGBOOL; stdcall;
 begin
   GameExt.GenerateDebugInfo;
   Context.RetAddr := Core.Ret(0);
@@ -3551,7 +3555,7 @@ end;
 procedure OnBeforeWoG (Event: PEvent); stdcall;
 begin
   (* Custom ERM memory dump *)
-  Core.ApiHook(@Hook_DumpErmVars, Core.HOOKTYPE_BRIDGE, @Erm.ZvsDumpErmVars);
+  ApiJack.HookCode(@Erm.ZvsDumpErmVars, @Hook_DumpErmVars);
 
   (* ERM direct call by hanlder instead of cmd linear scan implementation *)
   // Allocate additional local variable for FindErm. CmdHandler: TErmCmdHandler; absolute (EBP - $6C8)
@@ -3590,7 +3594,7 @@ end;
 procedure OnAfterWoG (Event: PEvent); stdcall;
 begin
   (* SN:H and new events for adventure map tile hints *)
-  Core.ApiHook(@Hook_ZvsCheckObjHint, Core.HOOKTYPE_BRIDGE, Ptr($74DE9D));
+  ApiJack.HookCode(Ptr($74DE9D), @Hook_ZvsCheckObjHint);
   ApiJack.StdSplice(Ptr($74E007), @Hook_ZvsHintControl0, ApiJack.CONV_THISCALL, 4);
   ApiJack.StdSplice(Ptr($74E179), @Hook_ZvsHintWindow, ApiJack.CONV_THISCALL, 4);
 

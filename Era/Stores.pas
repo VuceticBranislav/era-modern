@@ -11,6 +11,7 @@ uses
   SysUtils,
   Windows,
 
+  ApiJack,
   AssocArrays,
   Core,
   Crypto,
@@ -521,7 +522,7 @@ begin
   end;
 end; // .function TMemReader.ReadStr
 
-function Hook_SaveGame (Context: Core.PHookContext): LONGBOOL; stdcall;
+function Hook_SaveGame (Context: ApiJack.PHookContext): LONGBOOL; stdcall;
 const
   PARAM_SAVEGAME_NAME = 1;
 
@@ -547,7 +548,7 @@ begin
   result := true;
 end; // .function Hook_SaveGame
 
-function Hook_SaveGameWrite (Context: Core.PHookContext): LONGBOOL; stdcall;
+function Hook_SaveGameWrite (Context: ApiJack.PHookContext): LONGBOOL; stdcall;
 var
 {U} StrBuilder:     StrLib.TStrBuilder;
     NumSections:    integer;
@@ -606,7 +607,7 @@ begin
   result := not Core.EXEC_DEF_CODE;
 end; // .function Hook_SaveGameWrite
 
-function Hook_SaveGameRead (Context: Core.PHookContext): LONGBOOL; stdcall;
+function Hook_SaveGameRead (Context: ApiJack.PHookContext): LONGBOOL; stdcall;
 var
 {U} StoredData:     TStoredData;
     BytesRead:      integer;
@@ -668,9 +669,9 @@ end;
 
 procedure OnAfterWoG (Event: GameExt.PEvent); stdcall;
 begin
-  Core.Hook(@Hook_SaveGame, Core.HOOKTYPE_BRIDGE, 5, Ptr($4BEB65));
-  Core.Hook(@Hook_SaveGameWrite, Core.HOOKTYPE_BRIDGE, 6, Ptr($704EEC));
-  Core.Hook(@Hook_SaveGameRead, Core.HOOKTYPE_BRIDGE, 6, Ptr($7051B8));
+  ApiJack.HookCode(Ptr($4BEB65), @Hook_SaveGame);
+  ApiJack.HookCode(Ptr($704EEC), @Hook_SaveGameWrite);
+  ApiJack.HookCode(Ptr($7051B8), @Hook_SaveGameRead);
 
   (* Remove Erm trigger "BeforeSaveGame" call *)
   Core.p.WriteDataPatch(Ptr($7051F5), [myAStr('9090909090')]);

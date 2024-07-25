@@ -33,6 +33,7 @@ uses
 
   EraSettings,
   Erm,
+  EventLib,
   EventMan,
   GameExt,
   Graph,
@@ -94,6 +95,7 @@ procedure ProcessUnhandledException (ExceptionRecord: Windows.PExceptionRecord; 
 const
   RNG_SAVE_SECTION : myAStr      = 'Era.RNG';
   CRASH_SCREENHOST_PATH : myAStr = EraSettings.DEBUG_DIR + '\screenshot.jpg';
+  CRASH_SAVEGAME_PATH   = EraSettings.DEBUG_DIR + '\savegame.gm1';
 
   DL_GROUP_INDEX_MARKER = 100000; // DL frame index column is DL_GROUP_INDEX_MARKER * groupIndex + frameIndex
 
@@ -147,6 +149,7 @@ var
   DlgLastEvent:          Heroes.TMouseEventInfo;
   ComputerName:          myWStr;
   IsCrashing:            boolean;
+  CrashSavegameName:     myAStr;
 
   Mp3TriggerHandledEvent: THandle;
   IsMp3Trigger:           boolean = false;
@@ -322,23 +325,25 @@ end;
 
 function Hook_WriteIntIni (Value: integer; Key, SectionName, FileName: myPChar): integer; cdecl;
 begin
-  result  :=  0;
+  result := 0;
 
   if Ini.WriteStrToIni(Key, Legacy.IntToStr(Value), SectionName, FileName) then begin
     Ini.SaveIni(FileName);
   end;
 end;
 
-function Hook_ZvsGetWindowWidth (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ZvsGetWindowWidth (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
-  Context.ECX :=  WndManagerPtr^.ScreenPcx16.Width;
-  result      :=  not Core.EXEC_DEF_CODE;
+  Context.ECX     := WndManagerPtr^.ScreenPcx16.Width;
+  Context.RetAddr := Ptr($729C5F);
+  result          := false;
 end;
 
-function Hook_ZvsGetWindowHeight (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ZvsGetWindowHeight (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
-  Context.EDX :=  WndManagerPtr^.ScreenPcx16.Height;
-  result      :=  not Core.EXEC_DEF_CODE;
+  Context.EDX     := WndManagerPtr^.ScreenPcx16.Height;
+  Context.RetAddr := Ptr($729C72);
+  result          := false;
 end;
 
 procedure MarkFreshestSavegame;
@@ -379,39 +384,40 @@ begin
   Legacy.FreeAndNil(Locator);
 end; // .procedure MarkFreshestSavegame
 
-function Hook_SetHotseatHeroName (Context: Core.PHookContext): longbool; stdcall;
+function Hook_SetHotseatHeroName (Context: ApiJack.PHookContext): longbool; stdcall;
 var
-  PlayerName:     myAStr;
-  NewPlayerName:  myAStr;
-  EcxReg:         integer;
+  PlayerName:    myAStr;
+  NewPlayerName: myAStr;
+  EcxReg:        integer;
 
 begin
-  PlayerName    :=  myPChar(Context.EAX);
-  NewPlayerName :=  PlayerName + ' 1';
-  EcxReg        :=  Context.ECX;
-  
+  PlayerName    := myPChar(Context.EAX);
+  NewPlayerName := PlayerName + ' 1';
+  EcxReg        := Context.ECX;
+
   asm
     MOV ECX, EcxReg
     PUSH NewPlayerName
     MOV EDX, [ECX]
     CALL [EDX + $34]
-  end; // .asm
+  end;
   
-  NewPlayerName :=  PlayerName + ' 2';
-  EcxReg        :=  Context.EBX;
-  
+  NewPlayerName := PlayerName + ' 2';
+  EcxReg        := Context.EBX;
+
   asm
     MOV ECX, EcxReg
     MOV ECX, [ECX + $54]
     PUSH NewPlayerName
     MOV EDX, [ECX]
     CALL [EDX + $34]
-  end; // .asm
-  
-  result := not Core.EXEC_DEF_CODE;
-end; // .function Hook_SetHotseatHeroName
+  end;
 
-function Hook_PeekMessageA (Context: Core.PHookContext): longbool; stdcall;
+  Context.RetAddr := Ptr($5125B6);
+  result          := false;
+end;
+
+function Hook_PeekMessageA (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   Inc(CpuPatchCounter, CpuTargetLevel);
 
@@ -708,73 +714,74 @@ begin
   SysUtils.FreeAndNil(AddrList);
 end; // .function Hook_GetHostByName
 
-function Hook_ApplyDamage_Ebx (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ApplyDamage_Ebx (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   Context.EBX := ZvsAppliedDamage^;
   result      := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_ApplyDamage_Esi (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ApplyDamage_Esi (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   Context.ESI := ZvsAppliedDamage^;
   result      := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_ApplyDamage_Esi_Arg1 (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ApplyDamage_Esi_Arg1 (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   Context.ESI                 := ZvsAppliedDamage^;
   pinteger(Context.EBP + $8)^ := ZvsAppliedDamage^;
   result                      := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_ApplyDamage_Arg1 (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ApplyDamage_Arg1 (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   pinteger(Context.EBP + $8)^ :=  ZvsAppliedDamage^;
   result                      :=  Core.EXEC_DEF_CODE;
 end;
 
-function Hook_ApplyDamage_Ebx_Local7 (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ApplyDamage_Ebx_Local7 (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   Context.EBX                    := ZvsAppliedDamage^;
   PINTEGER(Context.EBP - 7 * 4)^ := ZvsAppliedDamage^;
   result                         := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_ApplyDamage_Local7 (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ApplyDamage_Local7 (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   PINTEGER(Context.EBP - 7 * 4)^ := ZvsAppliedDamage^;
   result                         := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_ApplyDamage_Local4 (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ApplyDamage_Local4 (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   PINTEGER(Context.EBP - 4 * 4)^ := ZvsAppliedDamage^;
   result                         := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_ApplyDamage_Local8 (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ApplyDamage_Local8 (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   PINTEGER(Context.EBP - 8 * 4)^ := ZvsAppliedDamage^;
   result                         := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_ApplyDamage_Local13 (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ApplyDamage_Local13 (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   PINTEGER(Context.EBP - 13 * 4)^ := ZvsAppliedDamage^;
   result                          := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_GetWoGAndErmVersions (Context: Core.PHookContext): longbool; stdcall;
+function Hook_GetWoGAndErmVersions (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   NEW_WOG_VERSION = 400;
   
 begin
   PINTEGER(Context.EBP - $0C)^ := NEW_WOG_VERSION;
   PINTEGER(Context.EBP - $24)^ := GameExt.ERA_VERSION_INT;
-  result                       := not Core.EXEC_DEF_CODE;
+  Context.RetAddr              := Ptr($73227A);
+  result                       := false;
 end;
 
-function Hook_ZvsLib_ExtractDef (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ZvsLib_ExtractDef (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   MIN_NUM_TOKENS = 2;
   TOKEN_LODNAME  = 0;
@@ -805,7 +812,7 @@ begin
   result  :=  Core.EXEC_DEF_CODE;
 end; // .function Hook_ZvsLib_ExtractDef
 
-function Hook_ZvsLib_ExtractDef_GetGamePath (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ZvsLib_ExtractDef_GetGamePath (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   EBP_LOCAL_GAME_PATH = 16;
 
@@ -817,8 +824,8 @@ begin
 
   PPAnsiChar(Context.EBP - EBP_LOCAL_GAME_PATH)^ :=  myPChar(ZvsLibGamePath);
   Context.RetAddr := UtilsB2.PtrOfs(Context.RetAddr, 486);
-  result          := not Core.EXEC_DEF_CODE;
-end; // .function Hook_ZvsLib_ExtractDef_GetGamePath
+  result          := false;
+end;
 
 function Hook_ZvsPlaceMapObject (Hook: PatchApi.THiHook; x, y, Level, ObjType, ObjSubtype, ObjType2, ObjSubtype2, Terrain: integer): integer; stdcall;
 begin
@@ -841,7 +848,7 @@ begin
   end;
 end; // .procedure OnRemoteMapObjectPlace
 
-function Hook_ZvsEnter2Monster (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ZvsEnter2Monster (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   ARG_MAP_ITEM  = 8;
   ARG_MIXED_POS = 16;
@@ -858,10 +865,31 @@ begin
   pinteger(Context.EBP + ARG_MIXED_POS)^ := MixedPos;
 
   Context.RetAddr := Ptr($7577B2);
-  result          := not Core.EXEC_DEF_CODE;
-end; // .function Hook_ZvsEnter2Monster
+  result          := false;
+end;
 
-function Hook_ZvsEnter2Monster2 (Context: Core.PHookContext): longbool; stdcall;
+function Hook_WoGMouseClick3 (OrigFunc: pointer; AdvMan: pointer; MouseEvent: Heroes.PMouseEventInfo; Arg3: integer; Arg4: integer): integer; stdcall;
+const
+  ITEM_CHAT       = 38;
+  VANILLA_HANDLER = $409740;
+
+begin
+  // Bug fix: chat typing produces phantom mouse click event
+  if (MouseEvent.Item = ITEM_CHAT) and (MouseEvent.X = 0) and (MouseEvent.Y = 0) then begin
+    result := PatchApi.Call(THISCALL_, Ptr(VANILLA_HANDLER), [AdvMan, MouseEvent, Arg3, Arg4]);
+  end else begin
+    ZvsMouseClickEventInfo^ := MouseEvent;
+    ZvsHandleAdvMapMouseClick(ord(true));
+
+    if ZvsAllowDefMouseReaction^ then begin
+      result := PatchApi.Call(THISCALL_, Ptr(VANILLA_HANDLER), [AdvMan, MouseEvent, Arg3, Arg4]);
+    end else begin
+      result := 1;
+    end;
+  end;
+end;
+
+function Hook_ZvsEnter2Monster2 (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   ARG_MAP_ITEM  = 8;
   ARG_MIXED_POS = 16;
@@ -878,8 +906,8 @@ begin
   pinteger(Context.EBP + ARG_MIXED_POS)^ := MixedPos;
 
   Context.RetAddr := Ptr($757A87);
-  result          := not Core.EXEC_DEF_CODE;
-end; // .function Hook_ZvsEnter2Monster2
+  result          := false;
+end;
 
 function Hook_StartBattle (OrigFunc: pointer; WndMan: Heroes.PWndManager; PackedCoords: integer; AttackerHero: Heroes.PHero; AttackerArmy: Heroes.PArmy; DefenderPlayerId: integer;
                            DefenderTown: Heroes.PTown; DefenderHero: Heroes.PHero; DefenderArmy: Heroes.PArmy; Seed, Unk10: integer; IsBank: boolean): integer; stdcall;
@@ -922,7 +950,7 @@ begin
   GlobalRng := QualitativeRng;
 end; // .function Hook_StartBattle
 
-function Hook_WoGBeforeBattleAction (Context: Core.PHookContext): longbool; stdcall;
+function Hook_WoGBeforeBattleAction (Context: ApiJack.PHookContext): longbool; stdcall;
 var
   BattleMgr: Heroes.PCombatManager;
 
@@ -939,7 +967,7 @@ begin
   result := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_WoGBeforeBattleAction_HandleEnchantress (Context: Core.PHookContext): longbool; stdcall;
+function Hook_WoGBeforeBattleAction_HandleEnchantress (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   LOCAL_ACTING_MON_TYPE = -$2C;
 
@@ -957,16 +985,16 @@ begin
   result := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_WoGCallAfterBattleAction (Context: Core.PHookContext): longbool; stdcall;
+function Hook_WoGCallAfterBattleAction (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   Erm.v[997] := CombatRound;
   Erm.FireErmEvent(TRIGGER_BG1);
 
   Context.RetAddr := Ptr($75D317);
-  result          := not Core.EXEC_DEF_CODE;
+  result          := false;
 end;
 
-function Hook_SendBattleAction_CopyActionParams (Context: Core.PHookContext): longbool; stdcall;
+function Hook_SendBattleAction_CopyActionParams (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   Context.EAX := CombatOrigStackActionInfo.ActionParam2;
   Context.ECX := CombatOrigStackActionInfo.TargetPos;
@@ -976,13 +1004,13 @@ begin
   result := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_OnBeforeBattlefieldVisible (Context: Core.PHookContext): longbool; stdcall;
+function Hook_OnBeforeBattlefieldVisible (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   Erm.FireErmEvent(Erm.TRIGGER_ONBEFORE_BATTLEFIELD_VISIBLE);
   result := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_OnBattlefieldVisible (Context: Core.PHookContext): longbool; stdcall;
+function Hook_OnBattlefieldVisible (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   HadTacticsPhase := Heroes.CombatManagerPtr^.IsTactics;
 
@@ -999,7 +1027,7 @@ begin
   result := true;
 end;
 
-function Hook_OnAfterTacticsPhase (Context: Core.PHookContext): longbool; stdcall;
+function Hook_OnAfterTacticsPhase (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   Erm.FireErmEvent(Erm.TRIGGER_AFTER_TACTICS_PHASE);
 
@@ -1012,7 +1040,7 @@ begin
   result := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_OnCombatRound_Start (Context: Core.PHookContext): longbool; stdcall;
+function Hook_OnCombatRound_Start (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   if pinteger($79F0B8)^ <> Heroes.CombatManagerPtr^.Round then begin
     Inc(CombatRound);
@@ -1021,7 +1049,7 @@ begin
   result := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_OnCombatRound_End (Context: Core.PHookContext): longbool; stdcall;
+function Hook_OnCombatRound_End (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   Erm.v[997] := CombatRound;
   Erm.FireErmEvent(Erm.TRIGGER_BR);
@@ -1959,7 +1987,7 @@ begin
     Files.ClearDir(GameExt.GameDir + '\' + EraSettings.DEBUG_DIR);
     DumpExceptionContext(ExceptionRecord, Context);
     EventMan.GetInstance.Fire('OnGenerateDebugInfo');
-    Windows.MessageBoxA(Heroes.hWnd^, myPChar('Game crashed. All debug information is inside ' + DEBUG_DIR + ' subfolder'), '', Windows.MB_OK);
+    Windows.MessageBoxA(Heroes.hWnd^, myPChar(Trans.Tr('era.game_crash_message', ['debug_dir', DEBUG_DIR])), '', Windows.MB_OK);
     Core.KillThisProcess;
   end;
 
@@ -1981,10 +2009,28 @@ begin
   Graph.TakeScreenshot(GameExt.GameDir + '\' + CRASH_SCREENHOST_PATH, 70);
 end;
 
+procedure CopyCrashSavegameToDebugDir;
+var
+  CrashSavegamePath: myAStr;
+
+begin
+  if CrashSavegameName <> '' then begin
+    CrashSavegamePath := GameExt.GameDir + '\games\' + CrashSavegameName;
+
+    if Files.FileExists(CrashSavegamePath) then begin
+      Windows.CopyFileA(myPChar(CrashSavegamePath), myPChar(GameExt.GameDir + '\' + CRASH_SAVEGAME_PATH), false);
+    end;
+  end;
+end;
+
 procedure OnGenerateDebugInfo (Event: PEvent); stdcall;
 begin
   if EraSettings.GetOpt('Debug.CaptureScreenshotOnCrash').Bool(true) then begin
     CaptureCrashScreenshot;
+  end;
+
+  if EraSettings.GetOpt('Debug.CopySavegameOnCrash').Bool(true) then begin
+    CopyCrashSavegameToDebugDir;
   end;
 
   DumpWinPeModuleList;
@@ -2011,13 +2057,13 @@ begin
   end;
 
   (* Ini handling *)
-  Core.Hook(@Hook_ReadStrIni, Core.HOOKTYPE_JUMP, 5, ZvsReadStrIni);
-  Core.Hook(@Hook_WriteStrIni, Core.HOOKTYPE_JUMP, 5, ZvsWriteStrIni);
-  Core.Hook(@Hook_WriteIntIni, Core.HOOKTYPE_JUMP, 5, ZvsWriteIntIni);
-  
+  Core.Hook(ZvsReadStrIni, Core.HOOKTYPE_JUMP, @Hook_ReadStrIni);
+  Core.Hook(ZvsWriteStrIni, Core.HOOKTYPE_JUMP, @Hook_WriteStrIni);
+  Core.Hook(ZvsWriteIntIni, Core.HOOKTYPE_JUMP, @Hook_WriteIntIni);
+
   (* DL dialogs centering *)
-  Core.Hook(@Hook_ZvsGetWindowWidth, Core.HOOKTYPE_BRIDGE, 5, Ptr($729C5A));
-  Core.Hook(@Hook_ZvsGetWindowHeight, Core.HOOKTYPE_BRIDGE, 5, Ptr($729C6D));
+  ApiJack.HookCode(Ptr($729C5A), @Hook_ZvsGetWindowWidth);
+  ApiJack.HookCode(Ptr($729C6D), @Hook_ZvsGetWindowHeight);
   
   (* Mark the freshest savegame *)
   MarkFreshestSavegame;
@@ -2028,7 +2074,7 @@ begin
   end;
   
   (* Fix HotSeat second hero name *)
-  Core.Hook(@Hook_SetHotseatHeroName, Core.HOOKTYPE_BRIDGE, 6, Ptr($5125B0));
+  ApiJack.HookCode(Ptr($5125B0), @Hook_SetHotseatHeroName);
   Core.WriteAtCode(Length(NOP7), pointer(NOP7), Ptr($5125F9));
   
   (* Universal CPU patch *)
@@ -2039,7 +2085,7 @@ begin
     end;
 
     hTimerEvent := Windows.CreateEvent(nil, true, false, nil);
-    Core.ApiHook(@Hook_PeekMessageA, Core.HOOKTYPE_BRIDGE, Windows.GetProcAddress(GetModuleHandleA(myPChar('user32.dll')), myPChar('PeekMessageA')));
+    Core.Hook(Windows.GetProcAddress(GetModuleHandleA('user32.dll'), myPChar('PeekMessageA')), Core.HOOKTYPE_BRIDGE, @Hook_PeekMessageA);
   end;
 
   (* Remove duplicate ResetAll call *)
@@ -2069,39 +2115,31 @@ begin
   ApiJack.StdSplice(Windows.GetProcAddress(Windows.GetModuleHandleA('ws2_32.dll'), 'gethostbyname'), @Hook_GetHostByName, ApiJack.CONV_STDCALL, 1);
 
   (* Fix ApplyDamage calls, so that !?MF1 damage is displayed correctly in log *)
-  Core.ApiHook(@Hook_ApplyDamage_Ebx_Local7,  Core.HOOKTYPE_BRIDGE, Ptr($43F95B + 5));
-  Core.ApiHook(@Hook_ApplyDamage_Ebx,         Core.HOOKTYPE_BRIDGE, Ptr($43FA5E + 5));
-  Core.ApiHook(@Hook_ApplyDamage_Local7,      Core.HOOKTYPE_BRIDGE, Ptr($43FD3D + 5));
-  Core.ApiHook(@Hook_ApplyDamage_Ebx,         Core.HOOKTYPE_BRIDGE, Ptr($4400DF + 5));
-  Core.ApiHook(@Hook_ApplyDamage_Esi_Arg1,    Core.HOOKTYPE_BRIDGE, Ptr($440858 + 5));
-  Core.ApiHook(@Hook_ApplyDamage_Ebx,         Core.HOOKTYPE_BRIDGE, Ptr($440E70 + 5));
-  Core.ApiHook(@Hook_ApplyDamage_Arg1,        Core.HOOKTYPE_BRIDGE, Ptr($441048 + 5));
-  Core.ApiHook(@Hook_ApplyDamage_Esi,         Core.HOOKTYPE_BRIDGE, Ptr($44124C + 5));
-  Core.ApiHook(@Hook_ApplyDamage_Local4,      Core.HOOKTYPE_BRIDGE, Ptr($441739 + 5));
-  Core.ApiHook(@Hook_ApplyDamage_Local8,      Core.HOOKTYPE_BRIDGE, Ptr($44178A + 5));
-  Core.ApiHook(@Hook_ApplyDamage_Arg1,        Core.HOOKTYPE_BRIDGE, Ptr($46595F + 5));
-  Core.ApiHook(@Hook_ApplyDamage_Ebx,         Core.HOOKTYPE_BRIDGE, Ptr($469A93 + 5));
-  Core.ApiHook(@Hook_ApplyDamage_Local13,     Core.HOOKTYPE_BRIDGE, Ptr($5A1065 + 5));
+  ApiJack.HookCode(Ptr($43F95B + 5), @Hook_ApplyDamage_Ebx_Local7);
+  ApiJack.HookCode(Ptr($43FA5E + 5), @Hook_ApplyDamage_Ebx);
+  ApiJack.HookCode(Ptr($43FD3D + 5), @Hook_ApplyDamage_Local7);
+  ApiJack.HookCode(Ptr($4400DF + 5), @Hook_ApplyDamage_Ebx);
+  ApiJack.HookCode(Ptr($440858 + 5), @Hook_ApplyDamage_Esi_Arg1);
+  ApiJack.HookCode(Ptr($440E70 + 5), @Hook_ApplyDamage_Ebx);
+  ApiJack.HookCode(Ptr($441048 + 5), @Hook_ApplyDamage_Arg1);
+  ApiJack.HookCode(Ptr($44124C + 5), @Hook_ApplyDamage_Esi);
+  ApiJack.HookCode(Ptr($441739 + 5), @Hook_ApplyDamage_Local4);
+  ApiJack.HookCode(Ptr($44178A + 5), @Hook_ApplyDamage_Local8);
+  ApiJack.HookCode(Ptr($46595F + 5), @Hook_ApplyDamage_Arg1);
+  ApiJack.HookCode(Ptr($469A93 + 5), @Hook_ApplyDamage_Ebx);
+  ApiJack.HookCode(Ptr($5A1065 + 5), @Hook_ApplyDamage_Local13);
 
   (* Fix negative offsets handling in fonts *)
   Core.p.WriteDataPatch(Ptr($4B534A), [myAStr('B6')]);
   Core.p.WriteDataPatch(Ptr($4B53E6), [myAStr('B6')]);
 
   (* Fix WoG/ERM versions *)
-  Core.Hook(@Hook_GetWoGAndErmVersions, Core.HOOKTYPE_BRIDGE, 14, Ptr($73226C));
+  ApiJack.HookCode(Ptr($73226C), @Hook_GetWoGAndErmVersions);
 
   (*  Fix zvslib1.dll ExtractDef function to support mods  *)
-  Core.ApiHook
-  (
-    @Hook_ZvsLib_ExtractDef, Core.HOOKTYPE_BRIDGE, Ptr(Zvslib1Handle + ZVSLIB_EXTRACTDEF_OFS + 3)
-  );
-  
-  Core.ApiHook
-  (
-    @Hook_ZvsLib_ExtractDef_GetGamePath,
-    Core.HOOKTYPE_BRIDGE,
-    Ptr(Zvslib1Handle + ZVSLIB_EXTRACTDEF_OFS + ZVSLIB_EXTRACTDEF_GETGAMEPATH_OFS)
-  );
+  ApiJack.HookCode(Ptr(Zvslib1Handle + ZVSLIB_EXTRACTDEF_OFS + 3), @Hook_ZvsLib_ExtractDef);
+
+  ApiJack.HookCode(Ptr(Zvslib1Handle + ZVSLIB_EXTRACTDEF_OFS + ZVSLIB_EXTRACTDEF_GETGAMEPATH_OFS), @Hook_ZvsLib_ExtractDef_GetGamePath);
 
   Core.p.WriteHiHook(Ptr($71299E), PatchApi.SPLICE_, PatchApi.EXTENDED_, PatchApi.CDECL_, @Hook_ZvsPlaceMapObject);
   
@@ -2111,29 +2149,25 @@ begin
   (* Fixed bug with combined artifact (# > 143) dismounting in heroes meeting screen *)
   Core.p.WriteDataPatch(Ptr($4DC358), [myAStr('A0')]);
 
-  (* Fix WoG bug: do not rely on MixedPos argument for Enter2Monster(2), get coords from map object instead
-     EDIT: no need anymore, fixed MixedPos *)
-  if FALSE then begin
-    Core.Hook(@Hook_ZvsEnter2Monster,  Core.HOOKTYPE_BRIDGE, 19, Ptr($75779F));
-    Core.Hook(@Hook_ZvsEnter2Monster2, Core.HOOKTYPE_BRIDGE, 19, Ptr($757A74));
-  end;
-
   (* Fix MixedPos to not drop higher order bits and not treat them as underground flag *)
   Core.p.WriteDataPatch(Ptr($711F4F), [myAStr('8B451425FFFFFF048945149090909090909090')]);
 
   (* Fix WoG bug: double !?OB54 event generation when attacking without moving due to Enter2Object + Enter2Monster2 calling *)
   Core.p.WriteDataPatch(Ptr($757AA0), [myAStr('EB2C90909090')]);
 
+  (* Fixe WoG adventure map mouse click handler: chat input produces left click event *)
+  ApiJack.StdSplice(Ptr($74EF37), @Hook_WoGMouseClick3, CONV_THISCALL, 4);
+
   (* Fix battle round counting: no !?BR before battlefield is shown, negative FIRST_TACTICS_ROUND incrementing for the whole tactics phase, the
      first real round always starts from 0 *)
-  Core.ApiHook(@Hook_OnBeforeBattlefieldVisible, Core.HOOKTYPE_BRIDGE, Ptr($75EAEA));
-  Core.ApiHook(@Hook_OnBattlefieldVisible,       Core.HOOKTYPE_BRIDGE, Ptr($462E2B));
-  Core.ApiHook(@Hook_OnAfterTacticsPhase,        Core.HOOKTYPE_BRIDGE, Ptr($75D137));
+  ApiJack.HookCode(Ptr($75EAEA), @Hook_OnBeforeBattlefieldVisible);
+  ApiJack.HookCode(Ptr($462E2B), @Hook_OnBattlefieldVisible);
+  ApiJack.HookCode(Ptr($75D137), @Hook_OnAfterTacticsPhase);
   // Call ZvsNoMoreTactic1 in network game for the opposite side
-  Core.ApiHook(ZvsNoMoreTactic1,                 Core.HOOKTYPE_CALL,   Ptr($473E89));
+  Core.Hook(Ptr($473E89), Core.HOOKTYPE_CALL, ZvsNoMoreTactic1);
+  ApiJack.HookCode(Ptr($76065B), @Hook_OnCombatRound_Start);
+  ApiJack.HookCode(Ptr($7609A3), @Hook_OnCombatRound_End);
 
-  Core.ApiHook(@Hook_OnCombatRound_Start,        Core.HOOKTYPE_BRIDGE, Ptr($76065B));
-  Core.ApiHook(@Hook_OnCombatRound_End,          Core.HOOKTYPE_BRIDGE, Ptr($7609A3));
   // Disable BACall2 function, generating !?BR event, because !?BR will be the same as OnCombatRound now
   Core.p.WriteDataPatch(Ptr($74D1AB), [myAStr('C3')]);
 
@@ -2250,6 +2284,9 @@ begin
   (* Fix Blood Dragons aging change from 20% to 40% *)
   Core.p.WriteDataPatch(Ptr($75DE31), [myAStr('7509C6055402440028EB07C6055402440064')]);
 
+  (* Fix CheckForCompleteAI function, checking gosolo mode only if timer <> 0, while it's 0 in modern game with HD mod *)
+  Core.p.WriteDataPatch(Ptr($75ADC1), [myAStr('9090')]);
+
   (* Use click coords to show popup dialogs almost everywhere *)
   ApiJack.HookCode(Ptr($4F6D54), @Hook_Show3PicDlg_PrepareDialogStruct);
   ApiJack.StdSplice(Ptr($5FF3A0), @Hook_Dlg_SendMsg, ApiJack.CONV_THISCALL, 2);
@@ -2284,6 +2321,21 @@ begin
   Windows.SetUnhandledExceptionFilter(@UnhandledExceptionFilter);
 end;
 
+procedure OnBeforeErmInstructions (Event: GameExt.PEvent); stdcall;
+begin
+  CrashSavegameName := '';
+end;
+
+procedure OnBeforeLoadGame (Event: GameExt.PEvent); stdcall;
+begin
+  CrashSavegameName := EventLib.POnBeforeLoadGameEvent(Event.Data).FileName;
+end;
+
+procedure OnBeforeSaveGame (Event: GameExt.PEvent); stdcall;
+begin
+  CrashSavegameName := myPChar(Erm.x[1]);
+end;
+
 procedure OnAfterVfsInit (Event: GameExt.PEvent); stdcall;
 begin
   Windows.SetErrorMode(SEM_NOGPFAULTERRORBOX);
@@ -2302,6 +2354,7 @@ begin
   Mp3TriggerHandledEvent    := Windows.CreateEvent(nil, false, false, nil);
   ComputerName              := WinUtils.GetComputerNameW;
 
+
   EventMan.GetInstance.On('$OnLoadEraSettings', OnLoadEraSettings);
   EventMan.GetInstance.On('OnAfterCreateWindow', OnAfterCreateWindow);
   EventMan.GetInstance.On('OnAfterVfsInit', OnAfterVfsInit);
@@ -2309,6 +2362,9 @@ begin
   EventMan.GetInstance.On('OnBattleReplay', OnBattleReplay);
   EventMan.GetInstance.On('OnBeforeBattleReplay', OnBeforeBattleReplay);
   EventMan.GetInstance.On('OnBeforeBattleUniversal', OnBeforeBattleUniversal);
+  EventMan.GetInstance.On('OnBeforeErmInstructions', OnBeforeErmInstructions);
+  EventMan.GetInstance.On('OnBeforeLoadGame', OnBeforeLoadGame);
+  EventMan.GetInstance.On('OnBeforeSaveGame', OnBeforeSaveGame);
   EventMan.GetInstance.On('OnGenerateDebugInfo', OnGenerateDebugInfo);
 
   if FALSE then begin

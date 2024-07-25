@@ -107,7 +107,7 @@ begin
   end else begin
     result := Key;
   end;
-end; // .function tr
+end;
 
 function trDef (const Key: myAStr; const Params: array of myAStr; const DefValue: myAStr): myAStr;
 var
@@ -121,7 +121,7 @@ begin
   end else begin
     result := DefValue;
   end;
-end; // .function trDef
+end;
 
 procedure UpdateLocaleConfig;
 var

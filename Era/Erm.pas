@@ -51,6 +51,8 @@ const
   FUNC_NAMES_SECTION       : myAStr = 'Era.FuncNames';
   ERM_SCRIPTS_PATH         : myAStr = 'Data\s';
   ERS_FILES_PATH           : myAStr = 'Data\s';
+  ERM_LIB_SCRIPTS_PATH     : myAStr = 'Data\s\lib';
+  ERM_LIB_DIR_NAME         : myAStr = 'lib';
   EXTRACTED_SCRIPTS_PATH   : myAStr = EraSettings.DEBUG_DIR + '\Scripts';
   ERM_TRACKING_REPORT_PATH : myAStr = DEBUG_DIR + '\erm tracking.erm';
 
@@ -321,6 +323,13 @@ const
   SPELL_TEXT_SOUND          = 6;
   SPELL_TEXT_LAST           = 6;
 
+  (* ERM command compilation flags *)
+  ECF_PERSISTED = 1;
+
+  (* Scripts resource tags *)
+  RESOURCE_TAG_GLOBAL_SCRIPT = 1;
+  RESOURCE_TAG_MAP_SCRIPT    = 2;
+
 
 type
   TErmValType   = (ValNum, ValF, ValQuick, ValV, ValW, ValX, ValY, ValZ);
@@ -363,16 +372,32 @@ type
     procedure SetCanBeFastIntEvaled (Value: boolean); inline;
   end; // .record TErmCmdParam
 
-  TErmString = packed record
-    Value:  myPChar;
-    Len:    integer;
-  end; // .record TErmString
+  PSizedString = ^TSizedString;
+  TSizedString = packed record
+    Value: myPChar;
+    Len:   integer;
+  end;
+
+  PGameString = ^TGameString;
+
+  PAllocatedString = ^TAllocatedString;
+  TAllocatedString = packed record
+    Value:    myPChar;
+    Len:      integer;
+    Capacity: integer;
+
+    function AsGameString: PGameString; inline;
+  end;
 
   TGameString = packed record
-    Value:  myPChar;
-    Len:    integer;
-    Dummy:  integer;
-  end; // .record TGameString
+    IsAllocated: boolean;
+    Align:       array [1..3] of byte;
+    Value:       myPChar; // pshort(Value) - 1 is ^RefCount, which is -1 for const
+    Len:         integer;
+    Capacity:    integer; // for long strings always |31 + 2 (#0 and refcount), len <= 31 is not reallocated if capacity is enough
+
+    procedure Assign ({n} Value: myPChar);
+  end;
 
   PErmCmdConditions = ^TErmCmdConditions;
   TErmCmdConditions = array [COND_AND..COND_OR, 0..15, LEFT_PARAM..RIGHT_PARAM] of TErmCmdParam;
@@ -384,7 +409,7 @@ type
     case boolean of
       true:  (Name: array [0..1] of myChar);
       false: (Id: word);
-  end; // .record TErmCmdId
+  end;
 
   PErmCmd = ^TErmCmd;
   TErmCmd = packed record
@@ -395,23 +420,47 @@ type
     Structure:    pointer;
     Params:       TErmCmdParams;
     NumParams:    integer;
-    CmdHeader:    TErmString; // ##:...
-    CmdBody:      TErmString; // #^...^/...
+    CmdHeader:    TSizedString; // ##:...
+    CmdBody:      TSizedString; // #^...^/...
 
-    procedure SetIsGenerated (NewValue: boolean); inline;
-    function  IsGenerated: boolean; inline;
-  end; // .record TErmCmd
+    procedure SetIsPersisted (NewValue: boolean); inline;
+
+    (* If true, command address lifetime is at least the same, as loaded ERM subcommands cache lifetime and is thus stable ID for caching *)
+    function IsPersisted: boolean; inline;
+  end;
+
+  PCompiledErmCmd = ^TCompiledErmCmd;
+  TCompiledErmCmd = record
+   const
+    MIN_CMD_TEXT_LEN = Length(myAStr('XX:;'));
+
+   var
+
+    Cmd:       TErmCmd;
+    TextLen:   integer;
+    TextChars: record end; // zero terminated string is placed right here
+
+    function Text: myPChar; inline;
+
+    class function New (const ShortCmdStr: myAStr): PCompiledErmCmd; static;
+  end;
 
   PErmSubCmd = ^TErmSubCmd;
   TErmSubCmd = packed record
     Pos:        integer;
-    Code:       TErmString;
+    Code:       TSizedString;
     Conditions: TErmCmdConditions;
     Params:     TErmCmdParams;
     Chars:      array [0..15] of myChar;
     Modifiers:  array [0..15] of byte;
     Nums:       array [0..15] of integer;
-  end; // .record TErmSubCmd
+
+    // Character at current position
+    function c:  myChar; inline;
+
+    // Address of character of current position
+    function pc: myPChar; inline;
+  end;
 
   PErmTrigger = ^TErmTrigger;
   TErmTrigger = packed record
@@ -460,7 +509,7 @@ type
 
       procedure ClearScripts;
       procedure SaveScripts;
-      function  LoadScript (const ScriptPath: myAStr; ScriptName: myAStr = ''): boolean;
+      function  LoadScript (const ScriptPath: myAStr; ScriptName: myAStr = ''; ResourceTag: integer = RESOURCE_TAG_GLOBAL_SCRIPT): boolean;
       procedure LoadMapInternalScripts;
       procedure LoadScriptsFromSavedGame;
       procedure LoadScriptsFromDisk (IsFirstLoading: boolean);
@@ -632,45 +681,46 @@ const
   ny: PErmNYVars = Ptr($A46A30);
   ne: PErmNEVars = Ptr($27F93B8);
   {$J+}
-  ZvsIsGameLoading:           PBOOLEAN                 = Ptr($A46BC0);
-  ZvsTriggerIfs:              PZvsTriggerIfs           = Ptr($A46D18);
-  ZvsTriggerIfsDepth:         pbyte                    = Ptr($A46D22);
-  ZvsChestsEnabled:           ^TZvsCheckEnabled        = Ptr($27F99B0);
-  ZvsGmAiFlags:               pinteger                 = Ptr($793C80);
-  ZvsCurrHeroPtr:             ^Heroes.PHero            = Ptr($27F9970);
-  ZvsDefendingHeroPtr:        ^Heroes.PHero            = Ptr($2860244);
-  ZvsDefendingPlayerId:       pinteger                 = Ptr($2846BC0);
-  ZvsAttackingHeroPtr:        ^Heroes.PHero            = Ptr($2860248);
-  ZvsAllowDefMouseReaction:   plongbool                = Ptr($A4AAFC);
-  ZvsMouseEventInfo:          Heroes.PMouseEventInfo   = Ptr($8912A8);
-  ZvsEventX:                  pinteger                 = Ptr($27F9964);
-  ZvsEventY:                  pinteger                 = Ptr($27F9968);
-  ZvsEventZ:                  pinteger                 = Ptr($27F996C);
-  ZvsDestPlayer:              pinteger                 = Ptr($7A1B24);
-  ZvsWHero:                   pinteger                 = Ptr($27F9988);
-  IsWoG:                      plongbool                = Ptr($803288);
-  WoGOptions:                 ^TWoGOptions             = Ptr($2771920);
-  ErmEnabled:                 plongbool                = Ptr($27F995C);
-  ErmErrCmdPtr:               myPPChar                 = Ptr($840E0C);
-  ErmDlgCmd:                  pinteger                 = Ptr($887658);
-  MrMonPtr:                   PPOINTER                 = Ptr($2846884); // MB_Mon
-  HeroSpecsTable:             PHeroSpecsTable          = Ptr($7B4C40);
-  HeroSpecsTableBack:         PHeroSpecsTable          = Ptr($91DA78);
-  HeroSpecSettingsTable:      PHeroSpecSettingsTable   = Ptr($A49BC0);
-  SecSkillSettingsTable:      PSecSkillSettingsTable   = Ptr($899410);
-  SecSkillNamesBack:          Heroes.PSecSkillNames    = Ptr($A89190);
-  SecSkillDescsBack:          Heroes.PSecSkillDescs    = Ptr($A46BC8);
-  SecSkillTextsBack:          Heroes.PSecSkillTexts    = Ptr($A490A8);
-  MonNamesSettingsTable:      PMonNamesSettingsTable   = Ptr($A48440);
+  ZvsIsGameLoading:           PBOOLEAN               = Ptr($A46BC0);
+  ZvsTriggerIfs:              PZvsTriggerIfs         = Ptr($A46D18);
+  ZvsTriggerIfsDepth:         pbyte                  = Ptr($A46D22);
+  ZvsChestsEnabled:           ^TZvsCheckEnabled      = Ptr($27F99B0);
+  ZvsGmAiFlags:               pinteger               = Ptr($793C80);
+  ZvsCurrHeroPtr:             ^Heroes.PHero          = Ptr($27F9970);
+  ZvsDefendingHeroPtr:        ^Heroes.PHero          = Ptr($2860244);
+  ZvsDefendingPlayerId:       pinteger               = Ptr($2846BC0);
+  ZvsAttackingHeroPtr:        ^Heroes.PHero          = Ptr($2860248);
+  ZvsAllowDefMouseReaction:   plongbool              = Ptr($A4AAFC);
+  ZvsMouseEventInfo:          Heroes.PMouseEventInfo = Ptr($8912A8);
+  ZvsMouseClickEventInfo:     ^Heroes.PMouseEventInfo = Ptr($8A3524);
+  ZvsEventX:                  pinteger               = Ptr($27F9964);
+  ZvsEventY:                  pinteger               = Ptr($27F9968);
+  ZvsEventZ:                  pinteger               = Ptr($27F996C);
+  ZvsDestPlayer:              pinteger               = Ptr($7A1B24);
+  ZvsWHero:                   pinteger               = Ptr($27F9988);
+  IsWoG:                      plongbool              = Ptr($803288);
+  WoGOptions:                 ^TWoGOptions           = Ptr($2771920);
+  ErmEnabled:                 plongbool              = Ptr($27F995C);
+  ErmErrCmdPtr:               myPPChar               = Ptr($840E0C);
+  ErmDlgCmd:                  pinteger               = Ptr($887658);
+  MrMonPtr:                   PPOINTER               = Ptr($2846884); // MB_Mon
+  HeroSpecsTable:             PHeroSpecsTable        = Ptr($7B4C40);
+  HeroSpecsTableBack:         PHeroSpecsTable        = Ptr($91DA78);
+  HeroSpecSettingsTable:      PHeroSpecSettingsTable = Ptr($A49BC0);
+  SecSkillSettingsTable:      PSecSkillSettingsTable = Ptr($899410);
+  SecSkillNamesBack:          Heroes.PSecSkillNames  = Ptr($A89190);
+  SecSkillDescsBack:          Heroes.PSecSkillDescs  = Ptr($A46BC8);
+  SecSkillTextsBack:          Heroes.PSecSkillTexts  = Ptr($A490A8);
+  MonNamesSettingsTable:      PMonNamesSettingsTable = Ptr($A48440);
   MonNamesSingularTable:      UtilsB2.PEndlessPcharArr = Ptr($7C8240);
   MonNamesPluralTable:        UtilsB2.PEndlessPcharArr = Ptr($7B6650);
   MonNamesSpecialtyTable:     UtilsB2.PEndlessPcharArr = Ptr($7C4018);
   MonNamesSingularTableBack:  UtilsB2.PEndlessPcharArr = Ptr($A498A8);
   MonNamesPluralTableBack:    UtilsB2.PEndlessPcharArr = Ptr($A48128);
   MonNamesSpecialtyTableBack: UtilsB2.PEndlessPcharArr = Ptr($A88E78);
-  ArtNamesSettingsTable:      PArtNamesSettingsTable   = Ptr($A4A588);
-  ArtInfosBack:               Heroes.PArtInfos         = Ptr($2731070);
-  SpellSettingsTable:         PSpellSettingsTable      = Ptr($28B1C54);
+  ArtNamesSettingsTable:      PArtNamesSettingsTable = Ptr($A4A588);
+  ArtInfosBack:               Heroes.PArtInfos       = Ptr($2731070);
+  SpellSettingsTable:         PSpellSettingsTable    = Ptr($28B1C54);
   {$J-}
   (* WoG funcs *)
   ZvsProcessCmd:      TZvsProcessCmd     = Ptr($741DF0);
@@ -682,6 +732,7 @@ const
   ZvsLoadErtFile:     TZvsLoadErtFile    = Ptr($72C641);
   ZvsShowMessage:     TZvsShowMessage    = Ptr($70FB63);
   ZvsDisplay8Dialog:  function (Msg: myPChar; DialogPics: pointer; MsgType: Heroes.TMesType; TextAlignment: integer): integer cdecl = Ptr($7169A8);
+  ZvsHandleAdvMapMouseClick: procedure (IsLeftButton: integer) cdecl = Ptr($74ED6B);
   ZvsCheckFlags:      TZvsCheckFlags     = Ptr($740DF1);
   ZvsGetFlags:        TZvsGetFlags       = Ptr($73F4AF);
   ZvsGetNum:          function (SubCmd: PErmSubCmd; ParamInd: integer; DoEval: integer): longbool cdecl = Ptr($73E970);
@@ -701,6 +752,8 @@ const
   ZvsGetErtStr:       function (StrInd: integer): myPChar cdecl = Ptr($776620);
   ZvsInterpolateStr:  function (Str: myPChar): myPChar cdecl = Ptr($73D4CD);
   ZvsApply:           function (Dest: pinteger; Size: integer; Cmd: PErmSubCmd; ParamInd: integer): integer cdecl = Ptr($74195D);
+  ZvsApplyString:     function (SubCmd: PErmSubCmd; ParamInd: integer; Str: PAllocatedString): integer cdecl = Ptr($73DFD9);
+  ZvsNewMesMan:       function (SubCmd: PErmSubCmd; Str: PAllocatedString; ParamInd: integer): integer cdecl = Ptr($74086B);
   ZvsGetVarValIndex:  function (Param: PErmCmdParam): integer cdecl = Ptr($72DCB0);
   ZvsGetVarVal:       function (Param: PErmCmdParam): integer cdecl = Ptr($72DEA5);
   ZvsSetVarVal:       function (Param: PErmCmdParam; NewValue: integer): integer cdecl = Ptr($72E301);
@@ -726,12 +779,13 @@ const
 
 
 var
-{O} UniqueRng:       FastRand.TXoroshiro128Rng;
-{O} LoadedErsFiles:  {O} TList {of Heroes.TTextTable};
-{O} ErtStrings:      {O} AssocArrays.TObjArray {of Index => myPChar}; // use H3 Alloc/Free
-{O} ScriptMan:       TScriptMan;
-{O} GlobalConsts:    DataLib.TDict {OF Value: integer};
-{O} PacketReader:    {U} Files.TFixedBuf; // Remote event data reader
+{O} UniqueRng:      FastRand.TXoroshiro128Rng;
+{O} LoadedErsFiles: {O} TList {of Heroes.TTextTable};
+{O} ErtStrings:     {O} AssocArrays.TObjArray {of Index => myPChar}; // use H3 Alloc/Free
+{O} ScriptMan:      TScriptMan;
+{O} GlobalConsts:   DataLib.TDict {OF Value: integer};
+{O} PacketReader:   {U} Files.TFixedBuf; // Remote event data reader
+
     ErmTriggerDepth: integer = 0;
 
     FreezedWogOptionWogify: integer = WOGIFY_ALL;
@@ -773,6 +827,9 @@ var
     FuncArgsGetSyntaxFlagsPassed:   integer = 0;
     FuncArgsGetSyntaxFlagsReceived: integer = 0;
 
+    // Should ERM engine execute cleanup code on exception in trigger or command
+    PerformCleanupOnExceptions: boolean = false;
+
     ErmLegacySupport: boolean = false;
 
   (* ERM tracking options *)
@@ -794,6 +851,7 @@ function  GetErmFuncByName (const FuncName: myAStr): integer;
 function  GetErmFuncName (FuncId: integer; out Name: myAStr): boolean;
 function  AllocErmFunc (const FuncName: myAStr; {i} out FuncId: integer): boolean;
 function  GetTriggerReadableName (EventId: integer): myAStr;
+function  CompileErmCmd (CmdStr: myAStr; Flags: integer = 0): {On} PCompiledErmCmd;
 procedure ExecErmCmd (const CmdStr: myAStr);
 procedure ReloadErm; stdcall;
 procedure ExtractErm; stdcall;
@@ -804,6 +862,12 @@ procedure NameTrigger (const TriggerId: integer; const FuncName: myAStr);
 
 (* Registers object as trigger local object. It will be freed on exit from current trigger *)
 procedure RegisterTriggerLocalObject (TriggerData: PTriggerLocalData; {O} Obj: TObject);
+
+(* Interpolates string with ERM placeholders like %VZ3 or %T(json_key). If code is executed in ERM trigger, the result
+   will be current receiver or trigger local memory buffer. Otherwise the result is global interpolation buffer. *)
+function InterpolateErmStr (Str: myPChar): myPChar; cdecl;
+
+function CreateTriggerLocalErt (Str: myPChar; StrLen: integer = -1): integer;
 
 (* Returns true if default reaction is allowed *)
 function  FireMouseEvent (TriggerId: integer; MouseEventInfo: Heroes.PMouseEventInfo): boolean;
@@ -835,6 +899,7 @@ procedure SetDialog8TextAlignment (Alignment: integer); stdcall;
 
 
 (***) implementation (***)
+
 uses PatchApi, Stores, AdvErm, ErmTracking;
 
 const
@@ -882,12 +947,12 @@ var
     Dialog8TextAlignment:      integer = Heroes.TEXT_ALIGN_CENTER;
     Dialog8SelectablePicsMask: integer = 3;
 
-{O} FuncNames:         DataLib.TDict {OF FuncId: integer};
-{O} FuncIdToNameMap:   DataLib.TObjDict {O} {OF TString};
+{O} FuncNames:         DataLib.TDict {of FuncId: integer};
+{O} FuncIdToNameMap:   DataLib.TObjDict {O} {of TString};
     FuncAutoId:        integer;
 {O} ScriptNames:       Lists.TStringList;
 {O} ErmScanner:        TextScan.TTextScanner;
-{O} ErmCmdCache:       {O} TAssocArray {OF PErmCmd};
+{O} ErmCmdCache:       {O} AssocArrays.TAssocArray {of PCompiledErmCmd};
 {O} EventTracker:      ErmTracking.TEventTracker;
     ErmErrReported:    boolean = false;
     LocalErtAutoIndex: integer = FIRST_LOCAL_ERT_INDEX;
@@ -905,6 +970,24 @@ var
     FastIntVarSets:  array [0..15] of TFastIntVarSet;
     FastIntVarAddrs: array [0..15] of UtilsB2.PEndlessIntArr;
 
+
+function TAllocatedString.AsGameString: PGameString;
+begin
+  result := pointer(integer(@Self) + (sizeof(Self) - sizeof(TGameString)));
+end;
+
+procedure TGameString.Assign ({n} Value: myPChar);
+type
+  TAssignProc        = procedure (_1, _2: integer; Self: PGameString; StrLen: integer; Value: myPChar) register;
+  TDeleteOrClearProc = procedure (_1, _2: integer; Self: PGameString; IsDelete: boolean) register;
+
+begin
+  if (Value = nil) or (Value^ = #0) then begin
+    TDeleteOrClearProc($404130)(0, 0, @Self, true);
+  end else begin
+    TAssignProc($404180)(0, 0, @Self, Windows.LStrLenA(Value), Value);
+  end;
+end;
 
 function TErmCmdParam.GetType: integer;
 begin
@@ -966,14 +1049,54 @@ begin
   Self.ValType := (Self.ValType and not $2000) or (ord(Value) shl 13);
 end;
 
-procedure TErmCmd.SetIsGenerated (NewValue: boolean);
+procedure TErmCmd.SetIsPersisted (NewValue: boolean);
 begin
-  Self.Params[14].Value := (Self.Params[14].Value and not $1) or ord(NewValue);
+  Self.Params[14].Value := (Self.Params[14].Value and not $1) or (1 - ord(NewValue));
 end;
 
-function TErmCmd.IsGenerated: boolean;
+function TErmCmd.IsPersisted: boolean;
 begin
-  result := (Self.Params[14].Value and $1) <> 0;
+  result := (Self.Params[14].Value and $1) = 0;
+end;
+
+function TErmSubCmd.c: myChar;
+begin
+  result := Self.Code.Value[Self.Pos];
+end;
+
+function TErmSubCmd.pc: myPChar;
+begin
+  result := @Self.Code.Value[Self.Pos];
+end;
+
+function TCompiledErmCmd.Text: myPChar;
+begin
+  result := @Self.TextChars;
+end;
+
+class function TCompiledErmCmd.New (const ShortCmdStr: myAStr): {O} PCompiledErmCmd;
+var
+  CmdStrLen: integer;
+  TextLen:   integer;
+
+begin
+  CmdStrLen := Length(ShortCmdStr);
+  {!} Assert(CmdStrLen >= TCompiledErmCmd.MIN_CMD_TEXT_LEN);
+  // * * * * * //
+  TextLen := Length('!!') + CmdStrLen + ord(ShortCmdStr[CmdStrLen] <> ';');
+  GetMem(result, sizeof(TCompiledErmCmd) + TextLen + Length(#0));
+  Legacy.FillChar(result.Cmd, sizeof(result.Cmd), #0);
+
+  result.TextLen := TextLen;
+  result.Text[0] := '!';
+  result.Text[1] := '!';
+  UtilsB2.CopyMem(Length(ShortCmdStr), myPChar(ShortCmdStr), @result.Text[2]);
+  result.Text[TextLen - 1] := ';';
+  result.Text[TextLen]     := #0;
+
+  result.Cmd.CmdHeader.Value := @result.Text[2];
+  result.Cmd.CmdId.Name[0]   := ShortCmdStr[1];
+  result.Cmd.CmdId.Name[1]   := ShortCmdStr[2];
 end;
 
 function TErmTrigger.GetSize: integer;
@@ -1190,8 +1313,6 @@ begin
   end;
 end;
 
-function InterpolateErmStr (Str: myPChar): myPChar; cdecl; forward;
-
 function GetInterpolatedZVarAddr (Ind: integer): myPChar;
 begin
   if Ind > High(z^) then begin
@@ -1210,169 +1331,134 @@ begin
   end;
 end;
 
-procedure ClearErmCmdCache;
-begin
-  with DataLib.IterateDict(ErmCmdCache) do begin
-    while IterNext do begin
-      FreeMem(UtilsB2.PtrOfs(PErmCmd(IterValue).CmdHeader.Value, -Length(myAStr('!!'))));
-      Dispose(PErmCmd(IterValue));
-    end;
-  end;
+function Hook_ZvsGetNum (SubCmd: PErmSubCmd; ParamInd: integer; DoEval: integer): longbool; cdecl; forward;
 
-  ErmCmdCache.Clear;
-end; // .procedure ClearErmCmdCache
-
-procedure ExecSingleErmCmd (const CmdStr: myAStr);
+function CompileErmCmd (CmdStr: myAStr; Flags: integer = 0): {On} PCompiledErmCmd;
 const
-  LETTERS = ['A'..'Z'];
-  DIGITS  = ['0'..'9'];
-  SIGNS   = ['+', '-'];
-  NUMBER  = DIGITS + SIGNS;
-  DELIMS  = ['/', ':'];
+  MIN_CMD_LEN = Length(myAStr('XX:Y'));
+  CAP_LETTERS = ['A'..'Z'];
+  DONT_EVAL   = 0;
 
 var
-{U} Cmd:      PErmCmd;
-    CmdName:  myAStr;
-    NumArgs:  integer;
-    Res:      boolean;
-    c:        myChar;
-
-  function ReadNum (out Num: integer): boolean;
-  var
-    StartPos: integer;
-    Token:    myAStr;
-    c:        myChar;
-
-  begin
-    result := ErmScanner.GetCurrChar(c) and (c in NUMBER);
-
-    if result then begin
-      if c in SIGNS then begin
-        StartPos := ErmScanner.Pos;
-        ErmScanner.GotoNextChar;
-        ErmScanner.SkipCharset(DIGITS);
-        Token := ErmScanner.GetSubstrAtPos(StartPos, ErmScanner.Pos - StartPos);
-      end else begin
-        ErmScanner.ReadToken(DIGITS, Token);
-      end;
-
-      result := Legacy.TryStrToInt(Token, Num) and ErmScanner.GetCurrChar(c) and (c in DELIMS);
-    end; // .if
-  end; // .function ReadNum
-
-  function ReadArg (out Arg: TErmCmdParam): boolean;
-  var
-    ValType: TErmValType;
-    IndType: TErmValType;
-
-  begin
-    result := ErmScanner.GetCurrChar(c) and GetErmValType(c, ValType);
-
-    if result then begin
-      IndType := ValNum;
-
-      if ValType <> ValNum then begin
-        result := ErmScanner.GotoNextChar and ErmScanner.GetCurrChar(c) and
-                  GetErmValType(c, IndType);
-
-        if result and (IndType <> ValNum) then begin
-          ErmScanner.GotoNextChar;
-        end;
-      end;
-
-      if result then begin
-        result := ReadNum(Arg.Value);
-
-        if result then begin
-          Arg.ValType := ord(IndType) shl 4 + ord(ValType);
-        end;
-      end;
-    end; // .if
-  end; // .function ReadArg
+{U} Cmd:    PErmCmd;
+    SubCmd: TErmSubCmd;
+    Res:    longbool;
 
 begin
-  Cmd := ErmCmdCache[CmdStr];
+  Cmd    := nil;
+  result := nil;
   // * * * * * //
-  Res := true;
+  Res := (Length(CmdStr) >= MIN_CMD_LEN) and (CmdStr[1] in CAP_LETTERS) and (CmdStr[2] in CAP_LETTERS);
 
-  if Cmd = nil then begin
-    New(Cmd);
-    Legacy.FillChar(Cmd^, sizeof(Cmd^), 0);
-    ErmScanner.Connect(CmdStr, LINE_END_MARKER);
-    Res     := ErmScanner.ReadToken(LETTERS, CmdName) and (Length(CmdName) = 2);
-    NumArgs := 0;
+  if Res then begin
+    result := TCompiledErmCmd.New(CmdStr);
+    Cmd    := @result.Cmd;
 
-    while Res and ErmScanner.GetCurrChar(c) and (c <> ':') and (NumArgs < ERM_CMD_MAX_PARAMS_NUM) do begin
-      Res := ReadArg(Cmd.Params[NumArgs]) and ErmScanner.GetCurrChar(c);
+    // Reset default parameter values to zeroes
+    FillChar(SubCmd.Params, sizeof(SubCmd.Params), #0);
+
+    // Position subcommand to the first character after command name, ready to parse command parameters
+    SubCmd.Code.Value := @result.Text[Length(myAStr('!!XX'))];
+    SubCmd.Code.Len   := result.TextLen - Length(myAStr('!!XX'));
+    SubCmd.Pos        := 0;
+
+    // Skip blank characters
+    while SubCmd.c in [#1..#32] do begin
+      Inc(SubCmd.Pos);
+    end;
+
+    Cmd.NumParams := 0;
+
+    while Res and not (SubCmd.c in [#0, ':', ';']) and (Cmd.NumParams < ERM_CMD_MAX_PARAMS_NUM) do begin
+      if (SubCmd.c <> '/') then begin
+        Res := not Hook_ZvsGetNum(@SubCmd, Cmd.NumParams, DONT_EVAL);
+      end;
 
       if Res then begin
-        Inc(NumArgs);
+        Inc(Cmd.NumParams);
 
-        if c = '/' then begin
-          ErmScanner.GotoNextChar;
+        if SubCmd.c = '/' then begin
+          Inc(SubCmd.Pos);
+        end else begin
+          break;
         end;
       end;
-    end; // .while
+    end;
 
-    Res := Res and ErmScanner.GotoNextChar;
+    Res := Res and (SubCmd.c = ':');
 
     if Res then begin
-      Cmd.SetIsGenerated(true);
+      Cmd.CmdHeader.Len := SubCmd.pc - Cmd.CmdHeader.Value;
+      Cmd.CmdBody.Value := SubCmd.pc + Length(':');
+      Cmd.CmdBody.Len   := myPChar(@result.Text[result.TextLen]) - Cmd.CmdBody.Value;
+      Cmd.Params        := SubCmd.Params;
 
-      // Allocate memory, because ERM engine changes command contents during execution
-      GetMem(Cmd.CmdHeader.Value, Length(CmdStr) + 1 + Length(myAStr('!!')));
-      myPChar(Cmd.CmdHeader.Value)[0] := '!';
-      myPChar(Cmd.CmdHeader.Value)[1] := '!';
-      Inc(myPChar(Cmd.CmdHeader.Value), 2);
-      UtilsB2.CopyMem(Length(CmdStr) + 1, pointer(CmdStr), Cmd.CmdHeader.Value);
-
-      Cmd.CmdBody.Value := UtilsB2.PtrOfs(Cmd.CmdHeader.Value, ErmScanner.Pos - 1);
-      Cmd.CmdId.Name[0] := CmdName[1];
-      Cmd.CmdId.Name[1] := CmdName[2];
-      Cmd.NumParams     := NumArgs;
-      Cmd.CmdHeader.Len := ErmScanner.Pos - 1;
-      Cmd.CmdBody.Len   := Length(CmdStr) - ErmScanner.Pos + 1;
+      // The persistence flag is stored in the parameters themselves, thus must be called after parameters copying
+      Cmd.SetIsPersisted((Flags and ECF_PERSISTED) <> 0);
 
       if @ErmCmdOptimizer <> nil then begin
         ErmCmdOptimizer(Cmd);
       end;
-
-      if ErmCmdCache.ItemCount = ERM_CMD_CACHE_LIMIT then begin
-        ClearErmCmdCache;
-      end;
-
-      ErmCmdCache[CmdStr] := Cmd;
-    end; // .if
+    end;
   end; // .if
 
   if not Res then begin
-    ShowMessage('ExecErmCmd: Invalid command "' + CmdStr + '"');
-  end else begin
-    ZvsProcessCmd(Cmd);
+    Legacy.FreeAndNil(result);
+    ShowMessage('CompileErmCmd: Invalid command "' + CmdStr + '"');
   end;
-end; // .procedure ExecSingleErmCmd
+end; // .function CompileErmCmd
+
+procedure ExecSingleErmCmd (const CmdStr: myAStr);
+var
+{Un} Cmd:    PCompiledErmCmd;
+{On} NewCmd: PCompiledErmCmd;
+
+begin
+  Cmd    := ErmCmdCache[CmdStr];
+  NewCmd := nil;
+  // * * * * * //
+  if Cmd = nil then begin
+    NewCmd := CompileErmCmd(CmdStr);
+    Cmd    := NewCmd;
+  end;
+
+  if Cmd <> nil then begin
+    ZvsProcessCmd(@Cmd.Cmd);
+  end;
+
+  if NewCmd <> nil then begin
+    if ErmCmdCache.ItemCount = ERM_CMD_CACHE_LIMIT then begin
+      ErmCmdCache.Clear;
+    end;
+
+    ErmCmdCache[CmdStr] := NewCmd; NewCmd := nil;
+  end;
+  // * * * * * //
+  Legacy.FreeAndNil(NewCmd);
+end;
 
 procedure ExecErmCmd (const CmdStr: myAStr);
 var
-  Commands: UtilsB2.TArrayOfStr;
-  Command:  myAStr;
-  i:        integer;
+  Commands:     UtilsB2.TArrayOfStr;
+  Command:      myAStr;
+  SemicolonPos: integer;
+  i:            integer;
 
 begin
-  Commands := StrLib.ExplodeEx(CmdStr, ';', StrLib.INCLUDE_DELIM, not StrLib.LIMIT_TOKENS, 0);
+  if not StrLib.FindChar(';', CmdStr, SemicolonPos) or (SemicolonPos = Length(CmdStr)) then begin
+    ExecSingleErmCmd(CmdStr);
+  end else begin
+    Commands := StrLib.ExplodeEx(CmdStr, ';', StrLib.INCLUDE_DELIM, not StrLib.LIMIT_TOKENS, 0);
 
-  for i := 0 to High(Commands) do begin
-    Command := Legacy.Trim(Commands[i]);
+    for i := 0 to High(Commands) do begin
+      Command := Legacy.Trim(Commands[i]);
 
-    if Command <> '' then begin
-      if (i = High(Commands)) and (Command[Length(Command)] <> ';') then begin
-        Command := Command + ';';
+      if Command <> '' then begin
+        ExecSingleErmCmd(Command);
       end;
-
-      ExecSingleErmCmd(Command);
     end;
-  end; // .for
-end; // .procedure ExecErmCmd
+  end;
+end;
 
 procedure DisableErmTracking;
 begin
@@ -1427,12 +1513,9 @@ begin
   with TrackingOpts do begin
     Enabled                  := EraSettings.GetDebugBoolOpt('Debug.TrackErm');
     ErmTrackingEnabledBackup := Enabled;
-
-    if Enabled then begin
-      MaxRecords          := Math.Max(1, EraSettings.GetOpt('Debug.TrackErm.MaxRecords').Int(10000));
-      DumpCommands        := EraSettings.GetOpt('Debug.TrackErm.DumpCommands')       .Bool(true);
-      IgnoreEmptyTriggers := EraSettings.GetOpt('Debug.TrackErm.IgnoreEmptyTriggers').Bool(true);
-    end;
+    MaxRecords               := Math.Max(1, EraSettings.GetOpt('Debug.TrackErm.MaxRecords').Int(10000));
+    DumpCommands             := EraSettings.GetOpt('Debug.TrackErm.DumpCommands')       .Bool(true);
+    IgnoreEmptyTriggers      := EraSettings.GetOpt('Debug.TrackErm.IgnoreEmptyTriggers').Bool(true);
   end;
 end;
 
@@ -1460,7 +1543,7 @@ begin
   ErmEnabled^ := false;
 end;
 
-function Hook_LoadErtFile (Context: Core.PHookContext): longbool; stdcall;
+function Hook_LoadErtFile (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   ARG_FILENAME = 2;
 
@@ -2296,11 +2379,11 @@ var
         end;
 
         if IndexVar.VarType in ['f'..'t'] then begin
-          Buf.Insert(Legacy.Format('!!VRy%d:S%d +%s F%d/%d/1; ', [
+          Buf.Insert(Legacy.Format('!!VRy%d:S%d +%s F%d/%d/0/0; ', [
             TempVar.RealStartIndex, LocalVar.RealStartIndex, IndexVar.VarType, LocalVar.RealStartIndex, LocalVar.RealStartIndex + LocalVar.Count - 1
           ]), CmdStartBufPos);
         end else begin
-          Buf.Insert(Legacy.Format('!!VRy%d:S%d +%s%d F%d/%d/1; ', [
+          Buf.Insert(Legacy.Format('!!VRy%d:S%d +%s%d F%d/%d/0/0; ', [
             TempVar.RealStartIndex, LocalVar.RealStartIndex, IndexVar.VarType, IndexVar.RealStartIndex, LocalVar.RealStartIndex, LocalVar.RealStartIndex + LocalVar.Count - 1
           ]), CmdStartBufPos);
         end;
@@ -2826,7 +2909,7 @@ begin
   Self.fScripts.Save(ERM_SCRIPTS_SECTION);
 end;
 
-function TScriptMan.LoadScript (const ScriptPath: myAStr; ScriptName: myAStr = ''): boolean;
+function TScriptMan.LoadScript (const ScriptPath: myAStr; ScriptName: myAStr = ''; ResourceTag: integer = RESOURCE_TAG_GLOBAL_SCRIPT): boolean;
 var
   ScriptContents:     myAStr;
   PreprocessedScript: myAStr;
@@ -2840,7 +2923,7 @@ begin
 
   if result then begin
     PreprocessedScript := PreprocessErm(ScriptName, ScriptContents);
-    fScripts.Add(TResource.Create(ScriptName, PreprocessedScript, Crypto.AnsiCrc32(ScriptContents)));
+    fScripts.Add(TResource.CreateWithCrc32(ScriptName, PreprocessedScript, Crypto.AnsiCrc32(ScriptContents), ResourceTag));
     LoadErtFile(ScriptName);
   end;
 end;
@@ -2901,7 +2984,7 @@ begin
     end;
 
     PreprocessedScript := PreprocessErm(ScriptName, GlobalEvent.Msg.ToString);
-    fScripts.Add(TResource.Create(ScriptName, PreprocessedScript, Crypto.FastHash(GlobalEvent.Msg.Value, GlobalEvent.Msg.Len)));
+    fScripts.Add(TResource.CreateWithCrc32(ScriptName, PreprocessedScript, Crypto.FastHash(GlobalEvent.Msg.Value, GlobalEvent.Msg.Len), RESOURCE_TAG_MAP_SCRIPT));
   end; // .for
   // * * * * * //
   Legacy.FreeAndNil(EventList);
@@ -2946,18 +3029,32 @@ begin
   GlobalConsts.Clear;
   RegisterStdGlobalConsts;
 
+  // Load global library scripts
+  ScriptsDir := GameExt.GameDir + '\' + ERM_LIB_SCRIPTS_PATH;
+  ScriptList := GetOrderedPrioritizedFileList([myAStr(ScriptsDir + '\*.erm')]);
+  MapDirName := GameExt.GetMapDirName;
+
+  for i := 0 to ScriptList.Count - 1 do begin
+    Self.LoadScript(ScriptsDir + '\' + ScriptList[i], ERM_LIB_DIR_NAME + '\' + ScriptList[i]);
+  end;
+
+  Legacy.FreeAndNil(ScriptList);
+
+  // Load in-map scripts from time event texts
   Self.LoadMapInternalScripts;
 
+  // Load scripts from map directory
   ScriptsDir := GameExt.GetMapResourcePath(ERM_SCRIPTS_PATH);
   ScriptList := GetOrderedPrioritizedFileList([myAStr(ScriptsDir + '\*.erm')]);
   MapDirName := GameExt.GetMapDirName;
 
   for i := 0 to ScriptList.Count - 1 do begin
-    Self.LoadScript(ScriptsDir + '\' + ScriptList[i], MapDirName + '\' + ScriptList[i]);
+    Self.LoadScript(ScriptsDir + '\' + ScriptList[i], MapDirName + '\' + ScriptList[i], RESOURCE_TAG_MAP_SCRIPT);
   end;
 
   Legacy.FreeAndNil(ScriptList);
 
+  // Determine fixed scripts white list
   LoadFixedScriptsSet := Files.ReadFileContents(GameExt.GetMapResourcePath(SCRIPTS_LIST_FILEPATH), FileContents);
 
   // Map maker forces fixed set of scripts
@@ -2968,14 +3065,14 @@ begin
   LoadFixedScriptsSet := LoadFixedScriptsSet or Files.ReadFileContents(GameExt.GameDir + '\' + SCRIPTS_LIST_FILEPATH, FileContents);
 
   if LoadFixedScriptsSet then begin
-    ScriptsDir    := GameDir + '\' + ERM_SCRIPTS_PATH;
+    ScriptsDir    := GameExt.GameDir + '\' + ERM_SCRIPTS_PATH;
     ForcedScripts := StrLib.Explode(Legacy.Trim(FileContents), #13#10);
 
     for i := 0 to High(ForcedScripts) do begin
       Self.LoadScript(ScriptsDir + '\' + ForcedScripts[i]);
     end;
   end else begin
-    ScriptsDir := GameDir + '\' + ERM_SCRIPTS_PATH;
+    ScriptsDir := GameExt.GameDir + '\' + ERM_SCRIPTS_PATH;
     ScriptList := GetOrderedPrioritizedFileList([myAStr(ScriptsDir + '\*.erm')]);
 
     for i := 0 to ScriptList.Count - 1 do begin
@@ -3049,7 +3146,7 @@ end; // .function TScriptMan.AddrToScriptNameAndLine
 
 function TScriptMan.IsMapScript (ScriptInd: integer): boolean;
 begin
-  result := (ScriptInd >= 0) and (ScriptInd < Self.fScripts.Count) and (Legacy.Pos('\', RscLists.TResource(Self.fScripts[ScriptInd]).Name) > 0);
+  result := (ScriptInd >= 0) and (ScriptInd < Self.fScripts.Count) and (RscLists.TResource(Self.fScripts[ScriptInd]).Tag = RESOURCE_TAG_MAP_SCRIPT);
 end;
 
 procedure ReloadErm;
@@ -3181,7 +3278,7 @@ begin
   ErmErrReported := true;
 end; // .procedure ReportErmError
 
-function Hook_MError (Context: Core.PHookContext): longbool; stdcall;
+function Hook_MError (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   ReportErmError(myPPChar(Context.EBP + 16)^, ErmErrCmdPtr^);
   Context.RetAddr := Ptr($712483);
@@ -3626,7 +3723,7 @@ begin
 
   if (FreeBufSize <= 0) or not OptimizeCompiledErm(TriggersStart, TriggersSize, FreeBuf, FreeBufSize) then begin
     ErmEnabled^ := false;
-    Heroes.ShowMessage(Trans.tr('no_memory_for_erm_optimization', [myAStr('limit'), Legacy.IntToStr(ZvsErmHeapSize^ div (1024 * 1024))]));
+    Heroes.ShowMessage(Trans.tr('era.no_memory_for_erm_optimization', [myAStr('limit'), Legacy.IntToStr(ZvsErmHeapSize^ div 1000000)]));
   end;
 
   result := true;
@@ -4504,8 +4601,6 @@ var
   InterpolationBuf:   array [0..999999] of myChar;
   InterpolationLevel: integer = 0;
 
-(* Interpolates string with ERM placeholders like %VZ3 or %T(json_key). If code is executed in ERM trigger, the result
-   will be current receiver or trigger local memory buffer. Otherwise the result is global interpolation buffer. *)
 function InterpolateErmStr (Str: myPChar): myPChar; cdecl;
 const
   OPTIONALLY_UPPERCASE_TYPES = ['V', 'Y', 'X', 'Z', 'E', 'W', 'S', 'I'];
@@ -5098,7 +5193,7 @@ label
 begin
   CmdId := Cmd.CmdId.Id;
 
-  // Skip Era triggers, which are interpreted separately
+  // Skip Era commands, which are interpreted separately
   if (CmdId = CMD_SN) or (CmdId = CMD_MP) or (CmdId = CMD_RD) then begin
     result := 1;
     exit;
@@ -5106,7 +5201,7 @@ begin
 
   ParamsAddrHash := Crypto.Tm32Encode(integer(@SubCmd.Code.Value[SubCmd.Pos]));
   CacheEntry     := @SubCmdCache[integer(cardinal(ParamsAddrHash) mod cardinal(Length(SubCmdCache)))];
-  UseCaching     := not Cmd.IsGenerated;
+  UseCaching     := Cmd.IsPersisted;
 
   // Initialize all subcommand parameters to NONE value to improve ERM stability
   for i := 0 to High(SubCmd.Params) do begin
@@ -5119,7 +5214,7 @@ begin
     result := CacheEntry.NumParams;
 
     if result > 0 then begin
-      Legacy.Move(CacheEntry.Params, SubCmd.Params, sizeof(SubCmd.Params[0]) * result);
+      System.Move(CacheEntry.Params,    SubCmd.Params,    sizeof(SubCmd.Params[0]) * result);
       Legacy.Move(CacheEntry.Modifiers, SubCmd.Modifiers, sizeof(CacheEntry.Modifiers));
     end;
 
@@ -5189,7 +5284,7 @@ Quit:
   CacheEntry.NumParams := result;
 
   if result > 0 then begin
-    Legacy.Move(SubCmd.Params, CacheEntry.Params, sizeof(SubCmd.Params[0]) * result);
+    System.Move(SubCmd.Params,    CacheEntry.Params,    sizeof(SubCmd.Params[0]) * result);
     Legacy.Move(SubCmd.Modifiers, CacheEntry.Modifiers, sizeof(CacheEntry.Modifiers));
   end;
 
@@ -5346,6 +5441,58 @@ begin
   end; // .if
 end; // .function Hook_ZvsApply
 
+function Hook_ZvsApplyString (SubCmd: PErmSubCmd; ParamInd: integer; Str: PAllocatedString): integer; cdecl;
+var
+  Param:        PErmCmdParam;
+  NewValue:     integer;
+  ParamValType: integer;
+
+begin
+  Param  := @SubCmd.Params[ParamInd];
+  result := 0;
+
+  if Param.GetCheckType = PARAM_CHECK_GET then begin
+    result := ord(SetErmParamValue(Param, integer(Str.Value), FLAG_ASSIGNABLE_STRINGS));
+  end else begin
+    NewValue := GetErmParamValue(Param, ParamValType, FLAG_STR_EVALS_TO_ADDR_NOT_INDEX);
+
+    if ParamValType = VALTYPE_STR then begin
+      Str.AsGameString.Assign(myPChar(NewValue));
+    end else begin
+      ShowErmError('ApplyString: cannot assign non-string value');
+    end;
+  end;
+end;
+
+function Hook_ZvsNewMesMan (SubCmd: PErmSubCmd; Str: PAllocatedString; ParamInd: integer): integer; cdecl;
+var
+  Param:        PErmCmdParam;
+  NewValue:     integer;
+  ParamValType: integer;
+
+begin
+  Param  := @SubCmd.Params[ParamInd];
+  result := 0;
+
+  if Param.GetCheckType = PARAM_CHECK_GET then begin
+    result := -ord(not SetErmParamValue(Param, integer(Str.Value), FLAG_ASSIGNABLE_STRINGS));
+  end else begin
+    NewValue := GetErmParamValue(Param, ParamValType, FLAG_STR_EVALS_TO_ADDR_NOT_INDEX);
+
+    if ParamValType = VALTYPE_STR then begin
+      Str.AsGameString.Assign(myPChar(NewValue));
+    end else if NewValue = -1 then begin
+      Str.AsGameString.Assign(nil);
+    end else begin
+      ShowErmError('NewMesMan: cannot assign non-string value');
+    end;
+  end;
+end;
+
+(*
+  Many in-game events are generated as ERM events in WoG code. ProcessERM generates additionally human readable event for Era and plugins.
+  This its crucial to handle events even if ERM/scripting is disabled.
+*)
 procedure ProcessErm;
 const
   (* Ifs state *)
@@ -5410,6 +5557,7 @@ var
   CurrHero:             Heroes.PHero;
   Cmd:                  PErmCmd;
   CmdId:                TErmCmdId;
+  IsException:          longbool;
   i, j:                 integer;
 
   procedure SetTriggerQuickVarsAndFlags;
@@ -5516,11 +5664,6 @@ begin
   StartTrigger := nil;
   Trigger      := nil;
   EventManager := EventMan.GetInstance;
-  // * * * * * //
-  if not ErmEnabled^ then begin
-    RetXVars := ArgXVars;
-    exit;
-  end;
 
   ServiceMemAllocator.AllocPage;
   TriggerId := CurrErmEventId^;
@@ -5544,6 +5687,7 @@ begin
     HumanEventName := GetTriggerReadableName(TriggerId);
   end;
 
+  IsException      := true;
   HasEventHandlers := (StartTrigger.Id <> 0) or EventManager.HasEventHandlers(NumericEventName) or EventManager.HasEventHandlers(HumanEventName);
 
   try // begin exception protection block //
@@ -5577,7 +5721,9 @@ begin
       EventManager.Fire(NumericEventName, @TriggerId, sizeof(TriggerId));
       EventManager.Fire(HumanEventName, @TriggerId, sizeof(TriggerId));
 
-      Trigger := StartTrigger;
+      if ErmEnabled^ then begin
+        Trigger := StartTrigger;
+      end;
 
       // Loop through all triggers with specified ID / through all triggers in instructions phase
       while (Trigger <> nil) and (Trigger.Id <> 0) do begin
@@ -5811,39 +5957,44 @@ begin
 
   AfterTriggers:
 
+  IsException := false;
+
   finally // begin resources finalization block //
-  Dec(ErmTriggerDepth);
 
-  if HasEventHandlers then begin
-    if TrackingOpts.Enabled then begin
-      EventTracker.TrackTrigger(ErmTracking.TRACKEDEVENT_END_TRIGGER, TriggerId);
-    end;
+  if not IsException or PerformCleanupOnExceptions then begin
+    Dec(ErmTriggerDepth);
 
-    // It's a function call, save result string variables
-    if FuncArgs <> nil then begin
-      for j := 0 to NumFuncArgsReceived - 1 do begin
-        if (FuncArgs[j].GetCheckType() = PARAM_CHECK_GET) and (FuncArgs[j].GetType() in PARAM_VARTYPES_STRINGS) then begin
-          RetStrVars[j + 1] := GetInterpolatedZVarAddr(x[j + 1]);
+    if HasEventHandlers then begin
+      if TrackingOpts.Enabled then begin
+        EventTracker.TrackTrigger(ErmTracking.TRACKEDEVENT_END_TRIGGER, TriggerId);
+      end;
+
+      // It's a function call, save result string variables
+      if FuncArgs <> nil then begin
+        for j := 0 to NumFuncArgsReceived - 1 do begin
+          if (FuncArgs[j].GetCheckType() = PARAM_CHECK_GET) and (FuncArgs[j].GetType() in PARAM_VARTYPES_STRINGS) then begin
+            RetStrVars[j + 1] := GetInterpolatedZVarAddr(x[j + 1]);
+          end;
         end;
       end;
-    end;
 
-    RestoreVars;
+      RestoreVars;
 
-    if LocalData.Items <> nil then begin
-      for j := LocalData.Items.Count - 1 downto 0 do begin
-        LocalData.Items[j] := nil;
+      if LocalData.Items <> nil then begin
+        for j := LocalData.Items.Count - 1 downto 0 do begin
+          LocalData.Items[j] := nil;
+        end;
+
+        LocalData.Items.Free;
       end;
 
-      LocalData.Items.Free;
+      TriggerLocalData := LocalData.PrevTriggerData;
+    end else begin
+      RetXVars := ArgXVars;
     end;
 
-    TriggerLocalData := LocalData.PrevTriggerData;
-  end else begin
-    RetXVars := ArgXVars;
-  end;
-
-  ServiceMemAllocator.FreePage;
+    ServiceMemAllocator.FreePage;
+  end; // .if PerformCleanupOnExceptions
 
   end; // end resources finalization block //
 end; // .procedure ProcessErm
@@ -5851,6 +6002,7 @@ end; // .procedure ProcessErm
 procedure Hook_ProcessCmd (OrigFunc: pointer; Cmd: PErmCmd; Dummy: integer; IsPostInstr: longbool); stdcall;
 var
 {Un} PrevCmdLocalObjects: PCmdLocalObject;
+     IsException:         longbool;
 
 begin
   if TrackingOpts.Enabled then begin
@@ -5861,21 +6013,25 @@ begin
   PrevCmdLocalObjects := CmdLocalObjects;
   CmdLocalObjects     := nil;
   ErmErrReported      := false;
+  IsException         := true;
 
   try
     TZvsProcessCmd(OrigFunc)(Cmd, Dummy, IsPostInstr);
+    IsException := false;
   finally
-    while CmdLocalObjects <> nil do begin
-      ErtStrings.DeleteItem(Ptr(CmdLocalObjects.ErtIndex));
-      CmdLocalObjects := CmdLocalObjects.Prev;
-    end;
+    if not IsException or PerformCleanupOnExceptions then begin
+      while CmdLocalObjects <> nil do begin
+        ErtStrings.DeleteItem(Ptr(CmdLocalObjects.ErtIndex));
+        CmdLocalObjects := CmdLocalObjects.Prev;
+      end;
 
-    CmdLocalObjects := PrevCmdLocalObjects;
-    ServiceMemAllocator.FreePage;
+      CmdLocalObjects := PrevCmdLocalObjects;
+      ServiceMemAllocator.FreePage;
+    end;
   end;
 end;
 
-function Hook_FindErm_BeforeMainLoop (Context: Core.PHookContext): longbool; stdcall;
+function Hook_FindErm_BeforeMainLoop (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   GLOBAL_EVENT_SIZE = 52;
 
@@ -5891,9 +6047,9 @@ begin
   end;
 
   result := not Core.EXEC_DEF_CODE;
-end; // .function Hook_FindErm_BeforeMainLoop
+end;
 
-function Hook_FindErm_ZeroHeap (Context: Core.PHookContext): longbool; stdcall;
+function Hook_FindErm_ZeroHeap (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   pinteger(Context.EBP - $354)^ := ZvsErmHeapSize^;
   Windows.VirtualFree(ZvsErmHeapPtr^, ZvsErmHeapSize^, Windows.MEM_DECOMMIT);
@@ -5903,11 +6059,19 @@ begin
   result          := not Core.EXEC_DEF_CODE;
 end;
 
+function Hook_FindErm_OutOfMemory (Context: ApiJack.PHookContext): longbool; stdcall;
+begin
+  Heroes.ShowMessage(Trans.tr('era.no_memory_for_erm_optimization', [myAStr('limit'), Legacy.IntToStr(ZvsErmHeapSize^ div 1000000)]));
+
+  Context.RetAddr := Ptr($74C65B);
+  result          := false;
+end;
+
 var
   _NumMapScripts:    integer;
   _NumGlobalScripts: integer;
 
-function Hook_FindErm_AfterMapScripts (Context: Core.PHookContext): longbool; stdcall;
+function Hook_FindErm_AfterMapScripts (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   GLOBAL_EVENT_SIZE = 52;
 
@@ -6014,7 +6178,7 @@ begin
   end;
 end;
 
-function Hook_UN_J3_End (Context: Core.PHookContext): longbool; stdcall;
+function Hook_UN_J3_End (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   RESET_OPTIONS_COMMAND : myAStr = ':clear:';
   USE_SELECTED_RULES    = 2;
@@ -6049,7 +6213,7 @@ begin
   result := not Core.EXEC_DEF_CODE;
 end; // .function Hook_UN_J3_End
 
-function Hook_UN_J13 (Context: Core.PHookContext): longbool; stdcall;
+function Hook_UN_J13 (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   SUBCMD_ID = 13;
 
@@ -6063,7 +6227,7 @@ begin
   end;
 end;
 
-function Hook_UN_U (Context: Core.PHookContext): longbool; stdcall;
+function Hook_UN_U (Context: ApiJack.PHookContext): longbool; stdcall;
 var
   NumParams:   integer;
   SubCmd:      PErmSubCmd;
@@ -6131,7 +6295,7 @@ begin
   Context.RetAddr := Ptr($733F57);
 end; // .function Hook_UN_U
 
-function Hook_UN_P3 (Context: Core.PHookContext): longbool; stdcall;
+function Hook_UN_P3 (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   if WoGOptions[CURRENT_WOG_OPTIONS][WOG_OPTION_COMMANDERS_DISABLED] = 0 then begin
     EnableCommanders;
@@ -6154,7 +6318,7 @@ asm
 end;
 {$W+}
 
-function Hook_ErmHeroArt (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ErmHeroArt (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   result := ((pinteger(Context.EBP - $E8)^ shr 8) and 7) = 0;
 
@@ -6163,19 +6327,19 @@ begin
   end;
 end;
 
-function Hook_ErmHeroArt_FindFreeSlot (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ErmHeroArt_FindFreeSlot (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   f[1]   := false;
   result := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_ErmHeroArt_FoundFreeSlot (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ErmHeroArt_FoundFreeSlot (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   f[1]   := true;
   result := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_ErmHeroArt_DeleteFromBag (Context: Core.PHookContext): longbool; stdcall;
+function Hook_ErmHeroArt_DeleteFromBag (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   NUM_BAG_ARTS_OFFSET = +$3D4;
   HERO_PTR_OFFSET     = -$380;
@@ -6533,7 +6697,7 @@ begin
   end;
 end; // .function Hook_UN_C
 
-function Hook_DlgCallback (Context: Core.PHookContext): longbool; stdcall;
+function Hook_DlgCallback (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   NO_CMD = 0;
 
@@ -6542,7 +6706,7 @@ begin
   result     := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_CM3 (Context: Core.PHookContext): longbool; stdcall;
+function Hook_CM3 (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   MOUSE_STRUCT_ITEM_OFS = +$8;
   CM3_RES_ADDR          = $A6929C;
@@ -6570,14 +6734,14 @@ begin
   result := Core.EXEC_DEF_CODE;
 end; // .function Hook_CM3
 
-function Hook_MR_N (c: Core.PHookContext): longbool; stdcall;
+function Hook_MR_N (c: ApiJack.PHookContext): longbool; stdcall;
 begin
   c.eax     := Heroes.GetVal(MrMonPtr^, STACK_SIDE).v * Heroes.NUM_BATTLE_STACKS_PER_SIDE + Heroes.GetVal(MrMonPtr^, STACK_IND).v;
   c.RetAddr := Ptr($75DC76);
   result    := not Core.EXEC_DEF_CODE;
 end;
 
-function Hook_BM_U6 (Context: Core.PHookContext): longbool; stdcall;
+function Hook_BM_U6 (Context: ApiJack.PHookContext): longbool; stdcall;
 var
   FinalSpeed: integer;
 
@@ -6602,7 +6766,20 @@ begin
   result          := false;
 
   ZvsShowMessage(GetInterpolatedZVarAddr(SubCmd.Nums[0]), ord(Heroes.MES_MES));
-end; // .function Hook_IF_M
+end;
+
+function Hook_IF_L (Context: ApiJack.PHookContext): longbool; stdcall;
+var
+  SubCmd: PErmSubCmd;
+
+begin
+  // OK result
+  Context.RetAddr := Ptr($74943B);
+  SubCmd          := pointer(Context.EBP - $300);
+  result          := false;
+
+  Heroes.PrintChatMsg(GetInterpolatedZVarAddr(SubCmd.Nums[0]));
+end;
 
 function GetPreselectedDialog8ItemId: integer; stdcall;
 begin
@@ -6875,7 +7052,118 @@ begin
   end else begin
     Context.RetAddr := Ptr($72B144);
   end;
-end; // .function Hook_DL_A
+end;
+
+function Hook_DL_H (Context: ApiJack.PHookContext): longbool; stdcall;
+var
+  SubCmd: PErmSubCmd;
+  Param:  PErmCmdParam;
+
+begin
+  result := false;
+  SubCmd := ppointer(Context.EBP + $14)^;
+  Param  := @SubCmd.Params[1];
+
+  ppointer(Context.EBP - $20)^ := GetInterpolatedZVarAddr(SubCmd.Nums[1]);
+  Context.RetAddr              := Ptr($72B007);
+end;
+
+function Hook_HE_B0 (Context: ApiJack.PHookContext): longbool; stdcall;
+var
+  Hero:         Heroes.PHero;
+  SubCmd:       PErmSubCmd;
+  Param:        PErmCmdParam;
+  ParamValType: integer;
+  NewValue:     myPChar;
+
+begin
+  Hero   := ppointer(Context.EBP - $380)^;
+  SubCmd := pointer(Context.EBP - $300);
+  Param  := @SubCmd.Params[1];
+
+  if Param.GetCheckType = PARAM_CHECK_GET then begin
+    SetErmParamValue(Param, integer(@Hero.Name), FLAG_ASSIGNABLE_STRINGS);
+  end else begin
+    NewValue := myPChar(GetErmParamValue(Param, ParamValType, FLAG_STR_EVALS_TO_ADDR_NOT_INDEX));
+
+    if ParamValType <> VALTYPE_STR then begin
+      ShowErmError('HE:B0 expects string value for the second parameter');
+    end else begin
+      UtilsB2.SetPcharValue(myPChar(@Hero.Name), NewValue, sizeof(Hero.Name));
+    end;
+  end;
+
+  Context.RetAddr := Ptr($74943B);
+  result          := false;
+end;
+
+function Hook_HE_B3 (Context: ApiJack.PHookContext): longbool; stdcall;
+var
+  Hero:   Heroes.PHero;
+  SubCmd: PErmSubCmd;
+  Param:  PErmCmdParam;
+
+begin
+  Hero   := ppointer(Context.EBP - $380)^;
+  SubCmd := pointer(Context.EBP - $300);
+  Param  := @SubCmd.Params[1];
+
+  if Param.GetCheckType = PARAM_CHECK_GET then begin
+    SetErmParamValue(Param, integer(Heroes.HeroBiographies[Hero.Id]), FLAG_ASSIGNABLE_STRINGS);
+  end else begin
+    ShowErmError('HE:B3 does not support SET syntax');
+  end;
+
+  Context.RetAddr := Ptr($74943B);
+  result          := false;
+end;
+
+function Hook_ZvsDlg_AddHint_Assign (Context: ApiJack.PHookContext): longbool; stdcall;
+var
+{Un} DlgLink:     Heroes.PWogDialogLink;
+     ItemId:      integer;
+     ItemHintInd: integer;
+     OldHint:     myPChar;
+     NewHint:     myPChar;
+     NewHintCopy: myPChar;
+     NewHintSize: integer;
+
+begin
+  DlgLink     := ppointer(Context.EBP - 12)^;
+  ItemId      := pinteger(Context.EBP + 8)^;
+  NewHint     := ppointer(Context.EBP + 12)^;
+  ItemHintInd := pinteger(Context.EBP - 4)^;
+  OldHint     := DlgLink.Dlg.Hints[ItemHintInd].Text;
+  NewHintSize := Windows.LStrLenA(NewHint) + Length(#0);
+
+  if OldHint <> nil then begin
+    Heroes.MemFreeAndNil(OldHint);
+  end;
+
+  NewHintCopy := Heroes.MemAlloc(NewHintSize);
+  UtilsB2.CopyMem(NewHintSize, NewHint, NewHintCopy);
+
+  DlgLink.Dlg.Hints[ItemHintInd].ItemId := ItemId;
+  DlgLink.Dlg.Hints[ItemHintInd].Text   := NewHintCopy;
+
+  Context.RetAddr := Ptr($72989C);
+  result          := false;
+end;
+
+function Hook_ZvsDlg_Delete_FreeHints (Context: ApiJack.PHookContext): longbool; stdcall;
+var
+  DlgLink: Heroes.PWogDialogLink;
+  i:       integer;
+
+begin
+  DlgLink := ppointer(Context.EBP - 16)^;
+
+  for i := 0 to DlgLink.Dlg.NumItems - 1 do begin
+    Heroes.MemFreeAndNil(DlgLink.Dlg.Hints[i].Text);
+  end;
+
+  result := true;
+end;
 
 function Hook_EA_E (Context: ApiJack.PHookContext): longbool; stdcall;
 const
@@ -7353,14 +7641,16 @@ var
   VarParamValType: integer;
   MinValueValType: integer;
   MaxValueValType: integer;
+  DefValueType:    integer;
   MinValue:        Heroes.TValue;
   MaxValue:        Heroes.TValue;
   FinalValue:      Heroes.TValue;
-  DoShowErrors:    boolean;
+  DoShowErrors:    longbool;
+  IsOutOfBounds:   longbool;
 
 begin
-  if (NumParams < 2) or (NumParams > 3) then begin
-    ShowErmError('"!!VR:F" - expected 2-3 parameters');
+  if (NumParams < 2) or (NumParams > 4) then begin
+    ShowErmError('"!!VR:F" - expected 2-4 parameters');
     result := 0; exit;
   end;
 
@@ -7368,15 +7658,25 @@ begin
   FinalValue.v    := GetErmParamValue(VarParam, VarParamValType);
   MinValueValType := GetErmParamValType(@SubCmd.Params[0]);
   MaxValueValType := GetErmParamValType(@SubCmd.Params[1]);
+  DefValueType    := GetErmParamValType(@SubCmd.Params[3]);
 
-  if not ((VarParamValType in [VALTYPE_INT, VALTYPE_FLOAT]) and (MinValueValType in [VALTYPE_INT, VALTYPE_FLOAT]) and (MaxValueValType in [VALTYPE_INT, VALTYPE_FLOAT])) then begin
+  if not (
+    (VarParamValType in [VALTYPE_INT, VALTYPE_FLOAT]) and
+    (MinValueValType in [VALTYPE_INT, VALTYPE_FLOAT]) and
+    (MaxValueValType in [VALTYPE_INT, VALTYPE_FLOAT]) and
+    (
+      (NumParams < 4) or
+      (DefValueType in [VALTYPE_INT, VALTYPE_FLOAT])
+    )
+  ) then begin
     ShowErmError('"!!VR:F" - only numeric variables and values are supported');
     result := 0; exit;
   end;
 
-  MinValue.v   := SubCmd.Nums[0];
-  MaxValue.v   := SubCmd.Nums[1];
-  DoShowErrors := (NumParams = 3) and (SubCmd.Nums[2] <> 0);
+  MinValue.v    := SubCmd.Nums[0];
+  MaxValue.v    := SubCmd.Nums[1];
+  DoShowErrors  := (NumParams >= 3) and (SubCmd.Nums[2] <> 0);
+  IsOutOfBounds := false;
 
   if VarParamValType = VALTYPE_INT then begin
     if MinValueValType = VALTYPE_FLOAT  then begin
@@ -7392,7 +7692,8 @@ begin
         ShowErmError(Legacy.Format('"SN:F" - value %d is out of allowed range [%d..%d]. Forced value to range.', [FinalValue.v, MinValue.v, MaxValue.v]));
       end;
 
-      FinalValue.v := MaxValue.v;
+      IsOutOfBounds := true;
+      FinalValue.v  := MaxValue.v;
     end;
 
     if FinalValue.v < MinValue.v then begin
@@ -7400,7 +7701,12 @@ begin
         ShowErmError(Legacy.Format('"SN:F" - value %d is out of allowed range [%d..%d]. Forced value to range.', [FinalValue.v, MinValue.v, MaxValue.v]));
       end;
 
-      FinalValue.v := MinValue.v;
+      IsOutOfBounds := true;
+      FinalValue.v  := MinValue.v;
+    end;
+
+    if IsOutOfBounds and (NumParams >= 4) then begin
+      FinalValue.v := SubCmd.Nums[3];
     end;
 
     result := ord(SetErmParamValue(VarParam, FinalValue.v));
@@ -8467,7 +8773,7 @@ begin
     Legacy.FreeAndNil(GlobalConsts);
     GlobalConsts := DataLib.UnserializeDict(SerializedDict, not UtilsB2.OWNS_ITEMS, DataLib.CASE_INSENSITIVE);
   end;
-end; // .procedure DoLoadGlobalConsts
+end;
 
 procedure OnSavegameWrite (Event: PEvent); stdcall;
 begin
@@ -8494,20 +8800,27 @@ end;
 
 procedure OnBeforeWoG (Event: GameExt.PEvent); stdcall;
 const
-  NEW_ERM_HEAP_SIZE = 128 * 1000 * 1000;
+  MIN_ERM_HEAP_SIZE     = 1;
+  DEFAULT_ERM_HEAP_SIZE = 128 * 1024 * 1024;
 
 var
-{On} NewErmHeap: pointer;
+{On} NewErmHeap:     pointer;
+     NewErmHeapSize: integer;
 
 begin
   (* Remove WoG CM3 trigger *)
   Core.p.WriteDword(Ptr($78C210), $887668);
 
-  (* Extend ERM memory limit to 128 MB *)
-  NewErmHeap := Windows.VirtualAlloc(nil, NEW_ERM_HEAP_SIZE, Windows.MEM_RESERVE or Windows.MEM_COMMIT, Windows.PAGE_READWRITE);
-  {!} Assert(NewErmHeap <> nil, 'Failed to allocate 128 MB memory block for new ERM heap');
+  (* Extend compiled ERM memory limit *)
+  NewErmHeapSize  := Math.Max(MIN_ERM_HEAP_SIZE, EraSettings.GetOpt('CompiledErmBufSize').Int(DEFAULT_ERM_HEAP_SIZE));
+  ZvsErmHeapSize^ := NewErmHeapSize;
+  NewErmHeap      := Windows.VirtualAlloc(nil, NewErmHeapSize, Windows.MEM_RESERVE or Windows.MEM_COMMIT, Windows.PAGE_READWRITE);
+  {!} Assert(NewErmHeap <> nil, Legacy.Format('Failed to allocate %d MB memory block for new ERM heap', [NewErmHeapSize div 1000000]));
   Core.p.WriteDataPatch(Ptr($73E1DE), [myAStr('%d'), integer(NewErmHeap)]);
-  Core.p.WriteDataPatch(Ptr($73E1E8), [myAStr('%d'), integer(NEW_ERM_HEAP_SIZE)]);
+  Core.p.WriteDataPatch(Ptr($73E1E8), [myAStr('%d'), NewErmHeapSize]);
+
+  (* Move not enough memory for ERM script compilation message to json *)
+  ApiJack.HookCode(Ptr($74C53A), @Hook_FindErm_OutOfMemory);
 
   (* Register new code control receivers *)
   AdvErm.RegisterErmReceiver('re', nil, AdvErm.CMD_PARAMS_CONFIG_ONE_TO_FIVE_INTS);
@@ -8521,10 +8834,10 @@ begin
   Core.p.WriteDataPatch(Ptr($74A724), [myAStr('EB')]);
 
   (* Disable internal map scripts interpretation *)
-  Core.ApiHook(@Hook_FindErm_BeforeMainLoop, Core.HOOKTYPE_BRIDGE, Ptr($749BBA));
+  ApiJack.HookCode(Ptr($749BBA), @Hook_FindErm_BeforeMainLoop);
 
   (* Free ERM heap on scripts recompilation *)
-  Core.ApiHook(@Hook_FindErm_ZeroHeap, Core.HOOKTYPE_BRIDGE, Ptr($7499A2));
+  ApiJack.HookCode(Ptr($7499A2), @Hook_FindErm_ZeroHeap);
 
   (* Remove default mechanism of loading [mapname].erm *)
   Core.p.WriteDataPatch(Ptr($72CA8A), [myAStr('E90102000090909090')]);
@@ -8549,7 +8862,7 @@ begin
   Core.p.WriteDataPatch(Ptr($74C6E1 + 6), [myAStr('01')]);
 
   (* New way of iterating scripts in FindErm *)
-  Core.ApiHook(@Hook_FindErm_AfterMapScripts, Core.HOOKTYPE_BRIDGE, Ptr($749BF5));
+  ApiJack.HookCode(Ptr($749BF5), @Hook_FindErm_AfterMapScripts);
 
   (* Remove LoadERMTXT calls everywhere *)
   Core.p.WriteDataPatch(Ptr($749932 - 2), [myAStr('33C09090909090909090')]);
@@ -8568,21 +8881,21 @@ begin
   Core.p.WriteDataPatch(Ptr($74C6FC), [myAStr('9090')]);
 
   (* Reimplement ProcessErm *)
-  Core.ApiHook(@ProcessErm, Core.HOOKTYPE_JUMP, Ptr($74C816));
+  Core.Hook(Ptr($74C816), Core.HOOKTYPE_JUMP, @ProcessErm);
 
   (* Fix ERM CA:B3 bug *)
-  Core.Hook(@Hook_ErmCastleBuilding, Core.HOOKTYPE_JUMP, 7, Ptr($70E8A2));
+  Core.Hook(Ptr($70E8A2), Core.HOOKTYPE_JUMP, @Hook_ErmCastleBuilding);
 
   (* Fix HE:A art get syntax bug *)
-  Core.Hook(@Hook_ErmHeroArt, Core.HOOKTYPE_BRIDGE, 9, Ptr($744B13));
+  ApiJack.HookCode(Ptr($744B13), @Hook_ErmHeroArt);
 
   (* Fix HE:A# - set flag 1 as success *)
-  Core.Hook(@Hook_ErmHeroArt_FindFreeSlot, Core.HOOKTYPE_BRIDGE, 10, Ptr($7454B2));
-  Core.Hook(@Hook_ErmHeroArt_FoundFreeSlot, Core.HOOKTYPE_BRIDGE, 6, Ptr($7454EC));
+  ApiJack.HookCode(Ptr($7454B2), @Hook_ErmHeroArt_FindFreeSlot);
+  ApiJack.HookCode(Ptr($7454EC), @Hook_ErmHeroArt_FoundFreeSlot);
 
   (* Fix HE:A3 artifacts delete - update art number *)
-  Core.ApiHook(@Hook_ErmHeroArt_DeleteFromBag, Core.HOOKTYPE_BRIDGE, Ptr($745051));
-  Core.ApiHook(@Hook_ErmHeroArt_DeleteFromBag, Core.HOOKTYPE_BRIDGE, Ptr($7452F3));
+  ApiJack.HookCode(Ptr($745051), @Hook_ErmHeroArt_DeleteFromBag);
+  ApiJack.HookCode(Ptr($7452F3), @Hook_ErmHeroArt_DeleteFromBag);
 
   (* Fix HE:P accept any d-modifiers, honor passed flags *)
   ApiJack.HookCode(Ptr($743E2D), @Hook_HE_P);
@@ -8604,6 +8917,9 @@ begin
   (* New BM:Z command to get address of battle stack structure *)
   ApiJack.HookCode(Ptr($75F840), @Hook_BM_Z);
 
+  (* Fix HE:B0 to allow all strings *)
+  ApiJack.HookCode(Ptr($74646E), @Hook_HE_B0);
+
   (* Extended UN:C implementation with 4 parameters support *)
   ApiJack.HookCode(Ptr($731FF0), @Hook_UN_C);
 
@@ -8620,20 +8936,20 @@ begin
   Core.p.WriteDataPatch(Ptr($76FC71), [myAStr('0F8DDD0A')]);
 
   (* Fix DL:C close all dialogs bug *)
-  Core.Hook(@Hook_DlgCallback, Core.HOOKTYPE_BRIDGE, 6, Ptr($729774));
+  ApiJack.HookCode(Ptr($729774), @Hook_DlgCallback);
 
   (* Fully rewrite VR command *)
   AdvErm.RegisterErmReceiver('VR', @New_VR_Receiver, CMD_PARAMS_CONFIG_SINGLE_INT);
 
   (* Fix LoadErtFile to handle any relative pathes *)
-  Core.Hook(@Hook_LoadErtFile, Core.HOOKTYPE_BRIDGE, 5, Ptr($72C660));
+  ApiJack.HookCode(Ptr($72C660), @Hook_LoadErtFile);
 
   (* Replace ERT files storage implementation entirely *)
-  Core.ApiHook(@Hook_ZvsStringSet_Clear,   Core.HOOKTYPE_JUMP, @ZvsStringSet_Clear);
-  Core.ApiHook(@Hook_ZvsStringSet_Add,     Core.HOOKTYPE_JUMP, @ZvsStringSet_Add);
-  Core.ApiHook(@Hook_ZvsStringSet_GetText, Core.HOOKTYPE_JUMP, @ZvsStringSet_GetText);
-  Core.ApiHook(@Hook_ZvsStringSet_Load,    Core.HOOKTYPE_JUMP, @ZvsStringSet_Load);
-  Core.ApiHook(@Hook_ZvsStringSet_Save,    Core.HOOKTYPE_JUMP, @ZvsStringSet_Save);
+  Core.Hook(@ZvsStringSet_Clear, Core.HOOKTYPE_JUMP, @Hook_ZvsStringSet_Clear);
+  Core.Hook(@ZvsStringSet_Add, Core.HOOKTYPE_JUMP, @Hook_ZvsStringSet_Add);
+  Core.Hook(@ZvsStringSet_GetText, Core.HOOKTYPE_JUMP, @Hook_ZvsStringSet_GetText);
+  Core.Hook(@ZvsStringSet_Load, Core.HOOKTYPE_JUMP, @Hook_ZvsStringSet_Load);
+  Core.Hook(@ZvsStringSet_Save, Core.HOOKTYPE_JUMP, @Hook_ZvsStringSet_Save);
 
   (* Disable connection between script number and option state in WoG options *)
   Core.p.WriteDataPatch(Ptr($777E48), [myAStr('E9180100009090909090')]);
@@ -8643,12 +8959,12 @@ begin
   ApiJack.HookCode(Ptr($77846B), @Hook_ApplyErsOptions);
 
   (* Fix CM3 trigger allowing to handle all clicks *)
-  Core.ApiHook(@Hook_CM3, Core.HOOKTYPE_BRIDGE, Ptr($5B0255));
+  ApiJack.HookCode(Ptr($5B0255), @Hook_CM3);
   Core.p.WriteDataPatch(Ptr($5B02DD), [myAStr('8B47088D70FF')]);
 
   (* UN:J3 does not reset commanders or load scripts. New: it can be used to reset wog options *)
   // Turned off because of side effects of NPC reset and not displaying wogification message some authors could rely on.
-  Core.ApiHook(@Hook_UN_J3_End, Core.HOOKTYPE_BRIDGE, Ptr($733A85));
+  ApiJack.HookCode(Ptr($733A85), @Hook_UN_J3_End);
 
   (* Add UN:J13 command: Reset Commanders *)
   ApiJack.HookCode(Ptr($733F11), @Hook_UN_J13);
@@ -8660,13 +8976,16 @@ begin
   ApiJack.HookCode(Ptr($732EA5), @Hook_UN_P3);
 
   (* Fix MR:N in !?MR1 !?MR2 *)
-  Core.ApiHook(@Hook_MR_N, Core.HOOKTYPE_BRIDGE, Ptr($75DC67));
+  ApiJack.HookCode(Ptr($75DC67), @Hook_MR_N);
 
   (* Add BM:U6/?$ command to get final stack speed, including slow effect *)
   ApiJack.HookCode(Ptr($75F2B1), @Hook_BM_U6);
 
   (* Fix IF:M# command: allow any string *)
   ApiJack.HookCode(Ptr($74751A), @Hook_IF_M);
+
+  (* Fix IF:L# command: allow any string and escape % with %% *)
+  ApiJack.HookCode(Ptr($749272), @Hook_IF_L);
 
   (* Fix TR:T command: allow any number of arguments *)
   Core.p.WriteDataPatch(Ptr($73B771), [myAStr('EB')]);
@@ -8699,6 +9018,21 @@ begin
   (* Fix DL:A to allow all strings and assume 0 as the forth parameter value *)
   ApiJack.HookCode(Ptr($72B093), @Hook_DL_A);
 
+  (* Fix DL:H to allow all strings *)
+  ApiJack.HookCode(Ptr($72AF66), @Hook_DL_H);
+
+  (* Fix HE:B3 to allow all strings *)
+  ApiJack.HookCode(Ptr($74665E), @Hook_HE_B3);
+
+  (* Force WoG dialog to make hint copy during hint assignment *)
+  ApiJack.HookCode(Ptr($72986E), @Hook_ZvsDlg_AddHint_Assign);
+
+  (* Disable DL:H item hint interpolation during call to HDlg::GetHint *)
+  Core.p.WriteDataPatch(Ptr($729916), [myAStr('90909090909090909090909090909090909090')]);
+
+  (* Force WoG dialog to free allocated hints memory on dialog destruction *)
+  ApiJack.HookCode(Ptr($72B897), @Hook_ZvsDlg_Delete_FreeHints);
+
   (* Fix HE(xxx) GetVarVal call to allow new variable types *)
   ApiJack.HookCode(Ptr($743A17), @Hook_HE);
 
@@ -8707,13 +9041,13 @@ begin
 
   (* Detailed ERM error reporting *)
   // Replace simple message with detailed message with location and context
-  Core.ApiHook(@Hook_MError,  Core.HOOKTYPE_BRIDGE, Ptr($71236A));
+   ApiJack.HookCode(Ptr($71236A), @Hook_MError);
   // Disallow repeated message, display detailed message with location otherwise
   ApiJack.StdSplice(Ptr($73DE8A), @Hook_ErmMess, ApiJack.CONV_CDECL, 1);
   // Disable double reporting of error location in ProcessCmd
   Core.p.WriteDataPatch(Ptr($749421), [myAStr('E9BF0200009090')]);
   // Track ERM errors location during FindErm
-  Core.ApiHook(@Hook_FindErm_SkipUntil2, Core.HOOKTYPE_CALL, Ptr($74A14A));
+  Core.Hook(Ptr($74A14A), Core.HOOKTYPE_CALL, @Hook_FindErm_SkipUntil2);
 
   (* Implement universal !?FU(OnEveryDay) event, like !?TM-1 occuring every day for every color before other !?TM triggers *)
   ApiJack.StdSplice(Ptr($74DC74), @Hook_RunTimer, ApiJack.CONV_CDECL, 1);
@@ -8747,22 +9081,28 @@ begin
   Core.p.WriteDataPatch(Ptr($746319), [myAStr('8365B01FEB19')]);
 
   // Rewrite DO:P implementation
-  Core.ApiHook(@Hook_DO_P, Core.HOOKTYPE_JUMP, Ptr($72D79C));
+  Core.Hook(Ptr($72D79C), Core.HOOKTYPE_JUMP, @Hook_DO_P);
 
   // Replace ZvsCheckFlags with own implementation, free from e-variables issues
-  Core.ApiHook(@Hook_ZvsGetFlags, Core.HOOKTYPE_JUMP, @ZvsGetFlags);
+  Core.Hook(@ZvsGetFlags, Core.HOOKTYPE_JUMP, @Hook_ZvsGetFlags);
 
   // Replace ZvsCheckFlags with own implementation, free from e-variables issues
-  Core.ApiHook(@Hook_ZvsCheckFlags, Core.HOOKTYPE_JUMP, @ZvsCheckFlags);
+  Core.Hook(@ZvsCheckFlags, Core.HOOKTYPE_JUMP, @Hook_ZvsCheckFlags);
 
   // Replace GetNum with own implementation, capable to process named global variables
-  Core.ApiHook(@Hook_ZvsGetNum, Core.HOOKTYPE_JUMP, @ZvsGetNum);
+  Core.Hook(@ZvsGetNum, Core.HOOKTYPE_JUMP, @Hook_ZvsGetNum);
 
   // Replace Apply with own implementation, capable to process named global variables
-  Core.ApiHook(@Hook_ZvsApply, Core.HOOKTYPE_JUMP, @ZvsApply);
+  Core.Hook(@ZvsApply, Core.HOOKTYPE_JUMP, @Hook_ZvsApply);
+
+  // Replace ApplyString with own implementation, capable to process all strings
+  Core.Hook(@ZvsApplyString, Core.HOOKTYPE_JUMP, @Hook_ZvsApplyString);
+
+  // Replace ApplyString with own implementation, capable to process all strings
+  Core.Hook(@ZvsNewMesMan, Core.HOOKTYPE_JUMP, @Hook_ZvsNewMesMan);
 
   // Replace ZvsGetVarVal with GetErmParamValue
-  Core.ApiHook(@Hook_ZvsGetVarVal, Core.HOOKTYPE_JUMP, @ZvsGetVarVal);
+  Core.Hook(@ZvsGetVarVal, Core.HOOKTYPE_JUMP, @Hook_ZvsGetVarVal);
 
   (* Skip spaces before commands in ProcessCmd and disable XX:Z subcomand at all *)
   Core.p.WriteDataPatch(Ptr($741E5E), [myAStr('8B8D04FDFFFF01D18A013C2077044142EBF63C3B7505E989780000899500FDFFFF8995E4FCFFFF909090890D0C0E84008885' +
@@ -8772,22 +9112,22 @@ begin
                                               '90909090909090909090909090')]);
 
   (* Ovewrite GetNumAuto call from upper patch with Era filtering method *)
-  Core.ApiHook(@CustomGetNumAuto, Core.HOOKTYPE_CALL, Ptr($741EAE));
+  Core.Hook(Ptr($741EAE), Core.HOOKTYPE_CALL, @CustomGetNumAuto);
 
   (* Splice ProcessCmd for cmd local memory allocation/deallocation *)
   ApiJack.StdSplice(@ZvsProcessCmd, @Hook_ProcessCmd, ApiJack.CONV_CDECL, 3);
-  //Core.ApiHook(@Hook_ProcessCmd, Core.HOOKTYPE_BRIDGE, Ptr($741E3F));
-  //ApiJack.HookCode(Ptr($749702), @Hook_ProcessCmd_End);
 
   (* Replace ERM interpolation function *)
-  Core.ApiHook(@InterpolateErmStr, Core.HOOKTYPE_JUMP, @ZvsInterpolateStr);
+  Core.Hook(@ZvsInterpolateStr, Core.HOOKTYPE_JUMP, @InterpolateErmStr);
 
   (* Replace ERM2String and ERM2String2 WoG functions *)
-  Core.ApiHook(@Hook_ERM2String,  Core.HOOKTYPE_JUMP, Ptr($73DF05));
-  Core.ApiHook(@Hook_ERM2String2, Core.HOOKTYPE_JUMP, Ptr($741D32));
+  Core.Hook(Ptr($73DF05), Core.HOOKTYPE_JUMP, @Hook_ERM2String);
+  Core.Hook(Ptr($741D32), Core.HOOKTYPE_JUMP, @Hook_ERM2String2);
 
   (* Enable ERM tracking and pre-command initialization *)
-  EventTracker := ErmTracking.TEventTracker.Create(TrackingOpts.MaxRecords).SetDumpCommands(TrackingOpts.DumpCommands).SetIgnoreEmptyTriggers(TrackingOpts.IgnoreEmptyTriggers);
+  EventTracker := ErmTracking.TEventTracker.Create(TrackingOpts.MaxRecords)
+    .SetDumpCommands(TrackingOpts.DumpCommands)
+    .SetIgnoreEmptyTriggers(TrackingOpts.IgnoreEmptyTriggers);
 end; // .procedure OnAfterWoG
 
 procedure OnAfterStructRelocations (Event: GameExt.PEvent); stdcall;
@@ -8840,11 +9180,7 @@ begin
   RegisterStdGlobalConsts;
 
   ErmScanner  := TextScan.TTextScanner.Create;
-  ErmCmdCache := AssocArrays.NewSimpleAssocArr
-  (
-    Crypto.AnsiCRC32,
-    AssocArrays.NO_KEY_PREPROCESS_FUNC
-  );
+  ErmCmdCache := DataLib.NewAssocArray(UtilsB2.OWNS_ITEMS, DataLib.CASE_SENSITIVE);
   IsWoG^      := true;
   ScriptNames := Lists.NewSimpleStrList;
 

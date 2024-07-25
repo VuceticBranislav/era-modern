@@ -1239,7 +1239,7 @@ begin
   CurrTextBlock := SavedCurrTextBlock;
 end;
 
-function Hook_BeginParseText (Context: Core.PHookContext): longbool; stdcall;
+function Hook_BeginParseText (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   UpdateCurrParsedText(Heroes.PFontItem(Context.EBX), myPChar(Context.EDX), Context.ECX);
   CurrTextNumLines := CurrParsedText.CountLines(pinteger(Context.EBP + $18)^);
@@ -1307,7 +1307,7 @@ begin
   result        := true;
 end;
 
-function Hook_GetCharColor (Context: Core.PHookContext): longbool; stdcall;
+function Hook_GetCharColor (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   result := CurrColor = DEF_COLOR;
 
@@ -1316,7 +1316,7 @@ begin
   end;
 end;
 
-function Hook_HandleTags (Context: Core.PHookContext): longbool; stdcall;
+function Hook_HandleTags (Context: ApiJack.PHookContext): longbool; stdcall;
 var
   c:  myChar;
 
@@ -1588,14 +1588,14 @@ begin
     pword($4B5202)^    := word($840F); // JE
     pinteger($4B5204)^ := $02E7;       // 4B54EF
   end else begin
-    Core.Hook(@Hook_HandleTags, Core.HOOKTYPE_BRIDGE, 7, Ptr($4B509B));
+    ApiJack.HookCode(Ptr($4B509B), @Hook_HandleTags);
   end;
 
-  Core.Hook(@Hook_GetCharColor, Core.HOOKTYPE_BRIDGE, 8, Ptr($4B4F74));
-  Core.Hook(@Hook_BeginParseText, Core.HOOKTYPE_BRIDGE, 6, Ptr($4B5255));
-  Core.Hook(@Hook_CountNumTextLines, Core.HOOKTYPE_CALL, 5, Ptr($4B5275));
-  Core.Hook(@Hook_CountNumTextLines, Core.HOOKTYPE_CALL, 5, Ptr($4B52CA));
-  Core.Hook(@Hook_ScrollTextDlg_CreateLineTextItem, Core.HOOKTYPE_CALL, 5, Ptr($5BA547));
+  ApiJack.HookCode(Ptr($4B4F74), @Hook_GetCharColor);
+  ApiJack.HookCode(Ptr($4B5255), @Hook_BeginParseText);
+  Core.Hook(Ptr($4B5275), Core.HOOKTYPE_CALL, @Hook_CountNumTextLines);
+  Core.Hook(Ptr($4B52CA), Core.HOOKTYPE_CALL, @Hook_CountNumTextLines);
+  Core.Hook(Ptr($5BA547), Core.HOOKTYPE_CALL, @Hook_ScrollTextDlg_CreateLineTextItem);
   ApiJack.HookCode(Ptr($4B547B), @Hook_Font_DrawTextToPcx16_DetermineLineAlignment);
   ApiJack.HookCode(Ptr($4B54EF), @Hook_Font_DrawTextToPcx16_End);
   ApiJack.StdSplice(Ptr($4B5680), @New_Font_GetLineWidth, ApiJack.CONV_THISCALL, 2);

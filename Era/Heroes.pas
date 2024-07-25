@@ -433,6 +433,9 @@ type
   PSecSkillTexts = ^TSecSkillTexts;
   TSecSkillTexts = array [0..MAX_SECONDARY_SKILLS - 1] of TSecSkillText;
 
+  PHeroBiographiesTable = ^THeroBiographiesTable;
+  THeroBiographiesTable = array [0..High(integer) div sizeof(myChar) - 1] of myChar;
+
   PCurrentMp3Track = ^TCurrentMp3Track;
   TCurrentMp3Track = array [0..255] of myChar;
 
@@ -1192,6 +1195,42 @@ type
     procedure Send (aDestPlayerId: integer);
   end;
 
+  PWogDlgItem = pointer;
+
+  TWogDlgAnimatedDef = packed record
+    FrameInd: integer;
+    Item:     PWogDlgItem;
+  end;
+
+  PWogDlgHint = ^TWogDlgHint;
+  TWogDlgHint = packed record
+      ItemId: integer;
+  {O} Text:   myPChar; // not owned in original WoG, but owned in Era
+  end;
+
+  PWogDlgHints = ^TWogDlgHints;
+  TWogDlgHints = array [0..High(integer) div sizeof(TWogDlgHint) - 1] of TWogDlgHint;
+
+  PWogDialog = ^TWogDialog;
+  TWogDialog = packed record
+    NativeData:   array [1..96] of byte;
+    AnimatedDefs: array [1..10] of TWogDlgAnimatedDef;
+    VideoIndex:   integer; // or -1
+    VideoX:       integer;
+    VideoY:       integer;
+    HintItemInd:  integer;
+    Hints:        PWogDlgHints;
+    NumItems:     integer;
+    Id:           integer;
+  end;
+
+  PWogDialogLink = ^TWogDialogLink;
+  TWogDialogLink = packed record
+    {O}  Dlg:   PWogDialog;
+    {On} Next:  PWogDialogLink;
+         Flags: integer;
+  end;
+
 const
   MAlloc:      TMAlloc = Ptr($617492);
   MFree:       TMFree  = Ptr($60B0F0);
@@ -1212,6 +1251,8 @@ const
   ThisPcHumanPlayerId: pinteger   = Ptr($6995A4);
   CurrentPlayerId:     pinteger   = Ptr($69CCF4);
   GameDate:            ^PGameDate = Ptr($840CE0);
+  IsGameEnd:           pboolean   = Ptr($697308);
+  GameEndKind:         pbyte      = Ptr($699560);
 
   BytesPerPixelPtr:           pbyte = Ptr($5FA228 + 3);
   Color16GreenChannelMaskPtr: pword = Ptr($694DB0);
@@ -1241,9 +1282,10 @@ const
   MapItemToCoords:  TMapItemToCoords  = Ptr($711EC6);
   CoordsToMixedPos: TCoordsToMixedPos = Ptr($711E7F);
 {$J+}
-  SecSkillNames: PSecSkillNames = Ptr($698BC4);
-  SecSkillDescs: PSecSkillDescs = Ptr($698C34);
-  SecSkillTexts: PSecSkillTexts = Ptr($698D88);
+  SecSkillNames:   PSecSkillNames = Ptr($698BC4);
+  SecSkillDescs:   PSecSkillDescs = Ptr($698C34);
+  SecSkillTexts:   PSecSkillTexts = Ptr($698D88);
+  HeroBiographies: PHeroBiographiesTable = Ptr($778820); // Original biographies copy from txt by WoG
 
   Spells:       PSpells  = Ptr($7BD2C0);
   NumSpellsPtr: pinteger = Ptr($7751ED + 3);
@@ -1460,19 +1502,21 @@ end;
 
 procedure PrintChatMsg (const Msg: myAStr);
 var
-  PtrMsg: myPChar;
+  EncodedMsg: myAStr;
+  PtrMsg:     myPChar;
 
 begin
-  PtrMsg := myPChar(Msg);
-  // * * * * * //
+  EncodedMsg := Legacy.StringReplace(Msg, '%', '%%', [Legacy.rfReplaceAll]);
+  PtrMsg     := myPChar(EncodedMsg);
+
   asm
     PUSH PtrMsg
     PUSH $69D800
     MOV EAX, $553C40
     CALL EAX
     ADD ESP, $8
-  end; // .asm
-end; // .procedure PrintChatMsg
+  end;
+end;
 
 function Msg
 (
@@ -2456,6 +2500,7 @@ begin
   SecSkillNames         := ppointer($4E6C00)^;
   SecSkillDescs         := ppointer($4E6C10)^;
   SecSkillTexts         := ppointer($4E6C1A)^;
+  HeroBiographies       := ppointer($7466D4)^;
   MonInfos              := ppointer($6747B0)^;
   MonAssignmentsPerTown := ppointer($428605)^;
   ArtInfos              := ppointer($660B68)^;

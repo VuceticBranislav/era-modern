@@ -160,6 +160,7 @@ $(PostBuildEvent)]]></PostBuildEvent>
         <DCCReference Include="Lua\Lua.pas"/>
         <DCCReference Include="Json.pas"/>
         <DCCReference Include="WogEvo.pas"/>
+        <DCCReference Include="EventLib.pas"/>
         <None Include="VersionInfo.inc"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
@@ -182,8 +183,8 @@ $(PostBuildEvent)]]></PostBuildEvent>
                     <Source Name="MainSource">Era.dpr</Source>
                 </Source>
                 <Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\dcloffice2k280.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\dclofficexp280.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dcloffice2k290.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dclofficexp290.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
                 </Excluded_Packages>
             </Delphi.Personality>
             <Platforms>

@@ -296,7 +296,7 @@ begin
   Legacy.FreeAndNil(Config);
 end; // .procedure LoadGlobalRedirectionConfig
 
-function Hook_FindFileInLod (Context: Core.PHookContext): longbool; stdcall;
+function Hook_FindFileInLod (Context: ApiJack.PHookContext): longbool; stdcall;
 var
   Redirected: myAStr;
 
@@ -308,7 +308,7 @@ begin
   result := Core.EXEC_DEF_CODE;
 end;
 
-function Hook_LoadLods (Context: Core.PHookContext): LONGBOOL; stdcall;
+function Hook_LoadLods (Context: ApiJack.PHookContext): longbool; stdcall;
 var
   i: integer;
   
@@ -330,20 +330,21 @@ begin
   result := Core.EXEC_DEF_CODE;
 end; // .function Hook_LoadLods
 
-function Hook_AfterLoadLods (Context: Core.PHookContext): LONGBOOL; stdcall;
+function Hook_AfterLoadLods (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   LoadGlobalRedirectionConfig(GLOBAL_MISSING_REDIRECTIONS_CONFIG_DIR, REDIRECT_ONLY_MISSING);
 
   (* Begin lods files redirection *)
-  Core.ApiHook(@Hook_FindFileInLod, Core.HOOKTYPE_BRIDGE, Ptr($4FB106));
-  Core.ApiHook(@Hook_FindFileInLod, Core.HOOKTYPE_BRIDGE, Ptr($4FACA6)); // A0_Lod_FindResource_sub_4FACA0
+  ApiJack.HookCode(Ptr($4FB106), @Hook_FindFileInLod);
+  ApiJack.HookCode(Ptr($4FACA6), @Hook_FindFileInLod); // A0_Lod_FindResource_sub_4FACA0
 
   EventMan.GetInstance().Fire('OnAfterLoadLods');
 
   result := true;
 end;
 
-function Hook_AfterLoadMedia (Context: Core.PHookContext): longbool; stdcall;
+function Hook_AfterLoadMedia (Context: ApiJack.PHookContext): longbool; stdcall;
+
 var
   ResourceName:     myAStr;
   WillBeRedirected: boolean;
@@ -472,7 +473,7 @@ begin
   PWORD($7015E5)^ := $38EB;
 
   (* Lead lods loading/reordering *)
-  Core.Hook(@Hook_LoadLods, Core.HOOKTYPE_BRIDGE, 5, Ptr($559408));
+  ApiJack.HookCode(Ptr($559408), @Hook_LoadLods);
 
   (* Implement OnAfterLoadLods event and missing resources redirection *)
   ApiJack.HookCode(Ptr($4EDD65), @Hook_AfterLoadLods);

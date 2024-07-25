@@ -82,7 +82,6 @@ type
 var ERA_VERSION_STR: myAStr; ERA_VERSION_INT: Integer;
 {O} PluginsList:      DataLib.TStrList {OF TDllHandle};
     hEra:             Windows.THandle;
-    DumpVfsOpt:       boolean;
     ProcessStartTime: Windows.TSystemTime;
 
 (* Means for exe structures relocation (enlarging). It's possible to find relocated address by old
@@ -110,6 +109,7 @@ procedure Init (hDll: integer);
 
 
 (***) implementation (***)
+
 uses Heroes;
 
 const
@@ -132,7 +132,7 @@ asm
   CALL EAX
   MOV EAX, $701215
   CALL EAX
-end; // .procedure InitWoG
+end;
 
 procedure LoadPlugins (const Ext: myAStr);
 const
@@ -518,7 +518,6 @@ begin
 
   // Better callstack
   pinteger(0)^ := 0;
-  //raise EAssertFailure.Create(string(CrashMes)) at Address;
 end; // .procedure AssertHandler
 
 begin ERA_VERSION_STR := Legacy.Format('%d.%d.%d%s', [VER_Major, VER_Minor, VER_Build, VER_Sufix]); ERA_VERSION_INT := VER_Major*1000 + VER_Minor*100 + VER_Build;

@@ -83,7 +83,8 @@ uses
   Scripts in 'Scripts.pas',
   Lua in 'Lua\Lua.pas',
   Json in 'Json.pas',
-  WogEvo in 'WogEvo.pas';
+  WogEvo in 'WogEvo.pas',
+  EventLib in 'EventLib.pas';
 
 begin
   FormatSettings.DecimalSeparator := '.';
