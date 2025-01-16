@@ -107,6 +107,8 @@ function Supports(const Instance: TObject; const IID: TGUID; out Intf): Boolean;
 // utilities here. Check and reorganise
 procedure Buff(Dest: myPChar; Text: myAStr);
 function StrAlloc(Size: Cardinal): myPChar; inline;
+procedure GetMem(var Addr:Pointer; Size: Integer); inline;
+procedure FreeMem(var Addr:Pointer; Size: Integer = 0); inline;
 function Now: TDateTime; inline;
 procedure StopDebugger; inline;
 function sprintf(S: myPChar; const Format: PAnsiChar): Integer; cdecl; varargs; external 'msvcrt.dll';
@@ -1023,6 +1025,16 @@ end;
 function StrAlloc(Size: Cardinal): myPChar; inline;
 begin
   Result := AnsiStrAlloc(Size);
+end;
+
+procedure GetMem(var Addr:Pointer; Size: Integer); inline;
+begin
+  System.GetMem(Addr, Size);
+end;
+
+procedure FreeMem(var Addr:Pointer; Size: Integer = 0); inline;
+begin
+  System.FreeMem(Addr, Size);
 end;
 
 function Now: TDateTime; inline;

@@ -17,7 +17,7 @@ uses
   WinWrappers, Legacy; {$WARN SYMBOL_PLATFORM OFF}
 
 const
-  (* IMPORT *)
+  (* Import *)
   MODE_OFF        = CFiles.MODE_OFF;
   MODE_READ       = CFiles.MODE_READ;
   MODE_WRITE      = CFiles.MODE_WRITE;
@@ -700,7 +700,7 @@ function DeleteDir (const DirPath: myAStr): boolean;
 begin
   ClearDir(DirPath);
   result := Legacy.RemoveDir(DirPath);
-end; // .function DeleteDir
+end;
 
 function GetFileSize (const FilePath: myAStr; out Res: integer): boolean;
 var

@@ -21,8 +21,8 @@ type
     function  CompareToPivot (Ind: integer): integer; virtual; abstract;
   end;
 
-  function Max3 (A, B, C: integer): integer; inline;
-  function Min3 (A, B, C: integer): integer; inline;
+function Max3 (A, B, C: integer): integer; inline;
+function Min3 (A, B, C: integer): integer; inline;
 
 (* Rounds integer to given boundary. If ceil is true, rounding is performed to higher value, otherwise to lower one.
    Example: f(21, 4, true) = 24 *)
@@ -148,7 +148,7 @@ asm
   ret
 @ret0:
   xor eax, eax
-end; // .function IntLog2
+end;
 
 function CountDigits (Num: integer): integer;
 var

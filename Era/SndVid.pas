@@ -12,8 +12,9 @@ uses
 
   ApiJack,
   AssocArrays,
-  Core,
   Crypto,
+  DataLib,
+  DlgMes,
   Files,
   StrLib,
   UtilsB2,
@@ -31,13 +32,16 @@ const
 
 
 type
+  (* Import *)
+  TAssocArray = DataLib.TAssocArray;
+
   TArcType  = (ARC_SND, ARC_VID);
 
   PArcItem  = ^TArcItem;
   TArcItem  = packed record
     Name:   array[0..39] of myChar; // for ARC_SND name is separated from extension with #0
     Offset: integer;
-  end; // .record TArcItem
+  end;
 
   PVidArcItem = PArcItem;
   TVidArcItem = TArcItem;
@@ -46,21 +50,21 @@ type
   TSndArcItem = packed record
     Item: TArcItem;
     Size: integer;
-  end; // .record TSndArcItem
+  end;
 
   PItemInfo = ^TItemInfo;
   TItemInfo = record
     hFile:  integer;
     Offset: integer;
     Size:   integer;
-  end; // .record TItemInfo
+  end;
 
   PResourceBuf  = ^TResourceBuf;
   TResourceBuf  = packed record
     IsLoaded: boolean;
     _0:       array [0..2] of byte;
     Addr:     pointer;
-  end; // .record TResourceBuf
+  end;
 
 
 var
@@ -82,8 +86,8 @@ uses Lodman;
 
 
 var
-{O} SndFiles: {O} AssocArrays.TAssocArray {OF PItemInfo};
-{O} VidFiles: {O} AssocArrays.TAssocArray {OF PItemInfo};
+{O} SndFiles: {O} TAssocArray {of PItemInfo};
+{O} VidFiles: {O} TAssocArray {of PItemInfo};
 
 
 function HasSoundReal (const FileName: myAStr): boolean;
@@ -98,7 +102,7 @@ end;
 
 procedure FindGameCD;
 const
-  MAX_NUM_DRIVES  = 26;
+  MAX_NUM_DRIVES = 26;
 
 var
   Drives:     integer;
@@ -106,10 +110,10 @@ var
   i:          integer;
 
 begin
-  OldErrMode  :=  Windows.SetErrorMode(Windows.SEM_FAILCRITICALERRORS);
-  Drives      :=  Windows.GetLogicalDrives;
-  GameCDPath  :=  'A:\';
-  GameCDFound :=  false;
+  OldErrMode  := Windows.SetErrorMode(Windows.SEM_FAILCRITICALERRORS);
+  Drives      := Windows.GetLogicalDrives;
+  GameCDPath  := 'A:\';
+  GameCDFound := false;
   {!} Assert(Drives <> 0);
 
   i :=  0;
@@ -147,9 +151,9 @@ var
     i:        integer;
 
 begin
-  ItemInfo  :=  nil;
-  ArcFiles  :=  nil;
-  CurrItem  :=  nil;
+  ItemInfo := nil;
+  ArcFiles := nil;
+  CurrItem := nil;
   // * * * * * //
   if
     WinWrappers.FileOpen(ArcPath, Legacy.fmOpenRead or Legacy.fmShareDenyWrite, hFile)
@@ -158,15 +162,16 @@ begin
       ARC_VID: begin
         ItemSize := sizeof(TVidArcItem);
         ArcFiles := VidFiles;
-      end; // .case ARC_VID
+      end;
+
       ARC_SND: begin
         ItemSize := sizeof(TSndArcItem);
         ArcFiles := SndFiles;
-      end; // .case ARC_SND
+      end;
     else
       ItemSize := 0;
       {!} Assert(false);
-    end; // .case ArcType
+    end;
 
     if (WinWrappers.FileRead(hFile, NumItems, sizeof(NumItems))) and (NumItems > 0) then begin
       BufSize := NumItems * ItemSize;
@@ -198,12 +203,9 @@ end; // .procedure LoadArc
 function IsOrigArc (const FileName: myAStr; ArcType: TArcType): boolean;
 begin
   if ArcType = ARC_SND then begin
-    result  :=  (FileName = 'h3ab_ahd.snd') or (FileName = 'heroes3.snd');
+    result := (FileName = 'h3ab_ahd.snd') or (FileName = 'heroes3.snd');
   end else begin
-    result  :=
-      (FileName = 'h3ab_ahd.vid') or
-      (FileName = 'video.vid')    or
-      (FileName = 'heroes3.vid');
+    result := (FileName = 'h3ab_ahd.vid') or (FileName = 'video.vid') or (FileName = 'heroes3.vid');
   end;
 end;
 
@@ -215,19 +217,19 @@ var
     FileName: myAStr;
 
 begin
-  Locator   :=  Files.TFileLocator.Create;
-  FileInfo  :=  nil;
+  Locator  := Files.TFileLocator.Create;
+  FileInfo := nil;
   // * * * * * //
   if ArcType = ARC_VID then begin
-    ArcExt  :=  '.vid';
+    ArcExt := '.vid';
   end else if ArcType = ARC_SND then begin
-    ArcExt  :=  '.snd';
+    ArcExt := '.snd';
   end else begin
-    ArcExt  :=  '';
+    ArcExt := '';
     {!} Assert(false);
   end;
 
-  Locator.DirPath :=  'Data';
+  Locator.DirPath := 'Data';
   Locator.InitSearch('*' + ArcExt);
 
   while Locator.NotEnd do begin
@@ -252,10 +254,7 @@ begin
   Legacy.FreeAndNil(Locator);
 end; // .function Hook_LoadArcs
 
-function Hook_LoadVideoHeaders (Context: ApiJack.PHookContext): LONGBOOL; stdcall;
-const
-  NUM_ARGS  = 0;
-
+function Splice_LoadVideoHeaders (OrigFunc: pointer): boolean; stdcall;
 begin
   (* Load New resources *)
   LoadArcs(ARC_VID);
@@ -271,110 +270,59 @@ begin
   LoadArc('Data\video.vid', ARC_VID);
   LoadArc('Data\h3ab_ahd.vid', ARC_VID);
 
-  Context.EAX     := byte(true);
-  Context.RetAddr := Core.Ret(NUM_ARGS);
-  result          := not Core.EXEC_DEF_CODE;
-end; // .function Hook_LoadVideoHeaders
+  result := true;
+end;
 
-function Hook_OpenSmack (Context: ApiJack.PHookContext): LONGBOOL; stdcall;
+function Splice_OpenSmack (OrigFunc: pointer; SmackFileName: myPChar; BufSize, BufSizeMask: integer): {n} pointer; stdcall;
 const
-  NUM_ARGS         = 1;
-  ARG_BUFSIZE_MASK = 1;
-
   SET_POSITION = 0;
 
 var
 {U} ItemInfo: PItemInfo;
-
-    FileName:    myAStr;
-    BufSize:     integer;
-    BufSizeMask: integer;
-
-    hFile: integer;
-    Res:   integer;
+    FileName: myAStr;
 
 begin
-  ItemInfo  :=  nil;
+  ItemInfo := nil;
   // * * * * * //
-  FileName    := myPChar(Context.ECX);
-  FileName    := FileName + '.smk';
-  BufSize     := Context.EDX;
-  BufSizeMask := Context.CdeclArgs[ARG_BUFSIZE_MASK].int;
-  BufSize     := BufSize or BufSizeMask or $1140;
+  FileName := SmackFileName + myAStr('.smk');
+  BufSize  := BufSize or BufSizeMask or $1140;
 
   Lodman.FindRedirection(FileName, FileName);
   ItemInfo := VidFiles[FileName];
 
   if ItemInfo <> nil then begin
-    hFile := ItemInfo.hFile;
-    Legacy.FileSeek(hFile, ItemInfo.Offset, SET_POSITION);
-
-    asm
-      PUSH -1
-      PUSH BufSize
-      PUSH hFile
-      MOV EAX, [Heroes.SMACK_OPEN]
-      CALL EAX
-      MOV Res, EAX
-    end; // .asm
-    Context.EAX := Res;
+    Legacy.FileSeek(ItemInfo.hFile, ItemInfo.Offset, SET_POSITION);
+    result := Heroes.Video.OpenSmack^(ItemInfo.hFile, BufSize, -1);
   end else begin
-    Context.EAX := 0;
-  end; // .else
-
-  Context.RetAddr := Core.Ret(NUM_ARGS);
-  result          := not Core.EXEC_DEF_CODE;
-end; // .function Hook_OpenSmack
-
-function Hook_OpenBik (Context: ApiJack.PHookContext): LONGBOOL; stdcall;
-const
-  NUM_ARGS = 0;
-
-  SET_POSITION = 0;
-
-var
-{U} ItemInfo: PItemInfo;
-
-    FileName:    myAStr;
-    BufSizeMask: integer;
-
-    hFile: integer;
-    Res:   integer;
-
-begin
-  ItemInfo  :=  nil;
-  // * * * * * //
-  FileName    := myPChar(Context.ECX);
-  FileName    := FileName + '.bik';
-  BufSizeMask := Context.EDX or $8000000;
-
-  Lodman.FindRedirection(FileName, FileName);
-  ItemInfo := VidFiles[FileName];
-
-  if ItemInfo <> nil then begin
-    hFile := ItemInfo.hFile;
-    Legacy.FileSeek(hFile, ItemInfo.Offset, SET_POSITION);
-
-    asm
-      PUSH BufSizeMask
-      PUSH hFile
-      MOV EAX, [Heroes.BINK_OPEN]
-      CALL EAX
-      MOV Res, EAX
-    end; // .asm
-    Context.EAX := Res;
-  end else begin
-    Context.EAX := 0;
+    result := nil;
   end;
+end;
 
-  Context.RetAddr := Core.Ret(NUM_ARGS);
-  result          := not Core.EXEC_DEF_CODE;
-end; // .function Hook_OpenBik
-
-function Hook_LoadSndHeaders (Context: ApiJack.PHookContext): LONGBOOL; stdcall;
+function Splice_OpenBik (OrigFunc: pointer; BinkFileName: myPChar; BufSizeMask: integer): {n} pointer; stdcall;
 const
-  NUM_ARGS  = 0;
+  SET_POSITION = 0;
 
+var
+{U} ItemInfo: PItemInfo;
+    FileName: myAStr;
+
+begin
+  ItemInfo  :=  nil;
+  // * * * * * //
+  FileName := BinkFileName + myAStr('.bik');
+
+  Lodman.FindRedirection(FileName, FileName);
+  ItemInfo := VidFiles[FileName];
+
+  if ItemInfo <> nil then begin
+    Legacy.FileSeek(ItemInfo.hFile, ItemInfo.Offset, SET_POSITION);
+    result := Heroes.Video.OpenBink^(ItemInfo.hFile, BufSizeMask or $8000000);
+  end else begin
+    result := nil;
+  end;
+end;
+
+function Splice_LoadSndHeaders (OrigFunc: pointer): boolean; stdcall;
 begin
   (* Load New resources *)
   LoadArcs(ARC_SND);
@@ -390,28 +338,21 @@ begin
   LoadArc('Data\heroes3.snd', ARC_SND);
   LoadArc('Data\h3ab_ahd.snd', ARC_SND);
 
-  Context.EAX     := byte(true);
-  Context.RetAddr := Core.Ret(NUM_ARGS);
-  result          := not Core.EXEC_DEF_CODE;
-end; // .function Hook_LoadSndHeaders
+  result := true;
+end;
 
-function Hook_LoadSnd (Context: ApiJack.PHookContext): LONGBOOL; stdcall;
+function Splice_LoadWav (OrigFunc: pointer; WavFileName: myPChar; ResourceBuf: PResourceBuf; out FileSize: integer): boolean; stdcall;
 const
-  NUM_ARGS         = 1;
-  ARG_FILESIZE_PTR = 1;
-
   SET_POSITION  = 0;
 
 var
 {U} ItemInfo:     PItemInfo;
     BaseFileName: myAStr;
-    ResourceBuf:  PResourceBuf;
-    FileSizePtr:  PINTEGER;
 
 begin
   ItemInfo := nil;
   // * * * * * //
-  BaseFileName := StrLib.ExtractBaseFileName(myPChar(Context.ECX));
+  BaseFileName := StrLib.ExtractBaseFileName(WavFileName);
 
   if Lodman.FindRedirection(BaseFileName + '.wav', BaseFileName) then begin
     BaseFileName := Legacy.ChangeFileExt(BaseFileName, '');
@@ -420,27 +361,26 @@ begin
   ItemInfo := SndFiles[BaseFileName];
 
   if (ItemInfo <> nil) and (ItemInfo.Size > 0) then begin
-    ResourceBuf := pointer(Context.EDX);
-    FileSizePtr := Context.CdeclArgs[ARG_FILESIZE_PTR].ptr;
-
     if ResourceBuf.IsLoaded then begin
       Heroes.MFree(ResourceBuf.Addr);
     end;
 
     ResourceBuf.Addr := Heroes.MAlloc(ItemInfo.Size);
-    FileSizePtr^     := ItemInfo.Size;
+    FileSize         := ItemInfo.Size;
 
     Legacy.FileSeek(ItemInfo.hFile, ItemInfo.Offset, SET_POSITION);
     Legacy.FileRead(ItemInfo.hFile, ResourceBuf.Addr^, ItemInfo.Size);
 
-    Context.EAX := byte(true);
+    result := true;
   end else begin
-    Context.EAX := byte(false);
-  end; // .else
+    result := false;
+  end;
+end;
 
-  Context.RetAddr := Core.Ret(NUM_ARGS);
-  result          := not Core.EXEC_DEF_CODE;
-end; // .function Hook_LoadSnd
+procedure Splice_SavePointersToSndHandles (OrigFunc: pointer); stdcall;
+begin
+  // Dummy
+end;
 
 procedure OnLoadEraSettings (Event: PEvent); stdcall;
 begin
@@ -450,18 +390,18 @@ end;
 procedure OnAfterWoG (Event: PEvent); stdcall;
 begin
   (* Setup snd/vid hooks *)
-  ApiJack.HookCode(Ptr($598510), @Hook_LoadVideoHeaders);
-  ApiJack.HookCode(Ptr($598A90), @Hook_OpenSmack);
-  ApiJack.HookCode(Ptr($44D270), @Hook_OpenBik);
-  ApiJack.HookCode(Ptr($5987A0), @Hook_LoadSndHeaders);
-  ApiJack.HookCode(Ptr($55C340), @Hook_LoadSnd);
+  ApiJack.StdSplice(Ptr($598510), @Splice_LoadVideoHeaders, CONV_CDECL, 0);
+  ApiJack.StdSplice(Ptr($598A90), @Splice_OpenSmack, CONV_FASTCALL, 3);
+  ApiJack.StdSplice(Ptr($44D270), @Splice_OpenBik, CONV_FASTCALL, 2);
+  ApiJack.StdSplice(Ptr($5987A0), @Splice_LoadSndHeaders, CONV_CDECL, 0);
+  ApiJack.StdSplice(Ptr($55C340), @Splice_LoadWav, CONV_FASTCALL, 3);
 
   (* Disable CloseSndHandles function *)
-  PBYTE($4F3DFD)^    := $90;
-  PINTEGER($4F3DFE)^ := integer($90909090);
+  pbyte($4F3DFD)^    := $90;
+  pinteger($4F3DFE)^ := integer($90909090);
 
   (* Disable SavePointersToSndHandles function *)
-  Core.Hook(Ptr($5594F0), Core.HOOKTYPE_JUMP, Core.Ret(0));
+  ApiJack.StdSplice(Ptr($5594F0), @Splice_SavePointersToSndHandles, CONV_STDCALL, 0);
 
   (* Find game CD *)
   if LoadCDOpt then begin
@@ -469,30 +409,13 @@ begin
   end;
 
   (* Disable default CD scanning *)
-  PINTEGER($50C409)^ := $0000B4E9;
-  PWORD($50C40D)^    := $9000;
+  pinteger($50C409)^ := $0000B4E9;
+  pword($50C40D)^    := $9000;
 end; // .procedure OnAfterWoG
 
 begin
-  SndFiles := AssocArrays.NewAssocArr
-  (
-    Crypto.AnsiCRC32,
-    Legacy.AnsiLowerCase,
-    UtilsB2.OWNS_ITEMS,
-    not UtilsB2.ITEMS_ARE_OBJECTS,
-    UtilsB2.NO_TYPEGUARD,
-    UtilsB2.ALLOW_NIL
-  );
-
-  VidFiles := AssocArrays.NewAssocArr
-  (
-    Crypto.AnsiCRC32,
-    Legacy.AnsiLowerCase,
-    UtilsB2.OWNS_ITEMS,
-    not UtilsB2.ITEMS_ARE_OBJECTS,
-    UtilsB2.NO_TYPEGUARD,
-    UtilsB2.ALLOW_NIL
-  );
+  SndFiles := DataLib.NewAssocArray(UtilsB2.OWNS_ITEMS, DataLib.CASE_INSENSITIVE);
+  VidFiles := DataLib.NewAssocArray(UtilsB2.OWNS_ITEMS, DataLib.CASE_INSENSITIVE);
 
   EventMan.GetInstance.On('$OnLoadEraSettings', OnLoadEraSettings);
   EventMan.GetInstance.On('OnAfterWoG', OnAfterWoG);

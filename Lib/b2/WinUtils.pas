@@ -50,8 +50,8 @@ type
 function IsValidHandle (Handle: THandle): boolean; inline;
 function GetCursorLocalPos (Wnd: Windows.HWND): Windows.TPoint;
 function TakeScreenshot (hWnd: THandle; HideCursor: boolean; out Res: TRawImage): boolean;
-function GetExePath: myWStr;
 function CaptureClientAreaScreenshot (Wnd: HWND; out Res: TRawImage): boolean;
+function GetExePath: myWStr;
 function GetCurrentDirW: myWStr;
 function SetCurrentDirW (const DirPath: myWStr): boolean;
 function GetLongPathNameW (lpszShortPath, lpszLongPath: myPWChar; cchBuffer: integer): integer; stdcall; external kernel32;
@@ -106,7 +106,7 @@ end; // .constructor TRawImage.Create
 destructor TRawImage.Destroy;
 begin
   if fOwnsBuf and (fBuf <> nil) then begin
-    FreeMem(fBuf); fBuf := nil;
+    Legacy.FreeMem(pointer(fBuf)); fBuf := nil;
   end;
 end; // .destructor TRawImage.Destroy
 
@@ -231,7 +231,7 @@ begin
       VisibleRectWidth  := VisibleRect.Right  - VisibleRect.Left + 1;
       VisibleRectHeight := VisibleRect.Bottom - VisibleRect.Top  + 1;
       InitBgraBitmapInfo(BitmapInfo, VisibleRectWidth, VisibleRectHeight);
-      GetMem(Buf, BitmapInfo.bmiHeader.biSizeImage);
+      Legacy.GetMem(pointer(Buf), BitmapInfo.bmiHeader.biSizeImage);
       Res := TRawImage.Create(Buf, OWNS_BUF, VisibleRectWidth, VisibleRectHeight);
 
       ImageDeviceContext := CreateCompatibleDC(WindowDeviceContext);
@@ -294,7 +294,7 @@ begin
     SelectObject(TempDeviceContext, OldGraphic);
 
     InitBgraBitmapInfo(BitmapInfo, Width, Height);
-    GetMem(Buf, BitmapInfo.bmiHeader.biSizeImage);
+    Legacy.GetMem(pointer(Buf), BitmapInfo.bmiHeader.biSizeImage);
     Res := TRawImage.Create(Buf, OWNS_BUF, Width, Height);
 
     GetDIBits(TempDeviceContext, ScreenshotBitmap, 0, Height, Buf, BitmapInfo, DIB_RGB_COLORS);

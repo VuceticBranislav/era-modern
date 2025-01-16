@@ -7,17 +7,21 @@ unit Triggers;
 (***)  interface  (***)
 
 uses
+  Imm,
   Math,
+  Messages,
   SysUtils,
   Windows,
 
   Alg,
   ApiJack,
-  Core,
   DataLib,
+  Debug,
   DlgMes,
+  Log,
   PatchApi,
   UtilsB2,
+  WindowMessages,
 
   EraSettings,
   Erm,
@@ -99,6 +103,10 @@ var
   (* Controlling OnGameEnter and OnGameLeave events *)
   MainGameLoopDepth: integer = 0;
 
+  LogWindowMessagesOpt: boolean;
+  IsImeCompositionMode: boolean = false;
+  IsImeWindowOpened:    boolean = true; // By default IME window is opened, but invisible
+
 
 constructor TRegenerationAbility.Create (Chance: integer; HitPoints: integer; HpPercents: integer);
 begin
@@ -119,23 +127,131 @@ begin
   Erm.ArgXVars[MIN_DAMAGE_PARAM]       := -1;
   Erm.ArgXVars[MAX_DAMAGE_PARAM]       := -1;
 
-  result := Core.EXEC_DEF_CODE;
+  result := true;
 end;
 
 function Hook_BattleHint_GetDefender (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   Erm.ArgXVars[DEFENDER_STACK_N_PARAM] := Context.EAX;
-  result                               := Core.EXEC_DEF_CODE;
+  result                               := true;
 end;
 
 function Hook_BattleHint_CalcMinMaxDamage (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   Erm.ArgXVars[MIN_DAMAGE_PARAM] := Context.EDI;
   Erm.ArgXVars[MAX_DAMAGE_PARAM] := Context.EAX;
-  result                         := Core.EXEC_DEF_CODE;
+  result                         := true;
 end;
 
-function MainWndProc (hWnd, Msg, wParam, lParam: integer): LONGBOOL; stdcall;
+procedure LogWindowMessage (Msg, wParam, lParam: integer);
+begin
+  if
+    LogWindowMessagesOpt     and (Msg <> WM_MOUSEMOVE)  and (Msg <> WM_TIMER)        and (Msg <> WM_SETCURSOR)  and (Msg <> WM_NCHITTEST) and (Msg <> WM_NCMOUSEMOVE) and
+    (Msg <> WM_NCMOUSEHOVER) and (Msg <> WM_MOUSEHOVER) and (Msg <> WM_NCMOUSELEAVE) and (Msg <> WM_MOUSELEAVE) and (Msg <> WM_PAINT)     and (Msg <> WM_GETICON)
+  then begin
+    Log.Write('WndProc', 'HandleMessage', Legacy.Format('%s %d %d', [WindowMessages.MessageIdToStr(Msg), wParam, lParam]));
+  end;
+end;
+
+(* Opened means tracking event and ready to be drawn. Opened window may be hidden/invisible *)
+function SetImeWindowOpen (hWnd: integer; Opened: boolean): boolean;
+var
+  ImeContext: Imm.HIMC;
+
+begin
+  ImeContext        := Imm.ImmGetContext(hWnd);
+  result            := ImmGetOpenStatus(ImeContext);
+  IsImeWindowOpened := Opened;
+  ImmSetOpenStatus(ImeContext, Opened);
+  ImmReleaseContext(hWnd, ImeContext);
+end;
+
+procedure SetImeWindowPos (hWnd, x, y: integer);
+var
+  ImeContext:      Imm.HIMC;
+  CompositionForm: Imm.TCompositionForm;
+
+begin
+  ImeContext                     := Imm.ImmGetContext(hWnd);
+  CompositionForm.dwStyle        := CFS_FORCE_POSITION;
+  CompositionForm.ptCurrentPos.x := x;
+  CompositionForm.ptCurrentPos.y := y;
+  ImmSetCompositionWindow(ImeContext, @CompositionForm);
+  ImmReleaseContext(hWnd, ImeContext);
+end;
+
+(*
+  We Assume, that when IME status window is closed, IME does not change wParam of WM_KEYDOWN to VK_PROCESSKEY and does not send other IME events.
+*)
+function HandleImeInput (hWnd, Msg, wParam, lParam: integer; var Res: integer): boolean;
+const
+  COMPOSITION_WND_WIDTH = 350;
+  COMPOSITION_WND_TOP   = 150;
+
+var
+  HasTextFocus: boolean;
+
+begin
+  result := false;
+
+  if Heroes.InputManagerPtr^ <> nil then begin
+    HasTextFocus := (Heroes.WndManagerPtr^.CurrentDlg <> nil) and (Heroes.WndManagerPtr^.CurrentDlg.FocusedItemId <> Heroes.NO_DLG_ITEM);
+
+    if Msg = WM_IME_STARTCOMPOSITION then begin
+      result               := true;
+      IsImeCompositionMode := HasTextFocus;
+
+      if not IsImeCompositionMode then begin
+        SetImeWindowOpen(hWnd, false);
+      end;
+    end else if (Msg = WM_KEYDOWN) and (wParam = VK_PROCESSKEY) then begin
+      // PRECONDITIONS:
+      // - Composition window IS OPENED (tracks input)
+      // - Composition window MAY BE VISIBLE (autohiding feature after each composed sentence is used by IME editors)
+      //
+      // NOTE: Active IME replaces regular composable WM_KEYDOWN wParam with VK_PROCESSKEY
+      //       when composable input takes place. This event fires just before WM_IME_STARTCOMPOSITION event.
+      //       Service keys like ESCAPE are not replaced with VK_PROCESSKEY and thus not handled here.
+      if HasTextFocus then begin
+        result := true;
+        SetImeWindowPos(hWnd, (Heroes.ScreenWidth^ - COMPOSITION_WND_WIDTH) div 2, COMPOSITION_WND_TOP);
+      end else begin
+        result := SetImeWindowOpen(hWnd, false) and IsImeCompositionMode;
+      end;
+
+      IsImeCompositionMode := HasTextFocus;
+    end else if Msg = WM_IME_CHAR then begin
+      result := true;
+
+      if wParam <= high(byte) then begin
+        Heroes.InputManagerPtr^.Queue.AddTranslatedKeyInputMsg(wParam);
+      end else begin
+        Heroes.InputManagerPtr^.Queue.AddTranslatedKeyInputMsg((wParam shr 8) and $FF);
+        Heroes.InputManagerPtr^.Queue.AddTranslatedKeyInputMsg(wParam and $FF);
+      end;
+    end else if ((Msg = WM_KEYDOWN) or (Msg = WM_KEYUP)) and IsImeCompositionMode then begin
+      // We ignore all input during composition until composition window is closed
+      result := true;
+    end else if Msg = WM_IME_ENDCOMPOSITION then begin
+      result               := true;
+      IsImeCompositionMode := false;
+    end else if
+      HasTextFocus and
+      (
+        not IsImeWindowOpened                         or
+        Alg.InRange(Msg, WM_MOUSEFIRST, WM_MOUSELAST) or
+        Alg.InRange(Msg, WM_KEYFIRST, WM_KEYLAST)
+      )
+    then begin
+      SetImeWindowOpen(hWnd, true);
+    end;
+  end; // .if
+end; // .function HandleImeInput
+
+function MainWndProc (hWnd, Msg, wParam, lParam: integer): integer; stdcall;
+type
+  TParseKeyUpDownFunc = function (_1, Msg, hWnd: integer; lParam, wParam: integer): integer register;
+
 const
   WM_KEYDOWN          = $100;
   WM_KEYUP            = $101;
@@ -143,6 +259,7 @@ const
   WM_SYSKEYUP         = $105;
   WM_SYSCOMMAND       = $112;
   SC_KEYMENU          = $F100;
+  MAPVK_VSC_TO_VK_EX  = 3;
   KEY_F11             = 122;
   KEY_F12             = 123;
   ENABLE_DEF_REACTION = 0;
@@ -153,14 +270,25 @@ var
   SavedZ:    Erm.TErmZVar;
 
 begin
-  result := false;
+  result := 0;
+
+  LogWindowMessage(Msg, wParam, lParam);
 
   // Disable ALT + KEY menu shortcuts to allow scripts to use ALT for their own needs.
   if (Msg = WM_SYSCOMMAND) and (wParam = SC_KEYMENU) then begin
     exit;
   end;
 
+  if HandleImeInput(hWnd, Msg, wParam, lParam, result) then begin
+    exit;
+  end;
+
   if (Msg = WM_KEYDOWN) or (Msg = WM_SYSKEYDOWN) then begin
+    // IME input changed real key code to VK_PROCESSKEY, we need to restore it from scancode
+    if wParam = VK_PROCESSKEY then begin
+      wParam := Windows.MapVirtualKeyA((lParam shr 16) and $FF, MAPVK_VSC_TO_VK_EX);
+    end;
+
     RootDlgId := Heroes.WndManagerPtr^.GetRootDlgId;
 
     if wParam = KEY_F11 then begin
@@ -188,10 +316,10 @@ begin
         Erm.RetXVars[2] := ENABLE_DEF_REACTION;
       end;
 
-      result := Erm.RetXVars[2] = ENABLE_DEF_REACTION;
+      result := ord(Erm.RetXVars[2] = ENABLE_DEF_REACTION);
 
-      if result then begin
-        PrevWndProc(hWnd, Msg, wParam, lParam);
+      if result <> 0 then begin
+        result := PrevWndProc(hWnd, Msg, wParam, lParam);
       end;
     end; // .else
   end else if (Msg = WM_KEYUP) or (Msg = WM_SYSKEYUP) then begin
@@ -213,15 +341,24 @@ begin
       Erm.RetXVars[2] := ENABLE_DEF_REACTION;
     end;
 
-    result := Erm.RetXVars[2] = ENABLE_DEF_REACTION;
+    result := ord(Erm.RetXVars[2] = ENABLE_DEF_REACTION);
 
-    if result then begin
-      PrevWndProc(hWnd, Msg, wParam, lParam);
+    if result <> 0 then begin
+      result := PrevWndProc(hWnd, Msg, wParam, lParam);
     end;
   end else begin
     result := PrevWndProc(hWnd, Msg, wParam, lParam);
   end; // .else
 end; // .function MainWndProc
+
+function Splice_InputManager_TranslateKey (OrigFunc: pointer; Self: pointer; InputMessage: Heroes.PInputMessage): Heroes.PInputMessage; stdcall;
+begin
+  result := InputMessage;
+
+  if (InputMessage.MsgType <> Heroes.INPUT_MES_KEYDOWN) or (InputMessage.Key.IsTranslated = 0) then begin
+    result := Heroes.PInputMessage(PatchApi.Call(THISCALL_, OrigFunc, [Self, InputMessage]));
+  end;
+end;
 
 function Hook_AfterCreateWindow (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
@@ -234,15 +371,15 @@ end;
 
 function Hook_StartCalcDamage (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
-  AttackerId := Heroes.GetStackIdByPos(PINTEGER(Context.EBX + STACK_POS_OFS)^);
-  DefenderId := Heroes.GetStackIdByPos(PINTEGER(Context.ESI + STACK_POS_OFS)^);
+  AttackerId := Heroes.GetStackIdByPos(pinteger(Context.EBX + STACK_POS_OFS)^);
+  DefenderId := Heroes.GetStackIdByPos(pinteger(Context.ESI + STACK_POS_OFS)^);
 
-  BasicDamage         := PINTEGER(Context.EBP + 12)^;
-  IsDistantAttack     := PINTEGER(Context.EBP + 16)^;
-  IsTheoreticalAttack := PINTEGER(Context.EBP + 20)^;
-  Distance            := PINTEGER(Context.EBP + 24)^;
+  BasicDamage         := pinteger(Context.EBP + 12)^;
+  IsDistantAttack     := pinteger(Context.EBP + 16)^;
+  IsTheoreticalAttack := pinteger(Context.EBP + 20)^;
+  Distance            := pinteger(Context.EBP + 24)^;
 
-  result := Core.EXEC_DEF_CODE;
+  result := true;
 end; // .function Hook_StartCalcDamage
 
 function Hook_CalcDamage_GetDamageBonus (Context: ApiJack.PHookContext): longbool; stdcall;
@@ -277,7 +414,7 @@ begin
   Erm.FireErmEvent(Erm.TRIGGER_ONSTACKTOSTACKDAMAGE);
 
   Context.EAX := Erm.RetXVars[FINAL_DAMAGE];
-  result      := Core.EXEC_DEF_CODE;
+  result      := true;
 end; // .function Hook_EndCalcDamage
 
 function Hook_AI_CalcStackAttackEffect_Start (Context: ApiJack.PHookContext): longbool; stdcall;
@@ -306,29 +443,25 @@ begin
   result      := true;
 end; // .function Hook_AI_CalcStackAttackEffect_End
 
-function Hook_EnterChat (Context: ApiJack.PHookContext): longbool; stdcall;
+type
+  TEnterChatFunc = function (Dummy1, Dummy2: integer; Self: pointer): integer register;
+
+function Splice_EnterChat (OrigFunc: TEnterChatFunc; Self: pointer): integer; stdcall;
 const
-  NUM_ARGS = 0;
-
-  (* Event parameters *)
-  EVENT_SUBTYPE = 1;
-  BLOCK_CHAT    = 2;
-
-  ON_ENTER_CHAT = 0;
+  EVENT_SUBTYPE_ON_ENTER_CHAT = 0;
+  BLOCK_CHAT_ARG_IND          = 2;
 
 begin
-  Erm.ArgXVars[EVENT_SUBTYPE] := ON_ENTER_CHAT;
-  Erm.ArgXVars[BLOCK_CHAT]    := 0;
+  result := 0;
 
-  Erm.FireErmEvent(Erm.TRIGGER_ONCHAT);
-  result := not longbool(Erm.RetXVars[BLOCK_CHAT]);
+  Erm.FireErmEventEx(Erm.TRIGGER_ONCHAT, [EVENT_SUBTYPE_ON_ENTER_CHAT, ord(false)]);
 
-  if not result then begin
-    Context.RetAddr := Core.Ret(NUM_ARGS);
+  if Erm.RetXVars[BLOCK_CHAT_ARG_IND] = 0 then begin
+    result := OrigFunc(0, 0, Self);
   end;
-end; // .function Hook_EnterChat
+end;
 
-procedure ClearChatBox; ASSEMBLER;
+procedure ClearChatBox; assembler;
 asm
   PUSH ESI
   MOV ESI, ECX
@@ -1094,6 +1227,11 @@ begin
   Erm.SetErmCurrHero(PrevHero);
 end;
 
+procedure OnLoadEraSettings (Event: GameExt.PEvent); stdcall;
+begin
+  LogWindowMessagesOpt := EraSettings.GetDebugBoolOpt('Debug.LogWindowMessages', false);
+end;
+
 procedure OnGameLeave (Event: GameExt.PEvent); stdcall;
 begin
   GameExt.SetMapDir('');
@@ -1101,33 +1239,38 @@ end;
 
 procedure OnAbnormalGameLeave (Event: GameExt.PEvent); stdcall;
 begin
-  Core.FatalError('Not supported. Use ERA API for fast quit to game menu');
+  Debug.FatalError('Not supported. Use ERA API for fast quit to game menu');
+end;
+
+procedure OnAfterCreateWindow (Event: GameExt.PEvent); stdcall;
+begin
+  ApiJack.StdSplice(Ptr($4EC7C0), @Splice_InputManager_TranslateKey, CONV_THISCALL, 2);
 end;
 
 procedure OnAfterWoG (Event: GameExt.PEvent); stdcall;
 begin
   (* extended MM Trigger *)
-  ApiJack.HookCode(Ptr($492409), @Hook_BattleHint_GetAttacker);
-  ApiJack.HookCode(Ptr($492442), @Hook_BattleHint_GetDefender);
-  ApiJack.HookCode(Ptr($493053), @Hook_BattleHint_CalcMinMaxDamage);
+  ApiJack.Hook(Ptr($492409), @Hook_BattleHint_GetAttacker, nil, 7);
+  ApiJack.Hook(Ptr($492442), @Hook_BattleHint_GetDefender, nil, 7);
+  ApiJack.Hook(Ptr($493053), @Hook_BattleHint_CalcMinMaxDamage);
 
   (* Key handling trigger *)
-  ApiJack.HookCode(Ptr($4F8226), @Hook_AfterCreateWindow);
+  ApiJack.Hook(Ptr($4F8226), @Hook_AfterCreateWindow, nil, 6);
 
   (* Stack to stack damage calculation *)
-  ApiJack.HookCode(Ptr($443C88), @Hook_StartCalcDamage);
-  ApiJack.HookCode(Ptr($443CA1), @Hook_CalcDamage_GetDamageBonus);
-  ApiJack.HookCode(Ptr($443DA7), @Hook_EndCalcDamage);
+  ApiJack.Hook(Ptr($443C88), @Hook_StartCalcDamage, nil, 6);
+  ApiJack.Hook(Ptr($443CA1), @Hook_CalcDamage_GetDamageBonus);
+  ApiJack.Hook(Ptr($443DA7), @Hook_EndCalcDamage);
 
   (* AI Target attack effect *)
-  ApiJack.HookCode(Ptr($4357E0), @Hook_AI_CalcStackAttackEffect_Start);
-  ApiJack.HookCode(Ptr($4358AA), @Hook_AI_CalcStackAttackEffect_End);
+  ApiJack.Hook(Ptr($4357E0), @Hook_AI_CalcStackAttackEffect_Start, nil, 6);
+  ApiJack.Hook(Ptr($4358AA), @Hook_AI_CalcStackAttackEffect_End);
 
   (* OnChat trigger *)
-  ApiJack.HookCode(Ptr($4022B0), @Hook_EnterChat);
-  ApiJack.HookCode(Ptr($554780), @Hook_ChatInput);
-  ApiJack.HookCode(Ptr($402298), @Hook_LeaveChat);
-  ApiJack.HookCode(Ptr($402240), @Hook_LeaveChat);
+  ApiJack.StdSplice(Ptr($4022B0), @Splice_EnterChat, CONV_THISCALL, 1);
+  ApiJack.Hook(Ptr($554780), @Hook_ChatInput, nil, 6);
+  ApiJack.Hook(Ptr($402298), @Hook_LeaveChat, nil, 6);
+  ApiJack.Hook(Ptr($402240), @Hook_LeaveChat, nil, 6);
 
   (* Main game cycle (AdvMgr, CombatMgr): OnGameEnter, OnGameLeave, OnWinGame, OnLoseGamer and MapFolder settings*)
   ApiJack.StdSplice(Ptr($4B0BA0), @Hook_ExecuteManager, ApiJack.CONV_THISCALL, 1);
@@ -1136,33 +1279,33 @@ begin
   ApiJack.StdSplice(Ptr($4BEFF0), @Hook_LoadSavegame, ApiJack.CONV_THISCALL, 4);
 
   (* Set top level main loop exception handle *)
-  ApiJack.HookCode(Ptr($4F824A), @Hook_MainGameLoop);
+  ApiJack.Hook(Ptr($4F824A), @Hook_MainGameLoop);
 
   (* Kingdom Overview mouse click *)
-  ApiJack.HookCode(Ptr($521E50), @Hook_KingdomOverviewMouseClick);
+  ApiJack.Hook(Ptr($521E50), @Hook_KingdomOverviewMouseClick);
 
   (* OnBeforeHeroInteraction trigger *)
   ApiJack.StdSplice(Ptr($4A2470), @Hook_OnHeroesInteraction, ApiJack.CONV_THISCALL, 5);
 
   (* OnAfterSaveGame trigger *)
-  ApiJack.HookCode(Ptr($4BEDBE), @Hook_SaveGame_After);
+  ApiJack.Hook(Ptr($4BEDBE), @Hook_SaveGame_After);
 
   (* Hero screen Enter/Exit triggers *)
   ApiJack.StdSplice(Ptr($4E1A70), @Hook_ShowHeroScreen, ApiJack.CONV_FASTCALL, 4);
 
   (* Add OnLoadHeroScreen event *)
-  ApiJack.HookCode(Ptr($4E1CC0), @Hook_UpdateHeroScreen);
+  ApiJack.Hook(Ptr($4E1CC0), @Hook_UpdateHeroScreen);
 
   (* OnBattleStackObtainsTurn event *)
-  ApiJack.HookCode(Ptr($464DF1), @Hook_BeforeBattleStackTurn);
+  ApiJack.Hook(Ptr($464DF1), @Hook_BeforeBattleStackTurn);
   ApiJack.StdSplice(Ptr($464F10), @Hook_Battle_StackObtainsTurn, ApiJack.CONV_THISCALL, 3);
 
   (* OnBattleRegeneratePhase event *)
-  ApiJack.HookCode(Ptr($446B50), @Hook_BattleRegeneratePhase);
-  ApiJack.HookCode(Ptr($446BD6), @Hook_BattleDoRegenerate);
+  ApiJack.Hook(Ptr($446B50), @Hook_BattleRegeneratePhase);
+  ApiJack.Hook(Ptr($446BD6), @Hook_BattleDoRegenerate);
 
   (* OnBattleActionEnd event *)
-  ApiJack.HookCode(Ptr($479508), @Hook_BattleActionEnd);
+  ApiJack.Hook(Ptr($479508), @Hook_BattleActionEnd);
 
   (* OnBuildTownBuilding event *)
   ApiJack.StdSplice(Ptr($5BF1E0), @Hook_BuildTownBuilding, ApiJack.CONV_THISCALL, 4);
@@ -1171,33 +1314,33 @@ begin
   ApiJack.StdSplice(Ptr($4B09D0), @Hook_EnterTownScreen, ApiJack.CONV_THISCALL, 2);
 
   (* OnEnterTownScreen event *)
-  ApiJack.HookCode(Ptr($5D4709), @Hook_SwitchTownScreen);
+  ApiJack.Hook(Ptr($5D4709), @Hook_SwitchTownScreen);
 
   (* OnDetermineMonInfoDlgUpgrade *)
-  ApiJack.HookCode(Ptr($4C6B1C), @Hook_InitMonInfoDlg);
+  ApiJack.Hook(Ptr($4C6B1C), @Hook_InitMonInfoDlg);
 
   (* OnCalculateTownIncome + widen result from int16 to int32 *)
-  Core.p.WriteDataPatch(Ptr($4C76AD), [myAStr('909090')]);
-  Core.p.WriteDataPatch(Ptr($45246F), [myAStr('8BD090')]);
-  Core.p.WriteDataPatch(Ptr($51C858), [myAStr('909090')]);
-  Core.p.WriteDataPatch(Ptr($52A20E), [myAStr('8BD090')]);
-  Core.p.WriteDataPatch(Ptr($530AE6), [myAStr('909090')]);
-  Core.p.WriteDataPatch(Ptr($5C6C19), [myAStr('909090')]);
+  PatchApi.p.WriteDataPatch(Ptr($4C76AD), [myAStr('909090')]);
+  PatchApi.p.WriteDataPatch(Ptr($45246F), [myAStr('8BD090')]);
+  PatchApi.p.WriteDataPatch(Ptr($51C858), [myAStr('909090')]);
+  PatchApi.p.WriteDataPatch(Ptr($52A20E), [myAStr('8BD090')]);
+  PatchApi.p.WriteDataPatch(Ptr($530AE6), [myAStr('909090')]);
+  PatchApi.p.WriteDataPatch(Ptr($5C6C19), [myAStr('909090')]);
   ApiJack.StdSplice(Ptr($5BFA00), @Hook_CalculateTownIncome, ApiJack.CONV_THISCALL, 1);
 
   (* OnBeforeLocalEvent, OnAfterLocalEvent *)
-  ApiJack.HookCode(Ptr($74DB1D), @Hook_BeforeHumanLocalEvent);
-  ApiJack.HookCode(Ptr($74DC24), @Hook_AfterHumanLocalEvent);
+  ApiJack.Hook(Ptr($74DB1D), @Hook_BeforeHumanLocalEvent);
+  ApiJack.Hook(Ptr($74DC24), @Hook_AfterHumanLocalEvent);
 
   (* OnTransferHero *)
   // Disable WoG call from CarryOverHero to _CarryOverHero. _CarryOverHero will be called in Hook_MarkTransferedCampaignHero
-  Core.p.WriteDataPatch(Ptr($755E17), [myAStr('9090909090')]);
+  PatchApi.p.WriteDataPatch(Ptr($755E17), [myAStr('9090909090')]);
 
   // Provide handling of all transferred campaign heroes, even inactive ones in transition zones
-  ApiJack.HookCode(Ptr($486069), @Hook_MarkTransferedCampaignHero);
+  ApiJack.Hook(Ptr($486069), @Hook_MarkTransferedCampaignHero);
 
   (* OnAfterHeroGainLevel *)
-  ApiJack.HookCode(Ptr($4DAF06), @Hook_AfterHeroGainLevel);
+  ApiJack.Hook(Ptr($4DAF06), @Hook_AfterHeroGainLevel);
 end; // .procedure OnAfterWoG
 
 procedure InitializeMonsWithRegeneration;
@@ -1213,8 +1356,9 @@ begin
   WogEvo.SetIsElixirOfLifeStackFunc(@ImplIsElixirOfLifeStack);
   InitializeMonsWithRegeneration;
 
+  EventMan.GetInstance.On('$OnLoadEraSettings', OnLoadEraSettings);
+  EventMan.GetInstance.On('OnAbnormalGameLeave', OnAbnormalGameLeave);
+  EventMan.GetInstance.On('OnAfterCreateWindow', OnAfterCreateWindow);
   EventMan.GetInstance.On('OnAfterWoG', OnAfterWoG);
   EventMan.GetInstance.On('OnGameLeave', OnGameLeave);
-  EventMan.GetInstance.On('OnAbnormalGameLeave', OnAbnormalGameLeave);
 end.
-

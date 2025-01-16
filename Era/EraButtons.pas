@@ -1,19 +1,31 @@
 unit EraButtons;
-{
-DESCRIPTION:  Adds custom buttons support using modified Buttons plugin by MoP 
-AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
-}
+(*
+  Description: Adds custom buttons support using modified Buttons plugin by MoP.
+  Author:      Alexander Shostak aka Berserker
+*)
 
 (***)  interface  (***)
+
 uses
-  Windows, SysUtils, Crypto, StrLib, Files, AssocArrays, DlgMes,
-  Core, GameExt, Trans, EventMan, UtilsB2, Legacy;
+  SysUtils,
+  Windows,
+
+  AssocArrays,
+  Crypto,
+  Debug,
+  DlgMes,
+  Files,
+  StrLib,
+
+  EventMan,
+  GameExt,
+  Trans, Legacy;
 
 const
   BUTTONS_PATH : myAStr = 'Data\Buttons';
-  
+
   NUM_BUTTON_COLUMNS  = 10;
-  
+
   (* Columns *)
   COL_TYPE      = 0;
   COL_NAME      = 1;
@@ -25,7 +37,7 @@ const
   COL_LONGHINT  = 7;
   COL_SHORTHINT = 8;
   COL_HOTKEY    = 9;
-  
+
   (* Button screen *)
   TYPENAME_ADVMAP : myAStr = 'advmap';
   TYPENAME_TOWN   : myAStr = 'town';
@@ -33,18 +45,18 @@ const
   TYPENAME_HEROES : myAStr = 'heroes';
   TYPENAME_BATTLE : myAStr = 'battle';
   TYPENAME_DUMMY  : myAStr = 'dummy';  // Button is not shown
-  
+
   TYPE_ADVMAP = '0';
   TYPE_TOWN   = '1';
   TYPE_HERO   = '2';
   TYPE_HEROES = '3';
   TYPE_BATTLE = '4';
   TYPE_DUMMY  = '9';
-  
+
 
 function GetButtonID (const ButtonName: myAStr): integer; stdcall;
-  
-  
+
+
 (***) implementation (***)
 
 
@@ -55,8 +67,8 @@ const
 
 type
   TButtonsTable = array of StrLib.TArrayOfStr;
-  
-  
+
+
 var
 {O} ButtonNames:  AssocArrays.TAssocArray {OF INTEGER};
 
@@ -79,7 +91,7 @@ var
   ButtonName:   myAStr;
   i:            integer;
   y:            integer;
-   
+
 begin
   with Files.Locate(GameExt.GameDir + '\' + BUTTONS_PATH + '\*.btn', Files.ONLY_FILES) do begin
     while FindNext do begin
@@ -90,9 +102,9 @@ begin
 
         for i := 0 to NumLines - 1 do begin
           Line  :=  StrLib.Explode(Legacy.Trim(Lines[i]), ';');
-        
+
           if Length(Line) < NUM_BUTTON_COLUMNS then begin
-              Core.NotifyError(Legacy.Format('Invalid number of columns (%d) on line (%d) in file "%s".'#13#10'Expected %d columns', [Length(Line), i + 1, FoundPath, NUM_BUTTON_COLUMNS]));
+              Debug.NotifyError(Legacy.Format('Invalid number of columns (%d) on line (%d) in file "%s".'#13#10'Expected %d columns', [Length(Line), i + 1, FoundPath, NUM_BUTTON_COLUMNS]));
             end else begin
               Line[COL_TYPE] := Legacy.AnsiLowerCase(Line[COL_TYPE]);
 
@@ -101,7 +113,7 @@ begin
                 Line[y] :=  #0;
               end;
             end;
-          
+
             if Line[COL_TYPE] = TYPENAME_ADVMAP then begin
               Line[COL_TYPE]  :=  TYPE_ADVMAP;
             end else if Line[COL_TYPE] = TYPENAME_TOWN then begin
@@ -115,13 +127,13 @@ begin
             end else if Line[COL_TYPE] = TYPENAME_DUMMY then begin
               Line[COL_TYPE]  :=  TYPE_DUMMY;
             end else begin
-              Core.NotifyError(Legacy.Format('Unknown button type ("%s") on line %d in file "%s"', [Line[COL_TYPE], i + 1, FoundPath]));
+              Debug.NotifyError(Legacy.Format('Unknown button type ("%s") on line %d in file "%s"', [Line[COL_TYPE], i + 1, FoundPath]));
             end; // .else
-          
+
             ButtonName := Line[COL_NAME];
-          
+
             if ButtonNames[ButtonName] <> nil then begin
-                Core.NotifyError(Legacy.Format('Duplicate button name ("%s") on line %d in file "%s"', [ButtonName, i + 1, FoundPath]));
+                Debug.NotifyError(Legacy.Format('Duplicate button name ("%s") on line %d in file "%s"', [ButtonName, i + 1, FoundPath]));
             end else begin
               Line[COL_SHORTHINT]     := Trans.tr(Line[COL_SHORTHINT], []);
               Line[COL_LONGHINT]      := Trans.tr(Line[COL_LONGHINT], []);
@@ -141,15 +153,15 @@ begin
       end; // .if
     end; // .while
   end; // .with
-  
+
   ExtButtonsTable^  :=  pointer(ButtonsTable);
   ExtNumButtons^    :=  NumButtons;
-end; // .procedure LoadButtons 
+end; // .procedure LoadButtons
 
 function GetButtonID (const ButtonName: myAStr): integer; stdcall;
 begin
   result  :=  integer(ButtonNames[ButtonName]);
-  
+
   if result = 0 then begin
     result  :=  -1;
   end;

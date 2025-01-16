@@ -216,7 +216,7 @@ begin
         StrBuilder.Append(']'#13#10);
       end;
 
-      Section :=  SectionNames.Values[i];
+      Section := SectionNames.Values[i];
 
       Section.BeginIterate;
 

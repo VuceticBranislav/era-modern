@@ -196,7 +196,7 @@ begin
     for i:=0 to Client.NumStrings - 1 do begin
       ArrOfStr[i] :=  '';
     end;
-    FreeMem(ArrOfStr); ArrOfStr :=  nil;
+    Legacy.FreeMem(pointer(ArrOfStr)); ArrOfStr :=  nil;
     Client.LngVar^  :=  Client.DefStrArr;
   end;
 end; // .procedure ResetClientLang
@@ -204,7 +204,7 @@ end; // .procedure ResetClientLang
 procedure UnloadFilePack;
 begin
   FilePackReader.Disconnect;
-  FreeMem(FilePack); FilePack := nil;
+  Legacy.FreeMem(pointer(FilePack)); FilePack := nil;
 end;
 
 function LoadFilePack: boolean;
@@ -279,7 +279,7 @@ begin
   BinStringReader :=  nil;
   // * * * * * //
   ResetClientLang(Client);
-  GetMem(ArrOfStr, Client.NumStrings * 4); Legacy.FillChar(ArrOfStr^, Client.NumStrings * 4, #0);
+  Legacy.GetMem(pointer(ArrOfStr), Client.NumStrings * 4); Legacy.FillChar(ArrOfStr^, Client.NumStrings * 4, #0);
   LngStrArrReader.SeekBinString(0);
   i :=  0;
   while LngStrArrReader.ReadBinString(BinStringReader) do begin
@@ -383,7 +383,7 @@ begin
   end; // .if
   // * * * * * //
   Legacy.FreeAndNil(FileObj);
-  FreeMem(LngUnit); LngUnit :=  nil;
+  Legacy.FreeMem(pointer(LngUnit)); LngUnit :=  nil;
   Legacy.FreeAndNil(LngStrArrReader);
   Legacy.FreeAndNil(LngUnitReader);
 end; // .function LoadClientLangFromFileUnit
@@ -425,7 +425,7 @@ begin
   end; // .if
   // * * * * * //
   Legacy.FreeAndNil(FileObj);
-  FreeMem(LngStrArr); LngStrArr :=  nil;
+  Legacy.FreeMem(pointer(LngStrArr)); LngStrArr :=  nil;
   Legacy.FreeAndNil(LngStrArrReader);
 end; // .function LoadClientLangFromFileStrArr
 

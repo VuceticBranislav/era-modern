@@ -24,7 +24,7 @@ function MatchPattern (const Str, Pattern: myWStr): boolean; overload;
 const
   (* File name without last separator and extension: ~([^.]*+\z|.*(?=\.))~ *)
   DOS_STAR = '<';
-  
+
   (* Dos single char or before dot/end: ~((?=\.)|.?)~ *)
   DOS_QM = '>';
 
@@ -47,7 +47,7 @@ type
 
 function CompilePattern (const Pattern: myWStr): UtilsB2.TArrayOfByte;
 var
-{O} Compiled:        PatchForge.TPatchHelper;
+{O} Compiled:        PatchForge.TPatchMaker;
     PrevPatternKind: TPatternKind;
     NextPatternKind: TPatternKind;
     SkipPattern:     boolean;
@@ -55,7 +55,7 @@ var
     i:               integer;
 
 begin
-  Compiled := PatchForge.TPatchHelper.Wrap(PatchForge.TPatchMaker.Create);
+  Compiled := PatchForge.TPatchMaker.Create;
   // * * * * * //
   PrevPatternKind := KIND_END;
 
@@ -65,7 +65,7 @@ begin
 
     case c of
       '?': NextPatternKind := KIND_ANY_CHAR;
-      
+
       '*': begin
         NextPatternKind := KIND_ANY_CHARS;
         SkipPattern     := PrevPatternKind = KIND_ANY_CHARS;
@@ -75,9 +75,9 @@ begin
         NextPatternKind := KIND_DOS_ANY_CHARS;
         SkipPattern     := PrevPatternKind = KIND_DOS_ANY_CHARS;
       end;
-      
+
       DOS_QM: NextPatternKind := KIND_DOS_ANY_CHAR;
-      
+
       DOS_DOT: NextPatternKind := KIND_DOS_DOT;
     else
       NextPatternKind := KIND_CHAR;
@@ -94,9 +94,9 @@ begin
   end; // .for
 
   PPattern(Compiled.AllocAndSkip(sizeof(TPattern))).Kind := KIND_END;
-  result := Compiled.GetPatch;
+  result := Compiled.GetBytes;
   // * * * * * //
-  Compiled.Release;
+  Legacy.FreeAndNil(Compiled);
 end; // .function CompilePattern
 
 function MatchPattern (const Str: myWStr; {n} Pattern: pointer): boolean; overload;
@@ -134,7 +134,7 @@ var
 
       KIND_DOS_DOT: begin
         result := (s^ = '.') or (s = StrEnd);
-        
+
         if s = StrEnd then begin
           Subpattern.Len := 0;
         end;
@@ -193,7 +193,7 @@ var
             NextSubpattern := UtilsB2.PtrOfs(Subpattern, sizeof(TPattern));
             Inc(Subpattern.Len);
             Inc(s);
-  
+
             (* Fast consume to the end: xxx* *)
             if NextSubpattern.Kind = KIND_END then begin
               Inc(Subpattern.Len, StrEnd - s);
@@ -203,7 +203,7 @@ var
             else if NextSubpattern.Kind = KIND_CHAR then begin
               NextChar := NextSubpattern.Ch;
               Caret    := s;
-              
+
               while (Caret < StrEnd) and (Caret^ <> NextChar) do begin
                 Inc(Caret);
               end;
@@ -213,7 +213,7 @@ var
                 s := Caret;
               end else begin
                 result := false;
-              end;              
+              end;
             end; // .elseif
           end else begin
             Dec(s, Subpattern.Len);

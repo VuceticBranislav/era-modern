@@ -1,14 +1,34 @@
 unit Lodman;
-{
-DESCRIPTION:  LOD archives manager. Includes resource redirection support
-AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
-BASED ON:     "Lods" plugin by Sav, WoG Sources by ZVS
-}
+(*
+  Description: LOD archives manager. Includes resource redirection support.
+  Author:      Alexander Shostak aka Berserker
+  Based on:    "Lods" plugin by Sav, WoG Sources by ZVS
+*)
 
 (***)  interface  (***)
+
 uses
-  Windows, SysUtils, Math, UtilsB2, Files, Core, Lists, AssocArrays, TypeWrappers, DataLib, Log, Json,
-  StrUtils, ApiJack, GameExt, Heroes, Stores, EventMan, DlgMes, Legacy;
+  Math,
+  SysUtils,
+  Windows,
+
+  ApiJack,
+  AssocArrays,
+  DataLib,
+  Debug,
+  DlgMes,
+  Files,
+  Lists,
+  StrUtils,
+  TypeWrappers,
+  UtilsB2,
+
+  EventMan,
+  GameExt,
+  Heroes,
+  Json,
+  Log,
+  Stores, Legacy;
 
 const
   MAX_NUM_LODS = 100;
@@ -287,7 +307,7 @@ begin
             end; // .if
           end; // .for
         end else begin
-          Core.NotifyError('Invalid json config: "' + ConfigDir + '\' + FoundName + '"');
+          Debug.NotifyError('Invalid json config: "' + ConfigDir + '\' + FoundName + '"');
         end; // .else
       end; // .if
     end; // .while
@@ -305,7 +325,7 @@ begin
     myPPChar(Context.EBP + $8)^ := myPChar(Redirected);
   end;
 
-  result := Core.EXEC_DEF_CODE;
+  result := true;
 end;
 
 function Hook_LoadLods (Context: ApiJack.PHookContext): longbool; stdcall;
@@ -327,16 +347,16 @@ begin
     Inc(NumLods);
   end;
 
-  result := Core.EXEC_DEF_CODE;
-end; // .function Hook_LoadLods
+  result := true;
+end;
 
 function Hook_AfterLoadLods (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   LoadGlobalRedirectionConfig(GLOBAL_MISSING_REDIRECTIONS_CONFIG_DIR, REDIRECT_ONLY_MISSING);
 
   (* Begin lods files redirection *)
-  ApiJack.HookCode(Ptr($4FB106), @Hook_FindFileInLod);
-  ApiJack.HookCode(Ptr($4FACA6), @Hook_FindFileInLod); // A0_Lod_FindResource_sub_4FACA0
+  ApiJack.Hook(Ptr($4FB106), @Hook_FindFileInLod);
+  ApiJack.Hook(Ptr($4FACA6), @Hook_FindFileInLod); // A0_Lod_FindResource_sub_4FACA0
 
   EventMan.GetInstance().Fire('OnAfterLoadLods');
 
@@ -473,11 +493,11 @@ begin
   PWORD($7015E5)^ := $38EB;
 
   (* Lead lods loading/reordering *)
-  ApiJack.HookCode(Ptr($559408), @Hook_LoadLods);
+  ApiJack.Hook(Ptr($559408), @Hook_LoadLods);
 
   (* Implement OnAfterLoadLods event and missing resources redirection *)
-  ApiJack.HookCode(Ptr($4EDD65), @Hook_AfterLoadLods);
-  ApiJack.HookCode(Ptr($4EE0CB), @Hook_AfterLoadMedia);
+  ApiJack.Hook(Ptr($4EDD65), @Hook_AfterLoadLods);
+  ApiJack.Hook(Ptr($4EE0CB), @Hook_AfterLoadMedia);
 end;
 
 procedure OnAfterWoG (Event: PEvent); stdcall;

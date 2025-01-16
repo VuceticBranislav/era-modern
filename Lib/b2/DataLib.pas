@@ -20,6 +20,9 @@ const
   CASE_SENSITIVE   = FALSE;
   CASE_INSENSITIVE = not CASE_SENSITIVE;
 
+  (* Flags for complex routines *)
+  FLAG_IGNORE_DUPLICATES = 1;
+
 
 type
   TAssocArray = AssocArrays.TAssocArray {OF pointer};
@@ -90,8 +93,7 @@ function  NewObjDict (OwnsItems: boolean): {O} TObjDict;
 function  NewAssocArray (OwnsItems, CaseInsensitive: boolean): {O} TAssocArray;
 function  NewList (OwnsItems: boolean): {O} TList;
 function  NewStrList (OwnsItems: boolean; CaseInsensitive: boolean): {O} TStrList;
-function  NewStrListFromStrArr (StrArr: UtilsB2.TArrayOfStr;
-                                OwnsItems: boolean; CaseInsensitive: boolean): {O} TStrList;
+function  NewStrListFromStrArr (StrArr: UtilsB2.TArrayOfStr; OwnsItems: boolean; CaseInsensitive: boolean; Flags: integer = 0): {O} TStrList;
 function  NewHashedList (OwnsItems, CaseInsensitive: boolean): {O} THashedList;
 function  IterateDict ({U} Dict: TDict): IDictIterator;
 function  IterateObjDict (aObjDict: TObjDict): IObjDictIterator;
@@ -215,17 +217,36 @@ begin
   result.CaseInsensitive := CaseInsensitive;
 end;
 
-function NewStrListFromStrArr (StrArr: UtilsB2.TArrayOfStr; OwnsItems: boolean; CaseInsensitive: boolean): {O} TStrList;
+function NewStrListFromStrArr (StrArr: UtilsB2.TArrayOfStr; OwnsItems: boolean; CaseInsensitive: boolean; Flags: integer = 0): {O} TStrList;
 var
-  i: integer;
+{On} AddedKeys:      {U} TDict {OF Ptr(1)};
+     SkipDuplicates: boolean;
+     i:              integer;
 
 begin
-  result := NewStrList(OwnsItems, CaseInsensitive);
+  AddedKeys := nil;
+  // * * * * * //
+  result         := NewStrList(OwnsItems, CaseInsensitive);
+  SkipDuplicates := (Flags and FLAG_IGNORE_DUPLICATES) <> 0;
+
+  if SkipDuplicates then begin
+    AddedKeys := NewDict(not UtilsB2.OWNS_ITEMS, CaseInsensitive);
+  end;
 
   for i := 0 to High(StrArr) do begin
+    if SkipDuplicates then begin
+      if AddedKeys[StrArr[i]] <> nil then begin
+        continue;
+      end else begin
+        AddedKeys[StrArr[i]] := Ptr(1);
+      end;
+    end;
+
     result.Add(StrArr[i]);
   end;
-end; // .function NewStrListFromStrArr
+  // * * * * * //
+  Legacy.FreeAndNil(AddedKeys);
+end;
 
 function NewHashedList (OwnsItems, CaseInsensitive: boolean): {O} THashedList;
 begin

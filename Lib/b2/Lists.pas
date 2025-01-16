@@ -220,7 +220,7 @@ begin
     Self.fItemsAreObjects := SrcList.ItemsAreObjects;
     Self.fItemGuardProc   := SrcList.ItemGuardProc;
     Self.fItemGuard       := SrcList.fItemGuard.Clone;
-    GetMem(Self.fData, Self.Capacity * sizeof(pointer));
+    Legacy.GetMem(pointer(Self.fData), Self.Capacity * sizeof(pointer));
 
     for i := 0 to SrcList.Count - 1 do begin
       if (SrcList.fData[i] = nil) or (not Self.OwnsItems) then begin
@@ -257,7 +257,7 @@ begin
     end;
   end;
 
-  FreeMem(Self.fData); Self.fData :=  nil;
+  Legacy.FreeMem(pointer(Self.fData)); Self.fData :=  nil;
   Self.fCapacity :=  0;
   Self.fCount    :=  0;
 end; // .procedure TList.Clear
@@ -416,7 +416,7 @@ var
   EndInd: integer;
   Step:   integer;
   i:      integer;
-  
+
 begin
   {!} Assert(Math.InRange(StartInd, 0, Self.Count - 1));
   {!} Assert(Count >= 0);
@@ -458,7 +458,7 @@ procedure TList.Pack;
 var
   EndInd: integer;
   i:      integer;
-  
+
 begin
   i :=  0;
   while (i < Self.Count) and (Self.fData[i] <> nil) do begin
@@ -495,11 +495,11 @@ begin
   result   := false;
   LeftInd  := 0;
   RightInd := Self.Count - 1;
-  
+
   while (not result) and (LeftInd <= RightInd) do begin
     Ind        := LeftInd + (RightInd - LeftInd) shr 1;
     MiddleItem := integer(Self.fData[Ind]);
-    
+
     if integer(Item) < MiddleItem then begin
       RightInd := Ind - 1;
     end else if integer(Item) > MiddleItem then begin
@@ -508,16 +508,16 @@ begin
       result := TRUE;
     end;
   end;
-  
+
   if not result then begin
     Ind := LeftInd;
   end else begin
     Inc(Ind);
-    
+
     while (Ind < Self.fCount) and (Self.fData[Ind] = Item) do begin
       Inc(Ind);
     end;
-    
+
     Dec(Ind);
   end;
 end; // .function TList.QuickFind
@@ -615,7 +615,7 @@ procedure TStringList.Assign (Source: UtilsB2.TCloneable);
 var
 (* U *) SrcList:  TStringList;
         i:        integer;
-  
+
 begin
   {!} Assert(Source <> nil);
   SrcList   :=  Source AS TStringList;
@@ -633,7 +633,7 @@ begin
     Self.fCaseInsensitive   :=  SrcList.CaseInsensitive;
     Self.fForbidDuplicates  :=  SrcList.ForbidDuplicates;
     Self.fSorted            :=  SrcList.Sorted;
-    GetMem(Self.fValues, Self.Count * sizeof(pointer));
+    Legacy.GetMem(pointer(Self.fValues), Self.Count * sizeof(pointer));
     for i:=0 to SrcList.Count - 1 do begin
       if (SrcList.fValues[i] = nil) or (not Self.OwnsItems) then begin
         Self.fValues[i] :=  SrcList.fValues[i];
@@ -661,7 +661,7 @@ end; // .procedure TStringList.FreeValue
 procedure TStringList.Clear;
 var
   i:  integer;
-  
+
 begin
   if Self.OwnsItems then begin
     for i:=0 to Self.Count - 1 do begin
@@ -669,7 +669,7 @@ begin
     end;
   end;
   Self.fKeys  :=  nil;
-  FreeMem(Self.fValues); Self.fValues :=  nil;
+  Legacy.FreeMem(pointer(Self.fValues)); Self.fValues :=  nil;
   Self.fCapacity  :=  0;
   Self.fCount     :=  0;
 end; // .procedure TStringList.Clear
@@ -748,7 +748,7 @@ end;
 procedure TStringList.SetCapacity (NewCapacity: integer);
 var
   i:  integer;
-  
+
 begin
   {!} Assert(NewCapacity >= 0);
   if NewCapacity < Self.Count then begin
@@ -764,7 +764,7 @@ end; // .procedure TStringList.SetCapacity
 procedure TStringList.SetCount (NewCount: integer);
 var
   i:  integer;
-  
+
 begin
   {!} Assert(NewCount >= 0);
   if NewCount < Self.Count then begin
@@ -790,40 +790,44 @@ var
 
 begin
   {!} Assert(Self.IsValidItem(Value));
+
   if Self.ForbidDuplicates or Self.Sorted then begin
     KeyFound  :=  Self.Find(Key, KeyInd);
+
     if Self.ForbidDuplicates then begin
       {!} Assert(not KeyFound);
     end;
   end;
-  result                :=  Self.AddEmpty;
-  Self.fKeys[result]    :=  Key;
-  Self.fValues[result]  :=  Value;
+
+  result               := Self.AddEmpty;
+  Self.fKeys[result]   := Key;
+  Self.fValues[result] := Value;
+
   if Self.Sorted then begin
     Self.fSorted  :=  false;
     Self.Move(result, KeyInd);
     result        :=  KeyInd;
-    Self.fSorted  :=  TRUE;
+    Self.fSorted  :=  true;
   end;
-end; // .function TStringList.AddObj
+end;
 
 function TStringList.Add (const Key: myAStr): integer;
 begin
-  result  :=  Self.AddObj(Key, nil);
+  result := Self.AddObj(Key, nil);
 end;
 
 function TStringList.Top: myAStr;
 begin
   {!} Assert(Self.Count > 0);
-  result  :=  Self.fKeys[Self.Count - 1];
+  result := Self.fKeys[Self.Count - 1];
 end;
 
 function TStringList.Pop ((* OUn *) out Item: pointer): myAStr;
 begin
   {!} Assert(Item = nil);
   {!} Assert(Self.Count > 0);
-  result  :=  Self.fKeys[Self.Count - 1];
-  Item    :=  Self.fValues[Self.Count - 1];
+  result := Self.fKeys[Self.Count - 1];
+  Item   := Self.fValues[Self.Count - 1];
   Dec(Self.fCount);
 end;
 
@@ -881,7 +885,7 @@ var
 (* Un *)  SrcValue: pointer;
           SrcKey:   pointer;
           Dist:     integer;
-  
+
 begin
   {!} Assert(Math.InRange(SrcInd, 0, Self.Count - 1));
   {!} Assert(Math.InRange(DstInd, 0, Self.Count - 1));
@@ -909,7 +913,7 @@ var
   EndInd: integer;
   Step:   integer;
   i:      integer;
-  
+
 begin
   {!} Assert(Math.InRange(StartInd, 0, Self.Count - 1));
   {!} Assert(Count >= 0);
@@ -953,15 +957,15 @@ procedure TStringList.Pack;
 var
   EndInd: integer;
   i:      integer;
-  
+
 begin
   if Self.Sorted then begin
     i := 0;
-    
+
     while (i < Self.Count) and (Self.fKeys[i] = '') do begin
       Inc(i);
     end;
-    
+
     if i > 0 then begin
       UtilsB2.CopyMem(i * sizeof(myAStr), @Self.fKeys[i], @Self.fKeys[0]);
       Legacy.FillChar(Self.fKeys[Count - i], i * sizeof(myAStr), 0);
@@ -970,15 +974,15 @@ begin
     end;
   end else begin
     i :=  0;
-    
+
     while (i < Self.Count) and (Self.fKeys[i] <> '') do begin
       Inc(i);
     end;
-    
+
     if i < Count then begin
       EndInd := i;
       Self.FreeValue(i);
-      
+
       for i := i + 1 to Self.Count - 1 do begin
         if Self.fKeys[i] <> '' then begin
           UtilsB2.Exchange(integer(Self.fKeys[EndInd]), integer(Self.fKeys[i]));
@@ -988,7 +992,7 @@ begin
           Self.FreeValue(i);
         end;
       end;
-      
+
       Self.fCount :=  EndInd;
     end; // .if
   end; // .else
@@ -1024,16 +1028,16 @@ begin
       result  :=  TRUE;
     end;
   end; // .while
-  
+
   if not result then begin
     Ind :=  LeftInd;
   end else if not Self.fForbidDuplicates then begin
     Inc(Ind);
-    
+
     while (Ind < Self.fCount) and (Self.CompareStrings(Key, Self.fKeys[Ind]) = 0) do begin
       Inc(Ind);
     end;
-    
+
     Dec(Ind);
   end; // .elseif
 end; // .function TStringList.QuickFind
@@ -1059,50 +1063,50 @@ var
   LeftInd:    integer;
   RightInd:   integer;
   PivotItem:  myAStr;
-  
+
 begin
   {!} Assert(Self.fKeys <> nil);
   {!} Assert(MinInd >= 0);
   {!} Assert(MaxInd >= MinInd);
-  
+
   while MinInd < MaxInd do begin
     LeftInd   :=  MinInd;
     RightInd  :=  MaxInd;
     PivotItem :=  Self.fKeys[MinInd + (MaxInd - MinInd) div 2];
-    
+
     while LeftInd <= RightInd do begin
       while CompareStrings(Self.fKeys[LeftInd], PivotItem) < 0 do begin
         Inc(LeftInd);
       end;
-      
+
       while CompareStrings(Self.fKeys[RightInd], PivotItem) > 0 do begin
         Dec(RightInd);
       end;
-      
+
       if LeftInd <= RightInd then begin
         if CompareStrings(Self.fKeys[LeftInd], Self.fKeys[RightInd]) > 0 then begin
           UtilsB2.Exchange(integer(Self.fKeys[LeftInd]),    integer(Self.fKeys[RightInd]));
           UtilsB2.Exchange(integer(Self.fValues[LeftInd]),  integer(Self.fValues[RightInd]));
         end;
-        
+
         Inc(LeftInd);
         Dec(RightInd);
       end;
     end; // .while
-    
+
     (* MIN__RIGHT|{PIVOT}|LEFT__MAX *)
-    
+
     if (RightInd - MinInd) < (MaxInd - LeftInd) then begin
       if RightInd > MinInd then begin
         Self.QuickSort(MinInd, RightInd);
       end;
-      
+
       MinInd := LeftInd;
     end else begin
       if MaxInd > LeftInd then begin
         Self.QuickSort(LeftInd, MaxInd);
       end;
-      
+
       MaxInd := RightInd;
     end; // .else
   end; // .while
@@ -1112,7 +1116,7 @@ procedure TStringList.Sort;
 begin
   if not Self.Sorted then begin
     Self.fSorted := true;
-    
+
     if Self.fCount > 1 then begin
       Self.QuickSort(0, Self.Count - 1);
     end;
@@ -1148,7 +1152,7 @@ var
   Etalon: myAStr;
   i:      integer;
   y:      integer;
-  
+
 begin
   if Self.Sorted then begin
     for i:=1 to Self.Count - 1 do begin
@@ -1189,7 +1193,7 @@ begin
   Self.fKeys      :=  StrLib.Explode(Text, EndOfLineMarker);
   Self.fCapacity  :=  Length(Self.fKeys);
   Self.fCount     :=  Self.Capacity;
-  GetMem(Self.fValues, Self.Count * sizeof(pointer));
+  Legacy.GetMem(pointer(Self.fValues), Self.Count * sizeof(pointer));
   Legacy.FillChar(Self.fValues[0], Self.Count * sizeof(pointer), 0);
   if Self.Sorted then begin
     Self.fSorted  :=  false;

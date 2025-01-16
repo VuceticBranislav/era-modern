@@ -78,10 +78,10 @@ var
 begin
   for i := 0 to Self.fSize - 1 do begin
     Item := @fItems[i];
-    FreeMem(Item.Value.Str);
+    Legacy.FreeMem(Pointer(Item.Value.Str));
 
     for j := 0 to Length(Item.ValueChain) - 1 do begin
-      FreeMem(Item.ValueChain[j].Str);
+      Legacy.FreeMem(Pointer(Item.ValueChain[j].Str));
     end;
   end;
 end; // .destructor TUniqueStrings.Destroy
@@ -133,7 +133,7 @@ begin
     result := Self.Find(Str, StrLen, KeyHash, ItemInd);
 
     if result = nil then begin
-      GetMem(result, StrLen + 1);
+      Legacy.GetMem(Pointer(result), StrLen + 1);
       UtilsB2.CopyMem(StrLen + 1, Str, result);
 
       Item := @Self.fItems[ItemInd];

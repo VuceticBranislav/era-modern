@@ -35,7 +35,7 @@ type
 
       function  GetStrSize: integer;
       function  GetStructSize: integer;
-    
+
     (***) public (***)
       procedure Connect (BinString: PBinString; StructMemoryBlockSize: integer; Unicode: boolean);
       procedure Disconnect;

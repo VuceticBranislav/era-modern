@@ -20,7 +20,7 @@ type
       fLineStartPos:    integer;  // Position of EndOfLineMarker; LinePos = Pos - LineStartPos
       fTextBufLen:      integer;
       fEndOfText:       boolean;
-    
+
     (***) public (***)
       property  TextBuf:          myAStr read fTextBuf;
       property  Pos:              integer read fPos;          // Start from 1
@@ -30,7 +30,7 @@ type
       property  TextBufLen:       integer read fTextBufLen;
       property  EndOfText:        boolean read fEndOfText;
       property  Eot:              boolean read fEndOfText;
-    
+
       constructor Create;
       function  IsValidPos (CheckPos: integer): boolean;
       (* Returns #0 for EndOfText *)
@@ -59,7 +59,7 @@ type
       function  ReadToken (const TokenCharset: TCharSet; out Token: myAStr): boolean;
       function  ReadTokenTillDelim (const DelimCharset: TCharSet; out Token: myAStr): boolean;
       procedure Connect (const TextBuf: myAStr; EndOfLineMarker: myChar);
-      
+
       property Chars[CharPos: integer]: myChar read CharAtPos; default;
       property CharsRel[RelCharPos: integer]: myChar read CharAtPosRel;
   end; // .class TTextScanner
@@ -94,7 +94,7 @@ end;
 function TTextScanner.GetCurrChar (out Res: myChar): boolean;
 begin
   result  :=  not Self.EndOfText;
-  
+
   if result then begin
     Res :=  Self.TextBuf[Self.Pos];
   end;
@@ -135,11 +135,11 @@ function TTextScanner.GetSubstrAtPos (TargetPos, SubstrLen: integer): myAStr;
 var
   StartPos: integer;
   EndPos:   integer;
-  
+
 begin
   {!} Assert(SubstrLen >= 0);
   StartPos := TargetPos;
-  
+
   if StartPos < 1 then begin
     StartPos  := 1;
     SubstrLen := Math.Max(0, SubstrLen + TargetPos - 1);
@@ -204,7 +204,7 @@ function TTextScanner.GotoPos (TargetPos: integer): boolean;
 var
   NumSteps: integer;
   i:        integer;
-  
+
 begin
   result  :=  Self.IsValidPos(TargetPos);
   if result then begin
@@ -277,7 +277,7 @@ begin
     LinePos := Self.Pos - Self.LineStartPos;
     Self.GotoPos(CurrPos);
   end;
-end; // .function TTextScanner.PosToLine 
+end; // .function TTextScanner.PosToLine
 
 function TTextScanner.SkipChars (Ch: myChar): boolean;
 begin

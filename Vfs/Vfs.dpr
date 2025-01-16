@@ -28,7 +28,6 @@ uses
   CmdApp in '..\Lib\b2\CmdApp.pas',
   Concur in '..\Lib\b2\Concur.pas',
   ConsoleAPI in '..\Lib\b2\ConsoleAPI.pas',
-  Core in '..\Lib\b2\Core.pas',
   Crypto in '..\Lib\b2\Crypto.pas',
   DataLib in '..\Lib\b2\DataLib.pas',
   DebugMaps in '..\Lib\b2\DebugMaps.pas',
@@ -57,6 +56,7 @@ uses
   DataFlows in '..\Lib\b2\DataFlows.pas',
   RandMt in '..\Lib\b2\RandMt.pas',
   Legacy in '..\Lib\b2\Legacy.pas';
+
 {$R 'VersionInfo.res' 'VersionInfo.rc'}
 {$R *.RES}
 begin

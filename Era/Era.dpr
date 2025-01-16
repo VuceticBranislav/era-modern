@@ -8,28 +8,37 @@ library Era;
 
 uses
   SysUtils,
+
+  (* Forced order, do not regroup or mix with other units: order dependent hooks/patches *)
+  GameExt in 'GameExt.pas',
   Erm in 'Erm.pas',
-  VfsImport in '..\Vfs\VfsImport.pas',
+
   AdvErm in 'AdvErm.pas',
-  BinPatching in 'BinPatching.pas',
+  Debug in 'Debug.pas',
+  DebugMaps in 'DebugMaps.pas',
+  Dwellings in 'Dwellings.pas',
   EraButtons in 'EraButtons.pas',
-  EraLog in 'EraLog.pas',
   EraSettings in 'EraSettings.pas',
   ErmTracking in 'ErmTracking.pas',
-  EventMan in 'EventMan.pas',
   Extern in 'Extern.pas',
-  GameExt in 'GameExt.pas',
   Graph in 'Graph.pas',
-  Heroes in 'Heroes.pas',
   Lodman in 'Lodman.pas',
   PoTweak in 'PoTweak.pas',
   Rainbow in 'Rainbow.pas',
+  Scripts in 'Scripts.pas',
   SndVid in 'SndVid.pas',
   Stores in 'Stores.pas',
   Trans in 'Trans.pas',
   Triggers in 'Triggers.pas',
   Tweaks in 'Tweaks.pas',
-  Dwellings in 'Dwellings.pas',
+  VfsImport in '..\Vfs\VfsImport.pas',
+  WogEvo in 'WogEvo.pas',
+  (* End of block*)
+
+  BinPatching in 'BinPatching.pas',
+  EraLog in 'EraLog.pas',
+  EventMan in 'EventMan.pas',
+  Heroes in 'Heroes.pas',
   RscLists in 'RscLists.pas',
   Legacy in '..\Lib\b2\Legacy.pas',
   UtilsB2 in '..\Lib\b2\UtilsB2.pas',
@@ -49,7 +58,6 @@ uses
   Concur in '..\Lib\b2\Concur.pas',
   PatchForge in '..\Lib\b2\PatchForge.pas',
   hde32 in '..\Lib\b2\hde32.pas',
-  Core in '..\Lib\b2\Core.pas',
   PatchApi in '..\Lib\b2\PatchApi.pas',
   DlgMes in '..\Lib\b2\DlgMes.pas',
   Lang in '..\Lib\b2\Lang.pas',
@@ -59,7 +67,6 @@ uses
   CLngStrArr in '..\Lib\b2\CLngStrArr.pas',
   CLngUnit in '..\Lib\b2\CLngUnit.pas',
   DlgMesLng in '..\Lib\b2\DlgMesLng.pas',
-  DebugMaps in '..\Lib\b2\DebugMaps.pas',
   FilesEx in '..\Lib\b2\FilesEx.pas',
   DataFlows in '..\Lib\b2\DataFlows.pas',
   CmdApp in '..\Lib\b2\CmdApp.pas',
@@ -80,11 +87,11 @@ uses
   FastRand in '..\Lib\b2\FastRand.pas',
   Network in 'Network.pas',
   ZlibUtils in 'ZlibUtils.pas',
-  Scripts in 'Scripts.pas',
   Lua in 'Lua\Lua.pas',
   Json in 'Json.pas',
-  WogEvo in 'WogEvo.pas',
-  EventLib in 'EventLib.pas';
+  EventLib in 'EventLib.pas',
+  WogDialogs in 'WogDialogs.pas',
+  WindowMessages in 'WindowMessages.pas';
 
 begin
   FormatSettings.DecimalSeparator := '.';

@@ -101,9 +101,7 @@ var
   begin
     result  :=  Header.Signature = Signature;
     if not result then begin
-      Error :=  myAStr('Structure signature is invalid: ') +
-      Header.Signature + #13#10'. Expected: ' +
-      Signature;
+      Error :=  myAStr('Structure signature is invalid: ') + Header.Signature + #13#10'. Expected: ' + Signature;
     end;
   end;
   

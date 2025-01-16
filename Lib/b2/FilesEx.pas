@@ -26,7 +26,7 @@ type
     procedure Indent;
     procedure Unindent;
     procedure SetIndentLevel (Level: integer);
-    
+
     procedure Write (const Str: myAStr);
     // Same as Write + Write([line end marker])
     procedure WriteIndentation;
@@ -38,7 +38,7 @@ type
 
     property Indentation:   myAStr write SetIndentation;
     property LineEndMarker: myAStr write SetLineEndMarker;
-  end; // .interface IFormattedOutput
+  end;
 
   TFileFormattedOutput = class (TInterfacedObject, IFormattedOutput)
    protected
@@ -62,8 +62,8 @@ type
     procedure RawLine (const Str: myAStr);
     procedure Line (const Str: myAStr);
     procedure EmptyLine;
-  end; // .class TFileFormattedOutput
-  
+  end;
+
 
 // List does not own its objects. It simply contains case insensitive file names
 function  GetFileList (const MaskedPath: myAStr; SearchSubj: TSearchSubj): {O} TStrList;
@@ -163,19 +163,19 @@ end;
 function GetFileList (const MaskedPath: myAStr; SearchSubj: TSearchSubj): {O} TStrList;
 begin
   result := DataLib.NewStrList(not UtilsB2.OWNS_ITEMS, DataLib.CASE_INSENSITIVE);
-  
+
   with Files.Locate(MaskedPath, SearchSubj) do begin
     while FindNext do begin
       result.Add(FoundName);
     end;
-  end; 
+  end;
 end;
 
 procedure MergeFileLists (MainList, DependantList: TStrList);
 var
 {O} NamesDict: TDict {OF FileName: myAStr => Ptr(1)};
     i: integer;
-   
+
 begin
   {!} Assert(MainList <> nil);
   {!} Assert(DependantList <> nil);
@@ -184,7 +184,7 @@ begin
   for i := 0 to MainList.Count - 1 do begin
     NamesDict[MainList[i]] := Ptr(1);
   end;
-  
+
   for i := 0 to DependantList.Count - 1 do begin
     if NamesDict[DependantList[i]] = nil then begin
       NamesDict[DependantList[i]] := Ptr(1);

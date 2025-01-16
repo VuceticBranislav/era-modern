@@ -10,8 +10,8 @@ uses
   Windows,
   SysUtils,
 
-  Core,
   DataLib,
+  Debug,
   DlgMes,
   Files,
   Json,
@@ -20,6 +20,7 @@ uses
   UtilsB2,
 
   EraSettings,
+  EraZip,
   EventMan,
   GameExt,
   Heroes,
@@ -43,7 +44,8 @@ const
 
 function SetLanguage (const NewLanguage: myAStr): boolean;
 procedure ReloadLanguageData; stdcall;
-function  tr (const Key: myAStr; const Params: array of myAStr): myAStr;
+function tr (const Key: myAStr; const Params: array of myAStr): myAStr;
+function trDef (const Key: myAStr; const Params: array of myAStr; const DefValue: myAStr): myAStr;
 
 
 var
@@ -119,7 +121,7 @@ begin
   if Translation <> nil then begin
     result := StrLib.BuildStr(Translation.Value, Params, TEMPL_CHAR);
   end else begin
-    result := DefValue;
+    result := StrLib.BuildStr(DefValue, Params, TEMPL_CHAR);
   end;
 end;
 
@@ -220,7 +222,7 @@ begin
   if LangData <> nil then begin
     ProcessBox(LangData, '');
   end else begin
-    Core.NotifyError('Invalid language json file: "' + ItemName + '"');
+    Debug.NotifyError('Invalid language json file: "' + ItemName + '"');
   end;
   // * * * * * //
   Legacy.FreeAndNil(LangData);
@@ -231,20 +233,20 @@ var
   LangFileContents: myAStr;
 
 begin
-  if Files.ReadFileContents(FilePath, LangFileContents) then begin
+  if EraZip.ReadFileContentsFromZipFs(FilePath, LangFileContents) then begin
     LoadLangData(FilePath, LangFileContents, OverrideExistingKeys);
   end;
 end;
 
 procedure LoadLangFiles (const Dir: myAStr; OverrideKeys: boolean);
 begin
-  with Files.Locate(Legacy.ExcludeTrailingPathDelimiter(Dir) + '\' + CurrentLanguage + '\*.json', Files.ONLY_FILES) do begin
+  with EraZip.LocateInZipFs(Legacy.ExcludeTrailingPathDelimiter(Dir) + '\' + CurrentLanguage + '\*.json', Files.ONLY_FILES) do begin
     while FindNext do begin
       LoadLangFile(FoundPath, OverrideKeys);
     end;
   end;
 
-  with Files.Locate(Legacy.ExcludeTrailingPathDelimiter(Dir) + '\*.json', Files.ONLY_FILES) do begin
+  with EraZip.LocateInZipFs(Legacy.ExcludeTrailingPathDelimiter(Dir) + '\*.json', Files.ONLY_FILES) do begin
     while FindNext do begin
       LoadLangFile(FoundPath, OverrideKeys);
     end;

@@ -13,12 +13,20 @@ uses
   SysUtils,
   Windows,
 
-  AdvErm,
   Alg,
   ApiJack,
-  Core,
   Crypto,
   DataLib,
+  Debug,
+  DlgMes,
+  Ini,
+  PatchApi,
+  StrLib,
+  TypeWrappers,
+  UtilsB2,
+  WinUtils,
+
+  AdvErm,
   EraButtons,
   EraUtils,
   Erm,
@@ -26,19 +34,14 @@ uses
   GameExt,
   Graph,
   Heroes,
-  Ini,
   Lodman,
   Memory,
   Network,
   Rainbow,
   Stores,
-  StrLib,
   Trans,
   Triggers,
-  Tweaks,
-  TypeWrappers,
-  UtilsB2,
-  WinUtils, Legacy;
+  Tweaks, Legacy;
 
 type
   (* Import *)
@@ -49,7 +52,7 @@ type
   PErmXVars = ^TErmXVars;
   TErmXVars = array [1..16] of integer;
 
-  TDwordBool = integer; // 0 or 1
+  TInt32Bool = integer; // 0 or 1
 
   PAppliedPatch = ^TAppliedPatch;
   TAppliedPatch = packed record
@@ -61,9 +64,37 @@ type
 (***) implementation (***)
 
 
+type
+  TPlugin = class
+   protected
+        fName:    myAStr;
+   {OI} fPatcher: PatchApi.TPatcherInstance; // external dll memory ownage
+
+   public
+    constructor Create (const Name: myAStr);
+    destructor Destroy; override;
+
+    property Name:    myAStr read fName;
+    property Patcher: PatchApi.TPatcherInstance read fPatcher;
+  end;
+
+  TPluginManager = class
+   protected
+   {O} fPlugins: {O} TDict {of TPlugin};
+
+   public
+    constructor Create;
+    destructor Destroy; override;
+
+    function FindPlugin (const Name: myAStr): {n} TPlugin;
+    function RegisterPlugin ({O} Plugin: TPlugin): boolean;
+  end;
+
 var
-{O} IntRegistry: {U} TDict {of Ptr(integer)};
-{O} StrRegistry: {O} TDict {of TString};
+{O} IntRegistry:   {U} TDict {of Ptr(integer)};
+{O} StrRegistry:   {O} TDict {of TString};
+{O} PluginManager: TPluginManager;
+{O} LegacyPlugin:  TPlugin;
 
 
 const
@@ -91,10 +122,10 @@ begin
 end;
 
 (* Frees buffer, that was transfered to client earlier *)
-procedure MemFree ({On} Buf: pointer); stdcall;
+procedure MemFree ({On} Buf: pointer); stdcall;  var p: pointer;
 begin
   if Buf <> nil then begin
-    FreeMem(UtilsB2.PtrOfs(Buf, -EXTERNAL_BUF_PREFIX_SIZE));
+    p:=UtilsB2.PtrOfs(Buf, -EXTERNAL_BUF_PREFIX_SIZE); Legacy.FreeMem(p);
   end;
 end;
 
@@ -113,23 +144,23 @@ begin
   Ini.ClearIniCache(FileName);
 end;
 
-function ReadStrFromIni (Key, SectionName, FilePath, Res: myPChar): TDwordBool; stdcall;
+function ReadStrFromIni (Key, SectionName, FilePath, Res: myPChar): TInt32Bool; stdcall;
 var
   ResStr: myAStr;
 
 begin
-  result := TDwordBool(ord(Ini.ReadStrFromIni(Key, SectionName, FilePath, ResStr)));
+  result := TInt32Bool(ord(Ini.ReadStrFromIni(Key, SectionName, FilePath, ResStr)));
   UtilsB2.CopyMem(Length(ResStr) + 1, myPChar(ResStr), Res);
 end;
 
-function WriteStrToIni (Key, Value, SectionName, FilePath: myPChar): TDwordBool; stdcall;
+function WriteStrToIni (Key, Value, SectionName, FilePath: myPChar): TInt32Bool; stdcall;
 begin
-  result := TDwordBool(ord(Ini.WriteStrToIni(Key, Value, SectionName, FilePath)));
+  result := TInt32Bool(ord(Ini.WriteStrToIni(Key, Value, SectionName, FilePath)));
 end;
 
-function SaveIni (FilePath: myPChar): TDwordBool; stdcall;
+function SaveIni (FilePath: myPChar): TInt32Bool; stdcall;
 begin
-  result := TDwordBool(ord(Ini.SaveIni(FilePath)));
+  result := TInt32Bool(ord(Ini.SaveIni(FilePath)));
 end;
 
 procedure WriteSavegameSection (DataSize: integer; {n} Data: pointer; SectionName: myPChar); stdcall;
@@ -177,12 +208,12 @@ end;
 
 procedure FatalError (Err: myPChar); stdcall;
 begin
-  Core.FatalError(Err);
+  Debug.FatalError(Err);
 end;
 
 procedure NotifyError (Err: myPChar); stdcall;
 begin
-  Core.NotifyError(Err);
+  Debug.NotifyError(Err);
 end;
 
 function GetButtonID (ButtonName: myPChar): integer; stdcall;
@@ -190,14 +221,14 @@ begin
   result := EraButtons.GetButtonID(ButtonName);
 end;
 
-function PatchExists (PatchName: myPChar): TDwordBool; stdcall;
+function PatchExists (PatchName: myPChar): TInt32Bool; stdcall;
 begin
-  result := TDwordBool(ord(GameExt.PatchExists(PatchName)));
+  result := TInt32Bool(ord(GameExt.PatchExists(PatchName)));
 end;
 
-function PluginExists (PluginName: myPChar): TDwordBool; stdcall;
+function PluginExists (PluginName: myPChar): TInt32Bool; stdcall;
 begin
-  result := TDwordBool(ord(GameExt.PluginExists(PluginName)));
+  result := TInt32Bool(ord(GameExt.PluginExists(PluginName)));
 end;
 
 procedure RedirectFile (OldFileName, NewFileName: myPChar); stdcall;
@@ -210,7 +241,7 @@ begin
   Lodman.GlobalRedirectFile(OldFileName, NewFileName);
 end;
 
-function TakeScreenshot (FilePath: myPChar; Quality: integer; Flags: integer): TDwordBool; stdcall;
+function TakeScreenshot (FilePath: myPChar; Quality: integer; Flags: integer): TInt32Bool; stdcall;
 begin
   result := ord(Graph.TakeScreenshot(FilePath, Quality, Flags));
 end;
@@ -256,7 +287,7 @@ begin
   result := Memory.UniqueStrings[myPChar(Trans.tr(Key, []))];
 end;
 
-function SetLanguage (NewLanguage: myPChar): TDwordBool; stdcall;
+function SetLanguage (NewLanguage: myPChar): TInt32Bool; stdcall;
 begin
   result := ord(Trans.SetLanguage(NewLanguage));
 end;
@@ -272,7 +303,7 @@ begin
   end;
 
   if (ResizeAlg < ord(Low(Graph.TResizeAlg))) or (ResizeAlg > ord(High(Graph.TResizeAlg))) then begin
-    Core.NotifyError('Invalid ResizeAlg argument for LoadImageAsPcx16: ' + Legacy.IntToStr(ResizeAlg));
+    Debug.NotifyError('Invalid ResizeAlg argument for LoadImageAsPcx16: ' + Legacy.IntToStr(ResizeAlg));
     ResizeAlg := ord(Graph.ALG_DOWNSCALE);
   end;
 
@@ -284,9 +315,9 @@ begin
   Heroes.ShowMessage(Mes);
 end;
 
-function Ask (Question: myPChar): TDwordBool; stdcall;
+function Ask (Question: myPChar): TInt32Bool; stdcall;
 begin
-  result := TDwordBool(ord(Heroes.Ask(Question)));
+  result := TInt32Bool(ord(Heroes.Ask(Question)));
 end;
 
 procedure ReportPluginVersion (const VersionLine: myPChar); stdcall;
@@ -304,20 +335,41 @@ begin
   result := GameExt.ERA_VERSION_INT;
 end;
 
-function Splice (OrigFunc, HandlerFunc: pointer; CallingConv: integer; NumArgs: integer; {n} CustomParam: pinteger; {n} AppliedPatch: ppointer): pointer; stdcall;
+function Splice (Plugin: TPlugin; OrigFunc, HandlerFunc: pointer; CallingConv: integer; NumArgs: integer; {n} CustomParam: pinteger; {n} AppliedPatch: ppointer): pointer; stdcall;
 begin
+  {!} Assert(Plugin <> nil);
   {!} Assert((CallingConv >= ord(ApiJack.CONV_FIRST)) and (CallingConv <= ord(ApiJack.CONV_LAST)), string(Legacy.Format('Splice: Invalid calling convention: %d', [CallingConv])));
-  {!} Assert(NumArgs >= 0, string(Legacy.Format('Splice>> Invalid arguments number: %d', [NumArgs])));
+  {!} Assert(NumArgs >= 0, string(Legacy.Format('Splice: Invalid arguments number: %d', [NumArgs])));
+
   if AppliedPatch <> nil then begin
     New(ApiJack.PAppliedPatch(AppliedPatch^));
     AppliedPatch := AppliedPatch^;
   end;
 
+  PatchApi.SetMainPatcherInstance(Plugin.Patcher);
   result := ApiJack.StdSplice(OrigFunc, HandlerFunc, ApiJack.TCallingConv(CallingConv), NumArgs, CustomParam, ApiJack.PAppliedPatch(AppliedPatch));
+  PatchApi.RestoreMainPatcherInstance;
 end;
 
-(* Installs new hook at specified address. Returns pointer to bridge with original code. Optionally specify address of a pointer to write applied patch structure pointer to.
-   It will allow to rollback the patch later. *)
+(* Installs new hook at specified address. Returns pointer to bridge with original code if any. Optionally specify address of a pointer to write applied patch structure
+   pointer to. It will allow to rollback the patch later. MinCodeSize specifies original code size to be erased (nopped). Use 0 in most cases. *)
+function Hook (Plugin: TPlugin; Addr: pointer; HandlerFunc: THookHandler; {n} AppliedPatch: ppointer; MinCodeSize, HookType: integer): {n} pointer; stdcall;
+
+
+begin
+  {!} Assert(Plugin <> nil);
+
+  if AppliedPatch <> nil then begin
+    New(ApiJack.PAppliedPatch(AppliedPatch^));
+    AppliedPatch := AppliedPatch^;
+  end;
+
+  PatchApi.SetMainPatcherInstance(Plugin.Patcher);
+  result := ApiJack.Hook(Addr, HandlerFunc, ApiJack.PAppliedPatch(AppliedPatch), MinCodeSize, ApiJack.THookType(HookType));
+  PatchApi.RestoreMainPatcherInstance;
+end;
+
+(* Deprecated legacy *)
 function HookCode (Addr: pointer; HandlerFunc: THookHandler; {n} AppliedPatch: ppointer): pointer; stdcall;
 begin
   if AppliedPatch <> nil then begin
@@ -325,12 +377,42 @@ begin
     AppliedPatch := AppliedPatch^;
   end;
 
-  result := ApiJack.HookCode(Addr, HandlerFunc, ApiJack.PAppliedPatch(AppliedPatch));
+  PatchApi.SetMainPatcherInstance(LegacyPlugin.Patcher);
+  result := ApiJack.Hook(Addr, HandlerFunc, ApiJack.PAppliedPatch(AppliedPatch), 0, ApiJack.HOOKTYPE_BRIDGE);
+  PatchApi.RestoreMainPatcherInstance;
 end;
 
-function CalcHookPatchSize (Addr: pointer): integer; stdcall;
+(* Deprecated legacy *)
+function ApiHook (HandlerAddr: pointer; HookType: integer; CodeAddr: pointer): {n} pointer; stdcall;
+const
+  OLD_HOOKTYPE_JUMP   = 0;
+  OLD_HOOKTYPE_CALL   = 1;
+  OLD_HOOKTYPE_BRIDGE = 2;
+
+var
+  NewHookType: ApiJack.THookType;
+
 begin
-  result := ApiJack.CalcHookPatchSize(Addr);
+  NewHookType := ApiJack.HOOKTYPE_BRIDGE;
+
+  if HookType = OLD_HOOKTYPE_JUMP then begin
+    NewHookType := ApiJack.HOOKTYPE_JUMP;
+  end else if HookType = OLD_HOOKTYPE_CALL then begin
+    NewHookType := ApiJack.HOOKTYPE_CALL;
+  end;
+
+  PatchApi.SetMainPatcherInstance(LegacyPlugin.Patcher);
+  result := ApiJack.Hook(CodeAddr, HandlerAddr, nil, 0, NewHookType);
+  PatchApi.RestoreMainPatcherInstance;
+end;
+
+function WriteAtCode (Plugin: TPlugin; NumBytes: integer; {n} Src, {n} Dst: pointer): boolean; stdcall;
+begin
+  {!} Assert(Plugin <> nil);
+
+  PatchApi.SetMainPatcherInstance(Plugin.Patcher);
+  result := ApiJack.WriteAtCode(NumBytes, Src, Dst);
+  PatchApi.RestoreMainPatcherInstance;
 end;
 
 (* The patch will be rollback and internal memory and freed. Do not use it anymore *)
@@ -341,6 +423,12 @@ begin
   Dispose(AppliedPatch);
 end;
 
+function IsPatchOverwritten (AppliedPatch: pointer): TInt32Bool; stdcall;
+begin
+  {!} Assert(AppliedPatch <> nil);
+  result := ord(ApiJack.PAppliedPatch(AppliedPatch).IsOverwritten);
+end;
+
 (* Frees applied patch structure. Use it if you don't plan to rollback it anymore *)
 procedure FreeAppliedPatch ({O} AppliedPatch: pointer); stdcall;
 begin
@@ -349,15 +437,10 @@ begin
   end;
 end;
 
-(* Deprecated legacy. Use HookCode instead *)
-function ApiHook (HandlerAddr: pointer; HookType: integer; CodeAddr: pointer): {n} pointer; stdcall;
+function GetAppliedPatchSize (AppliedPatch: pointer): integer; stdcall;
 begin
-  result := Core.Hook(CodeAddr, HookType, HandlerAddr);
-end;
-
-procedure Hook (HandlerAddr: pointer; HookType: integer; PatchSize: integer; CodeAddr: pointer); stdcall;
-begin
-  Heroes.ShowMessage('"Hook" function is not supported anymore. Use "HookCode" instead');
+  {!} Assert(AppliedPatch <> nil);
+  result := Length(ApiJack.PAppliedPatch(AppliedPatch).OldBytes);
 end;
 
 function GetArgXVars: PErmXVars; stdcall;
@@ -586,9 +669,9 @@ begin
   Erm.ZvsErmError(nil, 0, Error);
 end;
 
-function AllocErmFunc (FuncName: myPChar; {i} out FuncId: integer): TDwordBool; stdcall;
+function AllocErmFunc (FuncName: myPChar; {i} out FuncId: integer): TInt32Bool; stdcall;
 begin
-  result := TDwordBool(ord(Erm.AllocErmFunc(FuncName, FuncId)));
+  result := TInt32Bool(ord(Erm.AllocErmFunc(FuncName, FuncId)));
 end;
 
 function FindNextObject (ObjType, ObjSubtype: integer; var x, y, z: integer; Direction: integer): integer; stdcall;
@@ -644,9 +727,9 @@ begin
   result := myPChar(ProcessGuid);
 end;
 
-function IsCampaign: TDwordBool; stdcall;
+function IsCampaign: TInt32Bool; stdcall;
 begin
-  result := TDwordBool(ord(Heroes.IsCampaign));
+  result := TInt32Bool(ord(Heroes.IsCampaign));
 end;
 
 procedure GetCampaignFileName (Buf: myPChar); stdcall;
@@ -727,13 +810,13 @@ begin
   StrRegistry[Key] := TString.Create(NewValue);
 end;
 
-function PcxPngExists (const PcxName: myPChar): TDwordBool; stdcall;
+function PcxPngExists (const PcxName: myPChar): TInt32Bool; stdcall;
 begin
   result := ord(Graph.PcxPngExists(PcxName));
 end;
 
 function FireRemoteEvent (DestPlayerId: integer; EventName: myPChar; {n} Data: pointer; DataSize: integer; {n} ProgressHandler: Network.TNetworkStreamProgressHandler;
-                                 {n} ProgressHandlerCustomParam: pointer): TDwordBool; stdcall;
+                                 {n} ProgressHandlerCustomParam: pointer): TInt32Bool; stdcall;
 begin
   result := ord(Network.FireRemoteEvent(DestPlayerId, EventName, Data, DataSize, ProgressHandler, ProgressHandlerCustomParam));
 end;
@@ -784,14 +867,70 @@ begin
   result := MinValue + integer(cardinal(result) mod RangeLen);
 end;
 
+function CreatePlugin (Name: myPChar) : {On} TPlugin; stdcall;
+var
+  PluginName: myAStr;
+
+begin
+  result     := nil;
+  PluginName := Name;
+
+  if PluginManager.FindPlugin(PluginName) = nil then begin
+    result := TPlugin.Create(PluginName);
+    PluginManager.RegisterPlugin(result);
+  end;
+end;
+
+constructor TPlugin.Create (const Name: myAStr);
+begin
+  inherited Create;
+  Self.fName    := Name;
+  Self.fPatcher := PatchApi.GetPatcher.GetInstance(myPChar(Name));
+
+  if Self.fPatcher = nil then begin
+    Self.fPatcher := PatchApi.GetPatcher.CreateInstance(myPChar(Name));
+  end;
+end;
+
+destructor TPlugin.Destroy;
+begin
+  // do nothing
+  inherited;
+end;
+
+constructor TPluginManager.Create;
+begin
+  inherited;
+  Self.fPlugins := DataLib.NewDict(UtilsB2.OWNS_ITEMS, not DataLib.CASE_SENSITIVE);
+end;
+
+destructor TPluginManager.Destroy;
+begin
+  Legacy.FreeAndNil(Self.fPlugins);
+  inherited;
+end;
+
+function TPluginManager.FindPlugin (const Name: myAStr): {n} TPlugin;
+begin
+  result := Self.fPlugins[Name];
+end;
+
+function TPluginManager.RegisterPlugin ({O} Plugin: TPlugin): boolean;
+begin
+  result := Self.fPlugins[Plugin.Name] = nil;
+
+  if result then begin
+    Self.fPlugins[Plugin.Name] := Plugin;
+  end;
+end;
+
 exports
   AdvErm.ExtendArrayLifetime,
   AllocErmFunc,
   ApiHook,
   Ask,
-  CalcHookPatchSize,
   ClearIniCache,
-  Core.WriteAtCode,
+  CreatePlugin,
   DecorateInt,
   Erm.DisableErmTracking,
   Erm.EnableErmTracking,
@@ -829,6 +968,7 @@ exports
   GameExt.GenerateDebugInfo,
   GameExt.GetRealAddr,
   GameExt.RedirectMemoryBlock,
+  GetAppliedPatchSize,
   GetArgXVars,
   GetAssocVarIntValue,
   GetAssocVarStrValue,
@@ -852,6 +992,7 @@ exports
   HookCode,
   Ini.ClearAllIniCache,
   IsCampaign,
+  IsPatchOverwritten,
   LoadImageAsPcx16,
   MemFree,
   NameColor,
@@ -888,10 +1029,14 @@ exports
   trStatic,
   trTemp,
   Tweaks.RandomRangeWithFreeParam,
+  WriteAtCode,
   WriteSavegameSection,
   WriteStrToIni;
 
 begin
-  IntRegistry := DataLib.NewDict(not UtilsB2.OWNS_ITEMS, DataLib.CASE_SENSITIVE);
-  StrRegistry := DataLib.NewDict(UtilsB2.OWNS_ITEMS, DataLib.CASE_SENSITIVE);
+  IntRegistry   := DataLib.NewDict(not UtilsB2.OWNS_ITEMS, DataLib.CASE_SENSITIVE);
+  StrRegistry   := DataLib.NewDict(UtilsB2.OWNS_ITEMS, DataLib.CASE_SENSITIVE);
+  PluginManager := TPluginManager.Create;
+  LegacyPlugin  := TPlugin.Create('__ERA_Legacy__');
+  PluginManager.RegisterPlugin(LegacyPlugin);
 end.

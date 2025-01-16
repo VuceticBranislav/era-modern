@@ -1619,7 +1619,7 @@ begin
   gn_base(obj);
   mem_ch(#0);
   result := myAStr(pt0);
-  freemem(pt0);
+  Legacy.freemem(pointer(pt0));
 {$ELSE}
   result := gn_base(obj);
 {$ENDIF}

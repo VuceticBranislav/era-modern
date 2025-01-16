@@ -10,11 +10,12 @@ uses
   SysUtils,
   Windows,
 
+  ApiJack,
   BinPatching,
   CmdApp,
-  Core,
   Crypto,
   DataLib,
+  Debug,
   DlgMes,
   Files,
   FilesEx,
@@ -265,7 +266,7 @@ begin
     MemRedirections.Insert(NewRedirection, BlockInd); NewRedirection := nil;
   end else begin
     OldRedirection := MemRedirections[BlockInd];
-    Core.FatalError
+    Debug.FatalError
     (
       'Cannot redirect block at address $' +
       Legacy.Format('%x', [integer(OldAddr)]) +
@@ -278,7 +279,7 @@ begin
     );
   end; // .else
   // * * * * * //
-  FreeMem(NewRedirection);
+  Legacy.FreeMem(pointer(NewRedirection));
 end; // .procedure RedirectMemoryBlock
 
 function GetRealAddr (Addr: pointer): pointer;
@@ -531,7 +532,8 @@ begin ERA_VERSION_STR := Legacy.Format('%d.%d.%d%s', [VER_Major, VER_Minor, VER_
   {!} Assert(GameDir <> '', 'Failed to obtain game directory path');
   Legacy.SetCurrentDir(GameDir);
 
-  Core.SetDebugMapsDir(GameDir + '\' + DEBUG_MAPS_DIR);
+  Debug.SetDebugMapsDir(GameDir + '\' + DEBUG_MAPS_DIR);
 
   Windows.GetSystemTime(ProcessStartTime);
+  ApiJack.SetCodeWriter(WriteAtCode);
 end.

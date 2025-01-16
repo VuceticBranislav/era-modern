@@ -781,7 +781,7 @@ var
     if NeedleLen <= MAX_STATIC_FALLBACK_TABLE_LEN then begin
       FallbackTable := @FallbackTableStackStorage[0];
     end else begin
-      GetMem(FallbackTableBuf, (NeedleLen + 1) * sizeof(integer));
+      Legacy.GetMem(pointer(FallbackTableBuf), (NeedleLen + 1) * sizeof(integer));
       FallbackTable := FallbackTableBuf;
     end;
 
@@ -883,7 +883,7 @@ begin
     end; // .else
   end; // .if
   // * * * * * //
-  FreeMem(FallbackTableBuf);
+  Legacy.FreeMem(pointer(FallbackTableBuf));
 end; // .function FindStrEx
 
 function FindStr (const Needle, Haystack: myAStr; var {out} FoundPos: integer): boolean;
@@ -1439,7 +1439,7 @@ begin
   if ReverseFindChar('.', result, DotPos) then begin
     SetLength(result, DotPos - 1);
   end;
-end; // .function ExtractBaseFileName
+end;
 
 function ExtractExt (const FilePath: myAStr): myAStr;
 var

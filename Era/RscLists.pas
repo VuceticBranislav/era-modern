@@ -72,9 +72,10 @@ type
 
 procedure TResource.Init (const Name, Contents: myAStr; Crc32: integer; Tag: integer);
 begin
-  Self.fName := Name;
+  Self.fName     := Name;
   Self.fContents := Contents;
   Self.fCrc32    := Crc32;
+  Self.fTag      := Tag;
 end;
 
 constructor TResource.CreateWithCrc32 (const Name, Contents: myAStr; Crc32: integer; Tag: integer = 0);
@@ -90,7 +91,7 @@ end;
 function TResource.Assign (OtherResource: TResource): TResource;
 begin
   {!} Assert(OtherResource <> nil);
-  Self.fName := OtherResource.fName;
+  Self.fName     := OtherResource.fName;
   Self.fContents := OtherResource.fContents;
   Self.fCrc32    := OtherResource.fCrc32;
   result         := Self;
@@ -181,17 +182,19 @@ begin
     for i := 0 to Self.fItems.Count - 1 do begin
       Item := TResource(Self.fItems[i]);
       WriteStr(Item.Name);
+      WriteInt(Item.Tag);
       WriteInt(Item.Crc32);
       WriteStr(Item.Contents);
     end;
   end;
-end; // .procedure TResourceList.SaveItems
+end;
 
 procedure TResourceList.LoadFromSavedGame (const SectionName: myAStr);
 var
   NumItems:     integer;
   ItemContents: myAStr;
   ItemName:     myAStr;
+  ItemTag:      integer;
   ItemCrc32:    integer;
   i:            integer;
 
@@ -201,12 +204,13 @@ begin
 
     for i := 1 to NumItems do begin
       ItemName     := ReadStr;
+      ItemTag      := ReadInt;
       ItemCrc32    := ReadInt;
       ItemContents := ReadStr;
       Self.Add(TResource.Create(ItemName, ItemContents, ItemCrc32));
     end;
   end;
-end; // .procedure TResourceList.LoadFromSavedGame
+end;
 
 function TResourceList.Export (const DestDir: myAStr): myAStr;
 var

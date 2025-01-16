@@ -106,6 +106,6 @@ begin
   then begin
     result := '';
   end;
-end; // .function GetModuleFileName
+end;
 
 end.

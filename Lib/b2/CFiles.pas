@@ -22,18 +22,18 @@ type
   But FALSE is also returned if end of file (EOF) is reached.
   The solution is to check EOF flag after FALSE result.
   if EOF is true, then nothing more can be read/written, otherwise IO error occured.
-  
+
   Example:
   while File.ReadByte(Arr[File.Pos]) do begin end;
   if not File.EOF then begin /* ERROR! */ end;
   *)
-  
+
   TAbstractFile = class abstract
     (***) protected (***)
       const
         MIN_BUF_SIZE  = 64 * 1024;
         MAX_BUF_SIZE  = 1024 * 1024;
-    
+
       var
         fMode:          TDeviceMode;
         fHasKnownSize:  boolean;
@@ -41,10 +41,10 @@ type
         fSize:          integer;
         fPos:           integer;
         fEOF:           boolean;
-  
+
     (***) public (***)
       (* Core *)
-      
+
       // Reads 1..Count bytes
       function  ReadUpTo
       (
@@ -52,7 +52,7 @@ type
             {n} Buf:        pointer;
         out     BytesRead:  integer
       ): boolean; virtual; abstract;
-      
+
       // Writes 1..Count bytes
       function  WriteUpTo
       (
@@ -62,7 +62,7 @@ type
       ): boolean; virtual; abstract;
 
       function  Seek (NewPos: integer): boolean; virtual; abstract;
-    
+
       (* Reading *)
       function  Read (Count: integer; {n} Buf: pointer): boolean;
       procedure DoRead (Count: integer; {n} Buf: pointer);
@@ -96,18 +96,18 @@ type
       property  Pos:          integer read fPos;
       property  EOF:          boolean read fEOF;
   end; // .class TAbstractFile
-  
+
   TItemInfo = class
     IsDir:        boolean;
     HasKnownSize: boolean;
     FileSize:     integer;
   end; // .class TItemInfo
-  
+
   TAbstractLocator  = class
     (***) protected (***)
       fNotEnd:      boolean;
       fSearchMask:  myAStr;
-      
+
     (***) public (***)
       destructor  Destroy; override;
       procedure FinitSearch; virtual; abstract;
@@ -118,7 +118,7 @@ type
         const ItemName: myAStr;
         out   ItemInfo: TItemInfo
       ): boolean; virtual; abstract;
-      
+
       property  NotEnd:     boolean read fNotEnd;
       property  SearchMask: myAStr read fSearchMask;
   end; // .class TAbstractLocator
@@ -135,14 +135,14 @@ var
 begin
   {!} Assert(Count >= 0);
   TotalBytesRead := 0;
-  
+
   while
     (TotalBytesRead < Count)  and
     Self.ReadUpTo(Count - TotalBytesRead, UtilsB2.PtrOfs(Buf, TotalBytesRead), BytesRead)
   do begin
     TotalBytesRead := TotalBytesRead + BytesRead;
   end;
-  
+
   result := TotalBytesRead = Count;
 end;
 
@@ -182,7 +182,7 @@ function TAbstractFile.ReadStr (Count: integer; out Res: myAStr): boolean;
 begin
   SetLength(Res, Count);
   result := Self.Read(Count, pointer(Res));
-  
+
   if not result then begin
     Res :=  '';
   end;
@@ -210,21 +210,21 @@ begin
     BufSize :=  Self.MIN_BUF_SIZE;
     GetMem(Buf, BufSize);
     TotalBytesRead  :=  0;
-    
+
     while
       Self.ReadUpTo(BufSize - TotalBytesRead, UtilsB2.PtrOfs(Buf, TotalBytesRead), BytesRead) and
       not Self.EOF
     do begin
       TotalBytesRead  :=  TotalBytesRead + BytesRead;
-      
+
       if TotalBytesRead = BufSize then begin
         BufSize :=  BufSize * 2;
         ReallocMem(Buf, BufSize);
       end;
     end; // .while
-    
+
     result  :=  Self.EOF;
-    
+
     if result and (BufSize > TotalBytesRead) then begin
       ReallocMem(Buf, TotalBytesRead);
     end;
@@ -248,21 +248,21 @@ begin
     StrLen  :=  Self.MIN_BUF_SIZE;
     SetLength(Str, StrLen);
     TotalBytesRead  :=  0;
-    
+
     while
       Self.ReadUpTo(StrLen - TotalBytesRead, @Str[1 + TotalBytesRead], BytesRead) and
       not Self.EOF
     do begin
       TotalBytesRead  :=  TotalBytesRead + BytesRead;
-      
+
       if TotalBytesRead = StrLen then begin
         StrLen  :=  StrLen * 2;
         SetLength(Str, StrLen);
       end;
     end; // .while
-    
+
     result := Self.EOF;
-    
+
     if result and (StrLen > TotalBytesRead) then begin
       SetLength(Str, TotalBytesRead);
     end;
@@ -281,14 +281,14 @@ var
 begin
   {!} Assert(Count >= 0);
   TotalBytesWritten :=  0;
-  
+
   while
     (TotalBytesWritten < Count) and
     Self.WriteUpTo(Count - TotalBytesWritten, UtilsB2.PtrOfs(Buf, TotalBytesWritten), BytesWritten)
   do begin
     TotalBytesWritten :=  TotalBytesWritten + BytesWritten;
   end;
-  
+
   result  :=  TotalBytesWritten = Count;
 end; // .function TAbstractFile.Write
 
@@ -363,16 +363,16 @@ begin
     NumWriteOpers   :=  Math.Ceil(Count / MAX_BUF_SIZE);
     NumBytesToWrite :=  MAX_BUF_SIZE;
     i               :=  1;
-    
+
     while (i <= NumWriteOpers) and result do begin
       if i = NumWriteOpers then begin
         NumBytesToWrite :=  Count - (MAX_BUF_SIZE * (NumWriteOpers - 1));
       end;
-      
+
       result  :=
         Source.Read(NumBytesToWrite, pointer(StrBuf)) and
         Self.Write(NumBytesToWrite, pointer(StrBuf));
-      
+
       Inc(i);
     end; // .while
   end; // .else
@@ -386,12 +386,12 @@ var
 begin
   {!} Assert(Source <> nil);
   result  :=  TRUE;
-  
+
   if Source.HasKnownSize then begin
     result  :=  Self.WriteFrom(Source.Size, Source);
   end else begin
     SetLength(StrBuf, Self.MAX_BUF_SIZE);
-    
+
     while result and Source.ReadUpTo(Self.MAX_BUF_SIZE, pointer(StrBuf), BytesRead) do begin
       result  :=  Self.Write(BytesRead, pointer(StrBuf));
     end;

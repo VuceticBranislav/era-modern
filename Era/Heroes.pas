@@ -13,8 +13,8 @@ uses
   PatchApi,
 
   Alg,
-  Core,
   DataLib,
+  Debug,
   DlgMes,
   StrLib,
   TypeWrappers,
@@ -154,6 +154,9 @@ const
   DLG_ACTION_INDLG_CLICK         = 512;
   DLG_ACTION_SCROLL_WHEEL        = 522;
 
+  (* Dialog items *)
+  NO_DLG_ITEM = -1;
+
   LOAD_TXT_FUNC   = $55C2B0;  // F (Name: pchar); FASTCALL;
   UNLOAD_TXT_FUNC = $55D300;  // F (PTxtFile); FASTCALL;
   { F ( Name: PCHAR; AddExt: LONGBOOL; ShowDialog: LONGBOOL; Compress: INTBOOL; SaveToData: LONGBOOL); THISCALL ([GAME_MANAGER]); }
@@ -161,8 +164,6 @@ const
   LOAD_LOD          = $559420;  // F (Name: pchar); THISCALL (PLod);
   LOAD_LODS         = $559390;
   LOAD_DEF_SETTINGS = $50B420;  // F();
-  SMACK_OPEN        = $63A464;  // F(FileName: pchar; BufSize, BufMask: int): HANDLE or 0; stdcall;
-  BINK_OPEN         = $63A390;  // F(hFile, BufMask or $8000000: int): HANDLE or 0; stdcall;
 
   (* Limits *)
   MAX_MONS_IN_STACK = 32767;
@@ -215,6 +216,11 @@ const
 
   (* Internal structures *)
   H3STR_CONST_REF_COUNT = -1;
+
+  (* Input manager keyboard events *)
+  INPUT_MES_OTHER   = 0;
+  INPUT_MES_KEYDOWN = 1;
+  INPUT_MES_KEYUP   = 2;
 
 type
   TInt32Bool = integer;
@@ -444,7 +450,7 @@ type
 
   TGzipWrite  = procedure (Data: pointer; DataSize: integer); cdecl;
   TGzipRead   = function (Dest: pointer; DataSize: integer): integer; cdecl;
-  TWndProc    = function (hWnd, Msg, wParam, lParam: integer): longbool; stdcall;
+  TWndProc    = function (hWnd, Msg, wParam, lParam: integer): integer; stdcall;
 
   TGetAdvMapTileVisibility = function (x, y, z: integer): integer; cdecl;
   TGetBattleCellByPos = function (Pos: integer): pointer; cdecl;
@@ -1068,35 +1074,42 @@ type
 
   PBattleStack = ^TBattleStack;
   TBattleStack = packed record
-    Unk1:      array [0..$34 - 1] of byte;
-    MonType:   integer; // +0x34
-    Pos:       integer; // +0x38
-    Unk2:      array [$3C..$58 - 1] of byte;
-    HpLost:    integer;
-    Unk3:      array [$5C..$84 - 1] of byte;
-    Flags:     integer;
-    Unk4:      array [$88..$C0 - 1] of byte;
-    HitPoints: integer;
-    Unk5:      array [$C4..$F4 - 1] of byte;
-    Side:      integer;
-    Index:     integer; // 0..21
-    Unk6:      array [$FC..$548 - 1] of byte;
+    Unk1:           array [0..$34 - 1] of byte;
+    MonType:        integer; // +0x34
+    Pos:            integer; // +0x38
+    Unk2:           array [$3C..$58 - 1] of byte;
+    HpLost:         integer;
+    Unk3:           array [$5C..$84 - 1] of byte;
+    Flags:          integer;
+    Unk4:           array [$88..$C0 - 1] of byte;
+    HitPoints:      integer;
+    Unk5:           array [$C4..$F4 - 1] of byte;
+    Side:           integer;
+    Index:          integer; // 0..21
+    Unk6:           array [$FC..$2DC - 1] of byte;
+    SpellDurations: array [0..80] of integer; // spellID => duration
+    Unk7:           array [$420..$548 - 1] of byte;
   end; // .record TBattleStack
 
   PPCombatManager = ^PCombatManager;
   PCombatManager  = ^TCombatManager;
   TCombatManager  = packed record
-    Unk1:         array [0..$3C - 1] of byte;
-    Action:       integer; // +0x3C
-    Spell:        integer; // +0x40
-    TargetPos:    integer; // +0x44
-    ActionParam2: integer; // +0x48
-    Unk2:         array [$4C..$53CC - 1] of byte;
-    Heroes:       array [0..1] of PHero; // +0x53CC
-    Unk3:         array [$53CC + 4 * 2..$13D68 - 1] of byte;
-    IsTactics:    boolean; // 0x13D68
-    Align1:       array [1..3] of byte;
-    Round:        integer;
+    Unk1:          array [0..$3C - 1] of byte;
+    Action:        integer; // +0x3C
+    Spell:         integer; // +0x40
+    TargetPos:     integer; // +0x44
+    ActionParam2:  integer; // +0x48
+    Unk2:          array [$4C..$53CC - 1] of byte;
+    Heroes:        array [0..1] of PHero; // +0x53CC
+    Unk3:          array [$53CC + sizeof(pointer) * 2..$132B8 - 1] of byte;
+    CurrStackSide: integer; // 0x132B8
+    CurrStackInd:  integer; // 0x132BC
+    ControlSide:   integer; // 0x132C0, the side, which is really controlling current stack
+    Unk4:          array [$132C0 + 4..$13D68 - 1] of byte;
+    IsTactics:     boolean; // 0x13D68
+    Align1:        array [1..3] of byte;
+    Round:         integer; // 0x13D6C
+
     // _byte_ field_0[452]; // + 0 ?
     // _BattleHex_ hex[187]; // + 0x1c4 187=17*11
     // _byte_ field_5394[56]; //?
@@ -1163,8 +1176,51 @@ type
     field_78:            Windows._RTL_CRITICAL_SECTION; // 00000078
   end;
 
+  PKeyboardInputMessage = ^TKeyboardInputMessage;
+  TKeyboardInputMessage = packed record
+    KeyCode:      integer;    // Scancode or ANSI character code if IsTranslated field is TRUE
+    Zero_1:       integer;
+    Modifiers:    integer;    // Modifier key flags
+    IsTranslated: TInt32Bool; // ERA new field. If true, KeyCode is ANSI char code and should not be translated
+    Zero_2:       integer;
+    Zero_3:       integer;
+    Zero_4:       integer;
+  end;
+
+  PInputMessage = ^TInputMessage;
+  TInputMessage = packed record
+    MsgType: integer; // One of INPUT_MES_XXX constants
+
+    case byte of
+      0: (Key:   TKeyboardInputMessage);
+      1: (Other: packed array [0..27] of byte);
+  end;
+
+  // Circular buffer
+  PInputMessageQueue = ^TInputMessageQueue;
+  TInputMessageQueue = packed record
+    IsEnabled:   TInt32Bool;
+    Messages:    array [0..63] of TInputMessage;
+    ReadPosInd:  integer;
+    WritePosInd: integer;
+
+    procedure Enqueue (InputMsg: PInputMessage);
+    procedure AddTranslatedKeyInputMsg (KeyCode: integer; Modifiers: integer = 0);
+  end;
+
   PInputManager = ^TInputManager;
   TInputManager = packed record
+    VTable: pointer;
+    Unk1:   array [5..52] of byte;
+    Queue:  TInputMessageQueue;
+    Unk2:   integer;
+    f844:   array [1..260] of byte;
+    f948:   integer;
+    f94C:   integer;
+    PreventAutoKeyTranslation: TInt32Bool;
+    f954:   integer;
+    f958:   integer;
+    f95C:   integer;
   end;
 
   PPWndManager = ^PWndManager;
@@ -1272,6 +1328,19 @@ const
   ZvsRedrawMap:   procedure = Ptr($7126EA);
   a2i:            function (Str: myPChar): int cdecl = Ptr($6184D9);
   a2f:            function (Str: myPChar): single cdecl = Ptr($619366);
+
+type
+  TOpenSmackApiFunc = function (FileHandle: Windows.THandle; BufSize, MinusOne: int): {n} pointer stdcall;
+  TOpenBinkApiFunc  = function (FileHandle: Windows.THandle; BufMask: integer): {n} pointer stdcall; // BufMask must be ORed with $8000000
+
+const
+  Video: record
+    OpenSmack: ^TOpenSmackApiFunc;
+    OpenBink:  ^TOpenBinkApiFunc;
+  end = (
+    OpenSmack: Ptr($63A464);
+    OpenBink:  Ptr($63A390);
+  );
 
   GetAdvMapTileVisibility: TGetAdvMapTileVisibility = Ptr($715A7E);
   GetBattleCellByPos:  TGetBattleCellByPos = Ptr($715872);
@@ -1482,6 +1551,34 @@ Type
 
 begin
   result := TGetActiveStackMethod(Ptr($75AF06))(@Self);
+end;
+
+procedure TInputMessageQueue.Enqueue (InputMsg: PInputMessage);
+begin
+  if Self.IsEnabled = 0 then begin
+    exit;
+  end;
+
+  Self.Messages[Self.WritePosInd] := InputMsg^;
+  Self.WritePosInd                := (Self.WritePosInd + 1) mod Length(Self.Messages);
+
+  if Self.WritePosInd = Self.ReadPosInd then begin
+    Self.ReadPosInd := (Self.ReadPosInd + 1) mod Length(Self.Messages);
+  end;
+end;
+
+procedure TInputMessageQueue.AddTranslatedKeyInputMsg (KeyCode: integer; Modifiers: integer = 0);
+var
+  InputMessage: TInputMessage;
+
+begin
+  System.FillChar(InputMessage, sizeof(InputMessage), #0);
+  InputMessage.MsgType          := INPUT_MES_KEYDOWN;
+  InputMessage.Key.KeyCode      := KeyCode;
+  InputMessage.Key.Modifiers    := Modifiers;
+  InputMessage.Key.IsTranslated := ord(true);
+
+  Self.Enqueue(@InputMessage);
 end;
 
 procedure SendNetData (DestPlayerId, MsgId: integer; {n} Data: pointer; DataSize: integer);
@@ -1854,7 +1951,7 @@ begin
   result := nil;
 
   if (aWidth <= 0) or (aHeight <= 0) then begin
-    Core.NotifyError(Legacy.Format('Cannot create pcx8 image of size %dx%d', [aWidth, aHeight]));
+    Debug.NotifyError(Legacy.Format('Cannot create pcx8 image of size %dx%d', [aWidth, aHeight]));
 
     aWidth  := UtilsB2.IfThen(aWidth > 0, aWidth, 1);
     aHeight := UtilsB2.IfThen(aHeight > 0, aHeight, 1);
@@ -1894,7 +1991,7 @@ begin
   result := nil;
 
   if (aWidth <= 0) or (aHeight <= 0) then begin
-    Core.NotifyError(Legacy.Format('Cannot create pcx16 image of size %dx%d', [aWidth, aHeight]));
+    Debug.NotifyError(Legacy.Format('Cannot create pcx16 image of size %dx%d', [aWidth, aHeight]));
 
     aWidth  := UtilsB2.IfThen(aWidth > 0, aWidth, 1);
     aHeight := UtilsB2.IfThen(aHeight > 0, aHeight, 1);
@@ -1929,7 +2026,7 @@ begin
   result := nil;
 
   if (aWidth <= 0) or (aHeight <= 0) then begin
-    Core.NotifyError(Legacy.Format('Cannot create pcx24 image of size %dx%d', [aWidth, aHeight]));
+    Debug.NotifyError(Legacy.Format('Cannot create pcx24 image of size %dx%d', [aWidth, aHeight]));
 
     aWidth  := UtilsB2.IfThen(aWidth > 0, aWidth, 1);
     aHeight := UtilsB2.IfThen(aHeight > 0, aHeight, 1);

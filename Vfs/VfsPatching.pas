@@ -30,8 +30,8 @@ function SpliceWinApi (OrigFunc, HandlerFunc: pointer; {n} AppliedPatch: PApplie
 
 type
   (* Import *)
-  TPatchMaker  = PatchForge.TPatchMaker;
-  TPatchHelper = PatchForge.TPatchHelper;
+  TPatch      = PatchForge.TPatch;
+  TPatchMaker = PatchForge.TPatchMaker;
 
 const
   PERSISTENT_MEM_CAPACITY = 100 * 1024;
@@ -77,7 +77,7 @@ begin
   if not result then begin
     try
       result := Windows.VirtualProtect(Dst, NumBytes, Windows.PAGE_EXECUTE_READWRITE, @OldPageProtect);
-      
+
       if result then begin
         UtilsB2.CopyMem(NumBytes, Src, Dst);
         Windows.VirtualProtect(Dst, NumBytes, OldPageProtect, @OldPageProtect);
@@ -86,7 +86,7 @@ begin
       result := false;
     end;
   end; // .if
-end; // .function WriteAtCode
+end;
 
 (* Writes patch to any write-protected section *)
 function WritePatchAtCode (PatchMaker: TPatchMaker; {n} Dst: pointer): boolean;
@@ -104,15 +104,15 @@ begin
     PatchMaker.ApplyPatch(pointer(Buf), Dst);
     result := WriteAtCode(Length(Buf), pointer(Buf), Dst);
   end;
-end; // .function WritePatchAtCode
+end;
 
 function SpliceWinApi (OrigFunc, HandlerFunc: pointer; {n} AppliedPatch: PAppliedPatch = nil): pointer;
 const
   CODE_ADDR_ALIGNMENT = 8;
 
 var
-{O}  p:                      PatchForge.TPatchHelper;
-{OI} SpliceBridge:           pbyte; // Memory is never freed        
+{O}  p:                      TPatchMaker;
+{OI} SpliceBridge:           pbyte; // Memory is never freed
      OrigFuncBridgeLabel:    myAStr;
      OrigCodeBridgeStartPos: integer;
      OverwrittenCodeSize:    integer;
@@ -120,7 +120,7 @@ var
 begin
   {!} Assert(OrigFunc <> nil);
   {!} Assert(HandlerFunc <> nil);
-  p            := TPatchHelper.Wrap(TPatchMaker.Create);
+  p            := TPatchMaker.Create;
   SpliceBridge := nil;
   result       := nil;
   // * * * * * //
@@ -134,24 +134,24 @@ begin
 
   // Jump to new handler
   p.Jump(PatchForge.JMP, HandlerFunc);
-  
+
   // Ensure original code bridge is aligned
   p.Nop(p.Pos mod CODE_ADDR_ALIGNMENT);
 
   // Set result to offset from splice bridge start to original function bridge
   result := pointer(p.Pos);
-  
+
   // Write original function bridge
   p.PutLabel(OrigFuncBridgeLabel);
   OrigCodeBridgeStartPos := p.Pos;
-  p.WriteCode(OrigFunc, PatchForge.TMinCodeSizeDetector.Create(sizeof(PatchForge.TJumpCall32Rec)));
+  p.WriteFromCode(OrigFunc, PatchForge.TMinCodeSizeDetector.Create(sizeof(PatchForge.TJumpCall32Rec)));
   OverwrittenCodeSize := p.Pos - OrigCodeBridgeStartPos;
   p.Jump(PatchForge.JMP, UtilsB2.PtrOfs(OrigFunc, OverwrittenCodeSize));
   // === END generating SpliceBridge ===
 
   // Persist splice bridge
   AllocPersistentMem(SpliceBridge, p.Size);
-  WritePatchAtCode(p.PatchMaker, SpliceBridge);
+  WritePatchAtCode(p, SpliceBridge);
 
   // Turn result from offset to absolute address
   result := Ptr(integer(SpliceBridge) + integer(result));
@@ -167,9 +167,9 @@ begin
     UtilsB2.CopyMem(p.Size, OrigFunc, @AppliedPatch.Bytes[0]);
   end;
 
-  WritePatchAtCode(p.PatchMaker, OrigFunc);
+  WritePatchAtCode(p, OrigFunc);
   // * * * * * //
-  p.Release;
+  Legacy.FreeAndNil(p);
 end;
 
 procedure TAppliedPatch.Rollback;

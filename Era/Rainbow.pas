@@ -1,10 +1,11 @@
 unit Rainbow;
 (*
-  DESCRIPTION: Adds markup language support to all Heroes texts (EML - Era Markup Language).
-  AUTHOR:      Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
+  Description: Adds markup language support to all Heroes texts (EML - Era Markup Language).
+  Author:      Alexander Shostak aka Berserker
 *)
 
 (***)  interface  (***)
+
 uses
   Math,
   SysUtils,
@@ -14,7 +15,6 @@ uses
 
   ApiJack,
   AssocArrays,
-  Core,
   Crypto,
   DataLib,
   DlgMes,
@@ -75,7 +75,7 @@ exports
   UpdateTextAttrsFromNextChar;
 
 
-  const
+const
   BLANKS = [#0..#32];
 
   TOKEN_HASH_TOP    = 517545930;
@@ -1272,7 +1272,7 @@ begin
     end;
   end; // .else
 
-  result := not Core.EXEC_DEF_CODE;
+  result := false;
 end; // .function Hook_BeginParseText
 
 function Hook_CountNumTextLines (Text: myPChar; BoxWidth: integer): integer; stdcall;
@@ -1330,7 +1330,7 @@ begin
     UpdateCurrBlock;
   end;
 
-  result := not Core.EXEC_DEF_CODE;
+  result := false;
 end; // .function Hook_HandleTags
 
 function New_Font_CountNumTextLines (OrigFunc: pointer; Font: Heroes.PFontItem; Text: myPChar; BoxWidth: integer): integer; stdcall;
@@ -1588,16 +1588,16 @@ begin
     pword($4B5202)^    := word($840F); // JE
     pinteger($4B5204)^ := $02E7;       // 4B54EF
   end else begin
-    ApiJack.HookCode(Ptr($4B509B), @Hook_HandleTags);
+    ApiJack.Hook(Ptr($4B509B), @Hook_HandleTags);
   end;
 
-  ApiJack.HookCode(Ptr($4B4F74), @Hook_GetCharColor);
-  ApiJack.HookCode(Ptr($4B5255), @Hook_BeginParseText);
-  Core.Hook(Ptr($4B5275), Core.HOOKTYPE_CALL, @Hook_CountNumTextLines);
-  Core.Hook(Ptr($4B52CA), Core.HOOKTYPE_CALL, @Hook_CountNumTextLines);
-  Core.Hook(Ptr($5BA547), Core.HOOKTYPE_CALL, @Hook_ScrollTextDlg_CreateLineTextItem);
-  ApiJack.HookCode(Ptr($4B547B), @Hook_Font_DrawTextToPcx16_DetermineLineAlignment);
-  ApiJack.HookCode(Ptr($4B54EF), @Hook_Font_DrawTextToPcx16_End);
+  ApiJack.Hook(Ptr($4B4F74), @Hook_GetCharColor);
+  ApiJack.Hook(Ptr($4B5255), @Hook_BeginParseText);
+  ApiJack.Hook(Ptr($4B5275), @Hook_CountNumTextLines, nil, 0, ApiJack.HOOKTYPE_CALL);
+  ApiJack.Hook(Ptr($4B52CA), @Hook_CountNumTextLines, nil, 0, ApiJack.HOOKTYPE_CALL);
+  ApiJack.Hook(Ptr($5BA547), @Hook_ScrollTextDlg_CreateLineTextItem, nil, 0, ApiJack.HOOKTYPE_CALL);
+  ApiJack.Hook(Ptr($4B547B), @Hook_Font_DrawTextToPcx16_DetermineLineAlignment);
+  ApiJack.Hook(Ptr($4B54EF), @Hook_Font_DrawTextToPcx16_End);
   ApiJack.StdSplice(Ptr($4B5680), @New_Font_GetLineWidth, ApiJack.CONV_THISCALL, 2);
   ApiJack.StdSplice(Ptr($4B5580), @New_Font_CountNumTextLines, ApiJack.CONV_THISCALL, 3);
   ApiJack.StdSplice(Ptr($4B56F0), @New_Font_GetMaxLineWidth, ApiJack.CONV_THISCALL, 2);
@@ -1606,7 +1606,7 @@ begin
   ApiJack.StdSplice(Ptr($4B58F0), @New_Font_TextToLines, ApiJack.CONV_THISCALL, 4);
 
   // Fix TransformInputKey routine to allow entering "{" and "}"
-  Core.p.WriteDataPatch(Ptr($5BAFB5), [myAStr('EB08')]);
+  PatchApi.p.WriteDataPatch(Ptr($5BAFB5), [myAStr('EB08')]);
 end; // .procedure OnAfterWoG
 
 begin
