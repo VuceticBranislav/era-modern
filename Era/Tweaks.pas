@@ -39,6 +39,7 @@ uses
   Graph,
   Heroes,
   Lodman,
+  Network,
   Stores,
   Trans,
   WogDialogs, Legacy;
@@ -742,31 +743,31 @@ end;
 function Hook_ApplyDamage_Ebx_Local7 (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
   Context.EBX                    := ZvsAppliedDamage^;
-  PINTEGER(Context.EBP - 7 * 4)^ := ZvsAppliedDamage^;
+  pinteger(Context.EBP - 7 * 4)^ := ZvsAppliedDamage^;
   result                         := true;
 end;
 
 function Hook_ApplyDamage_Local7 (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
-  PINTEGER(Context.EBP - 7 * 4)^ := ZvsAppliedDamage^;
+  pinteger(Context.EBP - 7 * 4)^ := ZvsAppliedDamage^;
   result                         := true;
 end;
 
 function Hook_ApplyDamage_Local4 (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
-  PINTEGER(Context.EBP - 4 * 4)^ := ZvsAppliedDamage^;
+  pinteger(Context.EBP - 4 * 4)^ := ZvsAppliedDamage^;
   result                         := true;
 end;
 
 function Hook_ApplyDamage_Local8 (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
-  PINTEGER(Context.EBP - 8 * 4)^ := ZvsAppliedDamage^;
+  pinteger(Context.EBP - 8 * 4)^ := ZvsAppliedDamage^;
   result                         := true;
 end;
 
 function Hook_ApplyDamage_Local13 (Context: ApiJack.PHookContext): longbool; stdcall;
 begin
-  PINTEGER(Context.EBP - 13 * 4)^ := ZvsAppliedDamage^;
+  pinteger(Context.EBP - 13 * 4)^ := ZvsAppliedDamage^;
   result                          := true;
 end;
 
@@ -775,8 +776,8 @@ const
   NEW_WOG_VERSION = 400;
 
 begin
-  PINTEGER(Context.EBP - $0C)^ := NEW_WOG_VERSION;
-  PINTEGER(Context.EBP - $24)^ := GameExt.ERA_VERSION_INT;
+  pinteger(Context.EBP - $0C)^ := NEW_WOG_VERSION;
+  pinteger(Context.EBP - $24)^ := GameExt.ERA_VERSION_INT;
   Context.RetAddr              := Ptr($73227A);
   result                       := false;
 end;
@@ -820,7 +821,7 @@ begin
   ZvsLibGamePath := Legacy.ExtractFileDir(myAStr(ParamStr(0)));
   {!} Assert(Length(ZvsLibGamePath) > 0);
   // Increase string ref count for C++ Builder Ansistring
-  Inc(PINTEGER(UtilsB2.PtrOfs(pointer(ZvsLibGamePath), -8))^);
+  Inc(pinteger(UtilsB2.PtrOfs(pointer(ZvsLibGamePath), -8))^);
 
   PPAnsiChar(Context.EBP - EBP_LOCAL_GAME_PATH)^ :=  myPChar(ZvsLibGamePath);
   Context.RetAddr := UtilsB2.PtrOfs(Context.RetAddr, 486);
@@ -828,25 +829,40 @@ begin
 end;
 
 function Hook_ZvsPlaceMapObject (Hook: PatchApi.THiHook; x, y, Level, ObjType, ObjSubtype, ObjType2, ObjSubtype2, Terrain: integer): integer; stdcall;
+var
+  Params: packed array [0..7] of integer;
+
 begin
   if IsLocalPlaceObject then begin
-    Erm.FireRemoteErmEvent(Erm.TRIGGER_ONREMOTEEVENT, [Erm.REMOTE_EVENT_PLACE_OBJECT, x, y, Level, ObjType, ObjSubtype, ObjType2, ObjSubtype2, Terrain]);
+    Params[0] := x;
+    Params[1] := y;
+    Params[2] := Level;
+    Params[3] := ObjType;
+    Params[4] := ObjSubtype;
+    Params[5] := ObjType2;
+    Params[6] := ObjSubtype2;
+    Params[7] := Terrain;
+
+    FireRemoteEvent(Network.DEST_ALL_PLAYERS, 'OnRemoteCreateAdvMapObject', @Params, sizeof(Params));
   end;
 
   result := PatchApi.Call(PatchApi.CDECL_, Hook.GetOriginalFunc(), [x, y, Level, ObjType, ObjSubtype, ObjType2, ObjSubtype2, Terrain]);
 end;
 
-procedure OnRemoteMapObjectPlace (Event: GameExt.PEvent); stdcall;
+procedure OnRemoteCreateAdvMapObject (Event: GameExt.PEvent); stdcall;
+type
+  TParams = packed array [0..7] of integer;
+  PParams = ^TParams;
+
+var
+  Params: PParams;
+
 begin
-  // Switch Network event
-  case Erm.x[1] of
-    Erm.REMOTE_EVENT_PLACE_OBJECT: begin
-      IsLocalPlaceObject := false;
-      Erm.ZvsPlaceMapObject(Erm.x[2], Erm.x[3], Erm.x[4], Erm.x[5], Erm.x[6], Erm.x[7], Erm.x[8], Erm.x[9]);
-      IsLocalPlaceObject := true;
-    end;
-  end;
-end; // .procedure OnRemoteMapObjectPlace
+  Params             := Event.Data;
+  IsLocalPlaceObject := false;
+  Erm.ZvsPlaceMapObject(Params[0], Params[1], Params[2], Params[3], Params[4], Params[5], Params[6], Params[7]);
+  IsLocalPlaceObject := true;
+end;
 
 function Hook_ZvsEnter2Monster (Context: ApiJack.PHookContext): longbool; stdcall;
 const
@@ -1348,6 +1364,30 @@ begin
   CombatMan.CurrStackSide := OrigCurrStackSide;
   CombatMan.CurrStackInd  := OrigCurrStackInd;
   CombatMan.ControlSide   := OrigControlSide;
+end;
+
+function Splice_ZvsQuickSandOrLandMine (OrigFunc: pointer; SpellCasterType, StackId, Pos, Redraw: integer): integer; stdcall;
+const
+  CASTER_TYPE_HERO     = 0;
+  CASTER_TYPE_MONSTER  = 1;
+  CASTER_TYPE_ARTIFACT = 2;
+
+type
+  TQuickSandOrLandMine = function (SpellCasterType, StackId, Pos, Redraw: integer): integer; cdecl;
+
+var
+  CombatMan:   Heroes.PCombatManager;
+  OrigStackId: integer;
+
+begin
+  CombatMan   := Heroes.CombatManagerPtr^;
+  OrigStackId := CombatMan.CurrStackSide * NUM_BATTLE_STACKS_PER_SIDE + CombatMan.CurrStackInd;
+
+  result := TQuickSandOrLandMine(OrigFunc)(SpellCasterType, StackId, Pos, Redraw);
+
+  if (SpellCasterType = CASTER_TYPE_MONSTER) and (OrigStackId <> StackId) then begin
+    CombatMan.RedrawGridAndSelection;
+  end;
 end;
 
 function Hook_ZvsAdd2Send (Context: ApiJack.PHookContext): longbool; stdcall;
@@ -2191,24 +2231,24 @@ begin
   end;
 
   (* Remove duplicate ResetAll call *)
-  PINTEGER($7055BF)^ :=  integer($90909090);
+  pinteger($7055BF)^ :=  integer($90909090);
   PBYTE($7055C3)^    :=  $90;
 
   (* Optimize zvslib1.dll ini handling *)
   Zvslib1Handle   :=  Windows.GetModuleHandleA(myPChar('zvslib1.dll'));
   Addr            :=  Zvslib1Handle + 1666469;
-  Addr            :=  PINTEGER(Addr + PINTEGER(Addr)^ + 6)^;
+  Addr            :=  pinteger(Addr + pinteger(Addr)^ + 6)^;
   NewAddr         :=  @New_Zvslib_GetPrivateProfileStringA;
   PatchApi.p.WriteDword(@NewAddr, integer(Addr));
 
   (* Redirect reading/writing game settings to ini *)
   // No saving settings after reading them
   PBYTE($50B964)^    := $C3;
-  PINTEGER($50B965)^ := integer($90909090);
+  pinteger($50B965)^ := integer($90909090);
 
-  PPOINTER($50B920)^ := Ptr(integer(@ReadGameSettings) - $50B924);
-  PPOINTER($50BA2F)^ := Ptr(integer(@WriteGameSettings) - $50BA33);
-  PPOINTER($50C371)^ := Ptr(integer(@WriteGameSettings) - $50C375);
+  ppointer($50B920)^ := Ptr(integer(@ReadGameSettings) - $50B924);
+  ppointer($50BA2F)^ := Ptr(integer(@WriteGameSettings) - $50BA33);
+  ppointer($50C371)^ := Ptr(integer(@WriteGameSettings) - $50C375);
 
   (* Fix game version to enable map generator *)
   Heroes.GameVersion^ :=  Heroes.SOD_AND_AB;
@@ -2243,10 +2283,9 @@ begin
 
   ApiJack.Hook(Ptr(Zvslib1Handle + ZVSLIB_EXTRACTDEF_OFS + ZVSLIB_EXTRACTDEF_GETGAMEPATH_OFS), @Hook_ZvsLib_ExtractDef_GetGamePath);
 
-  PatchApi.p.WriteHiHook(Ptr($71299E), PatchApi.SPLICE_, PatchApi.EXTENDED_, PatchApi.CDECL_, @Hook_ZvsPlaceMapObject);
-
   (* Syncronise object creation at local and remote PC *)
-  EventMan.GetInstance.On('OnTrigger ' + Legacy.IntToStr(Erm.TRIGGER_ONREMOTEEVENT), OnRemoteMapObjectPlace);
+  PatchApi.p.WriteHiHook(Ptr($71299E), PatchApi.SPLICE_, PatchApi.EXTENDED_, PatchApi.CDECL_, @Hook_ZvsPlaceMapObject);
+  EventMan.GetInstance.On('OnRemoteCreateAdvMapObject', OnRemoteCreateAdvMapObject);
 
   (* Fixed bug with combined artifact (# > 143) dismounting in heroes meeting screen *)
   PatchApi.p.WriteDataPatch(Ptr($4DC358), [myAStr('A0')]);
@@ -2290,6 +2329,10 @@ begin
   // Fix combatManager::CastSpell function by temporarily setting CombatManager->ControlSide to the side, controlling casting stack.
   // "Fire wall", "land mines", "quick sands" and many other spells rely on which side is considered friendly for spell.
   ApiJack.StdSplice(Ptr($5A0140), @Splice_CombatManager_CastSpell, ApiJack.CONV_THISCALL, 7);
+
+  // Fix WoG QuickSand and LandMine functions: redraw battlefield if spell is casted by inactive stack
+  ApiJack.StdSplice(Ptr($75EBBA), @Splice_ZvsQuickSandOrLandMine, ApiJack.CONV_CDECL, 4);
+  ApiJack.StdSplice(Ptr($75ED82), @Splice_ZvsQuickSandOrLandMine, ApiJack.CONV_CDECL, 4);
 
   // Fix crash in network game in savegame dialog: RMB on some dialog items above savegame list, attempt to update ScreenLog without having valid textWidget field
   PatchApi.p.WriteDataPatch(Ptr($58B15A), [myAStr('E98200000090')]);

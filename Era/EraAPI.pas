@@ -157,6 +157,7 @@ function  WriteAtCode (Plugin: TPlugin; NumBytes: integer; {n} Src, {n} Dst: poi
 function  WriteStrToIni (Key, Value, SectionName, FilePath: myPChar): boolean; stdcall; external 'era.dll' name 'WriteStrToIni';
 procedure ClearAllIniCache; external 'era.dll' name 'ClearAllIniCache';
 procedure ClearIniCache (FileName: myPChar); stdcall; external 'era.dll' name 'ClearIniCache';
+procedure EmptyIniCache (const FileName: myPChar); stdcall; external 'era.dll' name 'EmptyIniCache';
 procedure ExecErmCmd (CmdStr: myPChar); stdcall; external 'era.dll' name 'ExecErmCmd';
 procedure ExecPersistedErmCmd (PersistedCmd: pointer); stdcall; external 'era.dll' name 'ExecPersistedErmCmd';
 procedure ExtractErm; external 'era.dll' name 'ExtractErm';
@@ -171,6 +172,7 @@ procedure GetGameState (var GameState: TGameState); stdcall; external 'era.dll' 
 procedure GetMapFileName (Buf: myPChar); stdcall; external 'era.dll' name 'GetMapFileName';
 procedure GlobalRedirectFile (OldFileName, NewFileName: myPChar); stdcall; external 'era.dll' name 'GlobalRedirectFile';
 procedure MemFree ({On} Buf: pointer); stdcall; external 'era.dll' name 'MemFree';
+procedure MergeIniWithDefault (TargetPath, SourcePath: myPChar); stdcall; external 'era.dll' name 'MergeIniWithDefault';
 procedure NameColor (Color32: integer; Name: myPChar); stdcall; external 'era.dll' name 'NameColor';
 procedure NameTrigger (TriggerId: integer; Name: myPChar); stdcall; external 'era.dll' name 'NameTrigger';
 procedure NotifyError (Err: myPChar); stdcall; external 'era.dll' name 'NotifyError';

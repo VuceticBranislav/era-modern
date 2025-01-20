@@ -144,6 +144,11 @@ begin
   Ini.ClearIniCache(FileName);
 end;
 
+procedure EmptyIniCache (FileName: myPChar); stdcall;
+begin
+  Ini.EmptyIniCache(FileName);
+end;
+
 function ReadStrFromIni (Key, SectionName, FilePath, Res: myPChar): TInt32Bool; stdcall;
 var
   ResStr: myAStr;
@@ -161,6 +166,11 @@ end;
 function SaveIni (FilePath: myPChar): TInt32Bool; stdcall;
 begin
   result := TInt32Bool(ord(Ini.SaveIni(FilePath)));
+end;
+
+procedure MergeIniWithDefault (TargetPath, SourcePath: myPChar); stdcall;
+begin
+  Ini.MergeIniWithDefault(TargetPath, SourcePath);
 end;
 
 procedure WriteSavegameSection (DataSize: integer; {n} Data: pointer; SectionName: myPChar); stdcall;
@@ -932,6 +942,7 @@ exports
   ClearIniCache,
   CreatePlugin,
   DecorateInt,
+  EmptyIniCache,
   Erm.DisableErmTracking,
   Erm.EnableErmTracking,
   Erm.ExtractErm,
@@ -995,6 +1006,7 @@ exports
   IsPatchOverwritten,
   LoadImageAsPcx16,
   MemFree,
+  MergeIniWithDefault,
   NameColor,
   NameTrigger,
   NotifyError,
