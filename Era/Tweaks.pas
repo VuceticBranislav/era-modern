@@ -25,6 +25,7 @@ uses
   Files,
   FilesEx,
   Ini,
+  Log,
   PatchApi,
   StrLib,
   UtilsB2,
@@ -174,7 +175,6 @@ var
 threadvar
   (* Counter (0..100). When reaches 100, PeekMessageA does not call sleep before returning result *)
   CpuPatchCounter: integer;
-  IsMainThread:    boolean;
 
 
 constructor TBattleDeterministicRng.Create (CombatIdPtr, CombatRoundPtr, CombatActionIdPtr, FreeParamPtr: pinteger);
@@ -1076,6 +1076,9 @@ var
   RngId: integer = 0; // Holds random generation attempt ID, auto resets at each reseeding. Used for debugging purposes
 
 procedure Hook_SRand (OrigFunc: pointer; Seed: integer); stdcall;
+type
+  TSRandFunc = procedure (Seed: integer); cdecl;
+
 var
   CallerAddr: pointer;
   Msg:        myAStr;
@@ -1088,8 +1091,12 @@ begin
 
   GlobalRng.Seed(Seed);
 
-  if (DebugRng <> DEBUG_RNG_NONE) and (Heroes.WndManagerPtr^ <> nil) and (Heroes.WndManagerPtr^.RootDlg <> nil) then begin
+  if DebugRng <> DEBUG_RNG_NONE then begin
     Msg := Legacy.Format('SRand %d from %.8x', [Seed, integer(CallerAddr)]);
+    Log.Write('RNG', '', Msg);
+  end;
+
+  if (DebugRng <> DEBUG_RNG_NONE) and (Heroes.WndManagerPtr^ <> nil) and (Heroes.WndManagerPtr^.RootDlg <> nil) then begin
     Writeln(Msg);
     Heroes.PrintChatMsg('{~ffffff}' + Msg);
   end;
@@ -1098,6 +1105,9 @@ begin
 end;
 
 procedure Hook_Tracking_SRand (OrigFunc: pointer; Seed: integer); stdcall;
+type
+  TSRandFunc = procedure (Seed: integer); cdecl;
+
 var
   CallerAddr: pointer;
   Msg:        myAStr;
@@ -1111,8 +1121,12 @@ begin
   GlobalRng.Seed(Seed);
   NativeRngSeed^ := Seed;
 
-  if (DebugRng <> DEBUG_RNG_NONE) and (Heroes.WndManagerPtr^ <> nil) and (Heroes.WndManagerPtr^.RootDlg <> nil) then begin
+  if DebugRng <> DEBUG_RNG_NONE then begin
     Msg := Legacy.Format('SRand %d from %.8x', [Seed, integer(CallerAddr)]);
+    Log.Write('RNG', '', Msg);
+  end;
+
+  if (DebugRng <> DEBUG_RNG_NONE) and (Heroes.WndManagerPtr^ <> nil) and (Heroes.WndManagerPtr^.RootDlg <> nil) then begin
     Writeln(Msg);
     Heroes.PrintChatMsg('{~ffffff}' + Msg);
   end;
@@ -1121,6 +1135,9 @@ begin
 end;
 
 function Hook_Rand (OrigFunc: pointer): integer; stdcall;
+type
+  TRandFunc = function (): integer;
+
 var
   CallerAddr: pointer;
   Msg:        myAStr;
@@ -1133,7 +1150,7 @@ begin
 
   result := GlobalRng.Random and $7FFF;
 
-  if (DebugRng = DEBUG_RNG_ALL) and (Heroes.WndManagerPtr^ <> nil) and (Heroes.WndManagerPtr^.RootDlg <> nil) then begin
+  if DebugRng = DEBUG_RNG_ALL then begin
     if GlobalRng = BattleDeterministicRng then begin
       Msg := Legacy.Format('brng rand #%d from %.8x, B%d R%d A%d = %d', [RngId, integer(CallerAddr), CombatId, CombatRound, CombatActionId, result]);
     end else begin
@@ -1146,6 +1163,10 @@ begin
       Msg := Msg + Legacy.Format('rand #%d from %.8x = %d', [RngId, integer(CallerAddr), result]);
     end;
 
+    Log.Write('RNG', '', Msg);
+  end;
+
+  if (DebugRng = DEBUG_RNG_ALL) and (Heroes.WndManagerPtr^ <> nil) and (Heroes.WndManagerPtr^.RootDlg <> nil) then begin
     Writeln(Msg);
     PrintChatMsg('{~ffffff}' + Msg);
   end;
@@ -1173,6 +1194,10 @@ begin
       Msg := Msg + Legacy.Format('rand #%d from %.8x: %d..%d = %d', [RngId, integer(CallerAddr), MinValue, MaxValue, ResValue]);
     end;
 
+    Log.Write('RNG', '', Msg);
+  end;
+
+  if (DebugRng = DEBUG_RNG_ALL) and (Heroes.WndManagerPtr^ <> nil) and (Heroes.WndManagerPtr^.RootDlg <> nil) then begin
     Writeln(Msg);
     PrintChatMsg('{~ffffff}' + Msg);
   end;
@@ -1200,6 +1225,51 @@ begin
 
   result := _RandomRangeWithFreeParam(CallerAddr, MinValue, MaxValue, FreeParam);
 end;
+
+function Hook_RandomRange (OrigFunc: pointer; MinValue, MaxValue: integer): integer; stdcall;
+type
+  PCallerContext = ^TCallerContext;
+  TCallerContext = packed record EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX: integer; end;
+
+  TRandomRangeFunc = function (Dummy, MinValue, MaxValue: integer): integer; register;
+
+const
+  CALLER_CONTEXT_SIZE = sizeof(TCallerContext);
+
+var
+  CallerAddr: pointer;
+  Context:    PCallerContext;
+  CallerEbp:  integer;
+  FreeParam:  integer;
+
+begin
+  asm
+    mov eax, [ebp + 4]
+    mov CallerAddr, eax
+    pushad
+    mov [Context], esp
+  end;
+
+  CallerEbp := pinteger(Context.EBP)^;
+  FreeParam := 0;
+
+  case integer(CallerAddr) of
+    // Battle stack damage generation
+    $442FEE, $443029: FreeParam := pinteger(CallerEbp + $8)^;
+    // Bad morale
+    $4647AC, $4647D5: FreeParam := StackPtrToId(Ptr(Context.EDI));
+    // Magic resistence
+    $5A65A3, $5A4D85, $5A061B, $5A1017, $5A1214: FreeParam := StackPtrToId(Ptr(Context.EDI));
+    $5A4F5F:                                     FreeParam := StackPtrToId(Ptr(Context.ESI));
+    $5A2105:                                     FreeParam := StackPtrToId(ppointer(CallerEbp + $14)^);
+  end;
+
+  result := _RandomRangeWithFreeParam(CallerAddr, MinValue, MaxValue, FreeParam);
+
+  asm
+    add esp, CALLER_CONTEXT_SIZE
+  end;
+end; // .function Hook_RandomRange
 
 
 // ============================ NETWORK BATTLE SEQUENTIAL PRNG GENERATIONS FIX ============================ //
@@ -1264,49 +1334,6 @@ end;
 // ========================== END NETWORK BATTLE SEQUENTIAL PRNG GENERATIONS FIX ========================== //
 
 
-function Hook_RandomRange (OrigFunc: pointer; MinValue, MaxValue: integer): integer; stdcall;
-type
-  PCallerContext = ^TCallerContext;
-  TCallerContext = packed record EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX: integer; end;
-
-const
-  CALLER_CONTEXT_SIZE = sizeof(TCallerContext);
-
-var
-  CallerAddr: pointer;
-  Context:    PCallerContext;
-  CallerEbp:  integer;
-  FreeParam:  integer;
-
-begin
-  asm
-    mov eax, [ebp + 4]
-    mov CallerAddr, eax
-    pushad
-    mov [Context], esp
-  end;
-
-  CallerEbp := pinteger(Context.EBP)^;
-  FreeParam := 0;
-
-  case integer(CallerAddr) of
-    // Battle stack damage generation
-    $442FEE, $443029: FreeParam := pinteger(CallerEbp + $8)^;
-    // Bad morale
-    $4647AC, $4647D5: FreeParam := StackPtrToId(Ptr(Context.EDI));
-    // Magic resistence
-    $5A65A3, $5A4D85, $5A061B, $5A1017, $5A1214: FreeParam := StackPtrToId(Ptr(Context.EDI));
-    $5A4F5F:                                     FreeParam := StackPtrToId(Ptr(Context.ESI));
-    $5A2105:                                     FreeParam := StackPtrToId(ppointer(CallerEbp + $14)^);
-  end;
-
-  result := _RandomRangeWithFreeParam(CallerAddr, MinValue, MaxValue, FreeParam);
-
-  asm
-    add esp, CALLER_CONTEXT_SIZE
-  end;
-end; // .function Hook_RandomRange
-
 function Hook_PlaceBattleObstacles (OrigFunc, BattleMgr: pointer): integer; stdcall;
 var
   PrevRng: FastRand.TRng;
@@ -1356,6 +1383,7 @@ begin
 
   if SpellCasterType = CASTER_TYPE_MONSTER then begin
     ActiveStack           := CombatMan.GetActiveStack;
+    Writeln(ActiveStack.SpellDurations[SPELL_HYPNOTIZE], ' ', ActiveStack.Side, ' ', ActiveStack.Index, ' ', ActiveStack.MonType);
     CombatMan.ControlSide := ActiveStack.Side xor ord(ActiveStack.SpellDurations[SPELL_HYPNOTIZE] <> 0);
   end;
 
@@ -2507,7 +2535,6 @@ begin
   QualitativeRng            := FastRand.TXoroshiro128Rng.Create(FastRand.GenerateSecureSeed);
   BattleDeterministicRng    := TBattleDeterministicRng.Create(@CombatId, @CombatRound, @CombatActionId, @CombatRngFreeParam);
   GlobalRng                 := QualitativeRng;
-  IsMainThread              := true;
   Mp3TriggerHandledEvent    := Windows.CreateEvent(nil, false, false, nil);
   ComputerName              := WinUtils.GetComputerNameW;
 
