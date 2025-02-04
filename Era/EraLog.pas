@@ -72,8 +72,6 @@ procedure InstallLoggers (const GameDir: myAStr);
 
 
 const
-  LOG_FILE_NAME = myAStr('log.txt');
-
   BR                     = myAStr(#13#10);
   RECORD_BEGIN_SEPARATOR : myAStr = '>> ';
   RECORD_END_SEPARATOR   : myAStr = BR + BR;
@@ -248,7 +246,7 @@ procedure InstallLoggers (const GameDir: myAStr);
 begin
   if EraSettings.IsDebug then begin
     if Legacy.AnsiLowerCase(EraSettings.GetOpt('Debug.LogDestination').Str('File')) = 'file' then begin
-      Log.InstallLogger(EraLog.TFileLogger.Create(GameDir + '\' + EraSettings.DEBUG_DIR + '\' + LOG_FILE_NAME), true);
+      Log.InstallLogger(EraLog.TFileLogger.Create(GameDir + '\' + EraSettings.DEBUG_DIR + '\' + EraSettings.LOG_FILE_NAME), true);
     end else begin
       Log.InstallLogger(EraLog.TConsoleLogger.Create('Era Log'), true);
     end;

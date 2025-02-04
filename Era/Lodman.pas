@@ -364,7 +364,6 @@ begin
 end;
 
 function Hook_AfterLoadMedia (Context: ApiJack.PHookContext): longbool; stdcall;
-
 var
   ResourceName:     myAStr;
   WillBeRedirected: boolean;
@@ -395,7 +394,7 @@ end; // .function Hook_AfterLoadMedia
 procedure RedirectFile (const OldFileName, NewFileName: myAStr);
 var
   Redirection:  TString;
-   
+
 begin
   {!} Windows.EnterCriticalSection(RedirCritSection);
 
@@ -461,23 +460,20 @@ begin
       end;
     end;
   end;
-end; // .procedure OnSavegameWrite
+end;
 
 procedure OnSavegameRead (Event: PEvent); stdcall;
 var
-  NumRedirs:    integer;
-  OldFileName:  myAStr;
-  NewFileName:  myAStr;
-  i:            integer;
+  OldFileName: myAStr;
+  NewFileName: myAStr;
+  i:           integer;
 
 begin
   {!} Windows.EnterCriticalSection(RedirCritSection);
   LodRedirs.Clear;
 
   with Stores.NewRider(LODREDIR_SAVE_SECTION) do begin
-    NumRedirs := ReadInt;
-
-    for i := 0 to NumRedirs - 1 do begin
+    for i := 0 to ReadInt - 1 do begin
       OldFileName            := ReadStr;
       NewFileName            := ReadStr;
       LodRedirs[OldFileName] := TString.Create(NewFileName);
@@ -485,7 +481,7 @@ begin
   end; 
 
   {!} Windows.LeaveCriticalSection(RedirCritSection);
-end; // .procedure OnSavegameRead
+end;
 
 procedure OnBeforeWoG (Event: PEvent); stdcall;
 begin

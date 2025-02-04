@@ -1,7 +1,7 @@
 unit DataLib;
 (*
   Description: Convinient and widely used data structures
-  Author:      Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
+  Author:      Alexander Shostak aka Berserker
 *)
 
 (***)  interface  (***)
@@ -17,7 +17,7 @@ uses
   UtilsB2, Legacy;
 
 const
-  CASE_SENSITIVE   = FALSE;
+  CASE_SENSITIVE   = false;
   CASE_INSENSITIVE = not CASE_SENSITIVE;
 
   (* Flags for complex routines *)
@@ -25,11 +25,11 @@ const
 
 
 type
-  TAssocArray = AssocArrays.TAssocArray {OF pointer};
-  TDict       = AssocArrays.TAssocArray {OF TObject};
-  TObjDict    = AssocArrays.TObjArray {OF TObject};
-  TList       = Lists.TList {OF TObject};
-  TStrList    = Lists.TStringList {OF TObject};
+  TAssocArray = AssocArrays.TAssocArray {of pointer};
+  TDict       = AssocArrays.TAssocArray {of TObject};
+  TObjDict    = AssocArrays.TObjArray {of TObject};
+  TList       = Lists.TList {of TObject};
+  TStrList    = Lists.TStringList {of TObject};
   TString     = TypeWrappers.TString;
 
   (*  Combines access speed of TDict and order of TStrList  *)
@@ -71,7 +71,7 @@ type
 
     property IterKey:   myAStr read GetIterKey;
     property IterValue: {n} TObject read GetIterValue;
-  end; // .interface IDictIterator
+  end;
 
   IObjDictIterator = interface
     procedure BeginIterate (aDict: TObjDict);
@@ -82,7 +82,7 @@ type
 
     property IterKey:   pointer read GetIterKey;
     property IterValue: {n} TObject read GetIterValue;
-  end; // .interface IObjDictIterator
+  end;
 
   TSerializeProc   = procedure ({Un} Data: pointer; Writer: StrLib.IStrBuilder);
   TUnserializeFunc = function (ByteMapper: StrLib.IByteMapper): {UOn} pointer;
@@ -102,7 +102,7 @@ function  DictToStrList ({n} Dict: TDict; CaseInsensitive: boolean): {O} TStrLis
 function  GetObjDictKeys ({n} ObjDict: TObjDict): {O} TList {U};
 
 (* Returns flipped associativa array with values as keys and keys as values (wrapped in TString) *)
-function  FlipDict (Dict: TDict): {O} TObjDict {O} {OF TString};
+function  FlipDict (Dict: TDict): {O} TObjDict {O} {of TString};
 
 function  SerializeDict (Dict: TDict; ItemSerializer: TSerializeProc = nil): myAStr;
 function  UnserializeDict (const Data: myAStr; OwnsItems: boolean; CaseInsensitive: boolean; ItemUnserializer: TUnserializeFunc = nil): {O} TDict {UOn};
@@ -150,6 +150,8 @@ type
             fIterating: boolean;
 
     public
+      destructor Destroy; override;
+
       procedure BeginIterate ({U} Dict: TDict);
       function  IterNext: boolean;
       procedure EndIterate;
@@ -165,12 +167,14 @@ type
             fIterating: boolean;
 
     public
+      destructor Destroy; override;
+
       procedure BeginIterate ({U} aObjDict: TObjDict);
       function  IterNext: boolean;
       procedure EndIterate;
       function  GetIterKey: {n} pointer;
       function  GetIterValue: {n} TObject;
-  end; // .class TObjDictIterator
+  end;
 
 
 function NewDict (OwnsItems, CaseInsensitive: boolean): {O} TDict;
@@ -219,7 +223,7 @@ end;
 
 function NewStrListFromStrArr (StrArr: UtilsB2.TArrayOfStr; OwnsItems: boolean; CaseInsensitive: boolean; Flags: integer = 0): {O} TStrList;
 var
-{On} AddedKeys:      {U} TDict {OF Ptr(1)};
+{On} AddedKeys:      {U} TDict {of Ptr(1)};
      SkipDuplicates: boolean;
      i:              integer;
 
@@ -332,12 +336,21 @@ begin
   Self.fItems.Clear;
 end;
 
+destructor TDictIterator.Destroy;
+begin
+  if Self.fIterating and Self.fDict.Locked then begin
+    Self.fDict.EndIterate;
+  end;
+
+  inherited Destroy;
+end;
+
 procedure TDictIterator.BeginIterate ({U} Dict: TDict);
 begin
   {!} Assert(Dict <> nil);
   {!} Assert(not Dict.Locked);
   Self.fDict      := Dict;
-  Self.fIterating := TRUE;
+  Self.fIterating := true;
   Dict.BeginIterate;
 end;
 
@@ -356,21 +369,21 @@ procedure TDictIterator.EndIterate;
 begin
   if Self.fIterating then begin
     Self.fDict.EndIterate;
-    Self.fDict      :=  nil;
-    Self.fIterating :=  FALSE;
+    Self.fDict      := nil;
+    Self.fIterating := false;
   end;
 end;
 
 function TDictIterator.GetIterKey: myAStr;
 begin
   {!} Assert(Self.fIterating);
-  result  :=  Self.fIterKey;
+  result := Self.fIterKey;
 end;
 
 function TDictIterator.GetIterValue: {Un} TObject;
 begin
   {!} Assert(Self.fIterating);
-  result  :=  Self.fIterValue;
+  result := Self.fIterValue;
 end;
 
 function IterateDict ({U} Dict: TDict): IDictIterator;
@@ -379,18 +392,27 @@ var
 
 begin
   {!} Assert(Dict <> nil);
-  DictIterator  :=  TDictIterator.Create;
+  DictIterator := TDictIterator.Create;
   // * * * * * //
   DictIterator.BeginIterate(Dict);
   result  :=  DictIterator; DictIterator  :=  nil;
-end; // .function IterateDict
+end;
+
+destructor TObjDictIterator.Destroy;
+begin
+  if Self.fIterating and Self.fObjDict.Locked then begin
+    Self.fObjDict.EndIterate;
+  end;
+
+  inherited Destroy;
+end;
 
 procedure TObjDictIterator.BeginIterate (aObjDict: TObjDict);
 begin
   {!} Assert(aObjDict <> nil);
   {!} Assert(not aObjDict.Locked);
   Self.fObjDict   := aObjDict;
-  Self.fIterating := TRUE;
+  Self.fIterating := true;
   aObjDict.BeginIterate;
 end;
 
@@ -404,14 +426,14 @@ begin
   if not result then begin
     Self.EndIterate;
   end;
-end; // .function TObjDictIterator.IterNext
+end;
 
 procedure TObjDictIterator.EndIterate;
 begin
   if Self.fIterating then begin
     Self.fObjDict.EndIterate;
     Self.fObjDict   := nil;
-    Self.fIterating := FALSE;
+    Self.fIterating := false;
   end;
 end;
 
@@ -437,7 +459,7 @@ begin
   // * * * * * //
   ObjDictIterator.BeginIterate(aObjDict);
   result := ObjDictIterator; ObjDictIterator := nil;
-end; // .function IterateObjDict
+end;
 
 procedure JoinLists (MainList, DependentList: TList);
 var
@@ -446,10 +468,11 @@ var
 begin
   {!} Assert(MainList <> nil);
   {!} Assert(DependentList <> nil);
+
   for i := 0 to DependentList.Count - 1 do begin
     MainList.Add(DependentList[i]);
   end;
-end; // .procedure JoinLists
+end;
 
 function DictToStrList ({n} Dict: TDict; CaseInsensitive: boolean): {O} TStrList {U};
 begin
@@ -473,7 +496,7 @@ begin
   end;
 end;
 
-function FlipDict (Dict: TDict): {O} TObjDict {OF TString};
+function FlipDict (Dict: TDict): {O} TObjDict {of TString};
 begin
   {!} Assert(Dict <> nil);
   result := NewObjDict(not UtilsB2.OWNS_ITEMS);
@@ -508,7 +531,7 @@ begin
   end; // .with
 
   result := Writer.BuildStr;
-end; // .function SerializeDict
+end;
 
 function UnserializeDict (const Data: myAStr; OwnsItems: boolean; CaseInsensitive: boolean; ItemUnserializer: TUnserializeFunc = nil): {O} TDict {UOn};
 var
@@ -532,7 +555,7 @@ begin
       result[Key] := Ptr(Reader.ReadInt());
     end;
   end;
-end; // .function UnserializeDict
+end;
 
 function SerializeObjDict (Dict: TObjDict; KeySerializer: TSerializeProc = nil; ValueSerializer: TSerializeProc = nil): myAStr;
 var
@@ -560,7 +583,7 @@ begin
   end; // .with
 
   result := Writer.BuildStr;
-end; // .function SerializeDict
+end;
 
 function UnserializeObjDict (const Data: myAStr; OwnsItems: boolean; KeyUnserializer: TUnserializeFunc = nil; ValueUnserializer: TUnserializeFunc = nil): {O} TObjDict {UOn};
 var
@@ -590,6 +613,6 @@ begin
       result[Key] := Ptr(Reader.ReadInt());
     end;
   end; // .for
-end; // .function UnserializeDict
+end;
 
 end.

@@ -180,7 +180,7 @@ var
 {U} Section: StrLib.TStrBuilder;
 
 begin
-  {!} Assert(UtilsB2.IsValidBuf(Data, DataSize));
+  {!} Assert(UtilsB2.IsValidBuf(Data, DataSize), Legacy.Format('An attempt to write wrong buffer data at 0x%x of size %d to section "%s"', [integer(Data), DataSize, SectionName]));
   Section := nil;
   // * * * * * //
   if DataSize > 0 then begin
@@ -238,12 +238,20 @@ end;
 destructor TRider.Destroy;
 begin
   Self.Flush;
+
   inherited Destroy;
+end;
+
+procedure TRider.Flush;
+begin
+  WriteSavegameSection(Self.fWritingBufPos, @Self.fWritingBuf[0], Self.fSectionName);
+  Self.fWritingBufPos := 0;
 end;
 
 procedure TRider.Write (Size: integer; {n} Addr: pbyte);
 begin
   {!} Assert(UtilsB2.IsValidBuf(Addr, Size));
+
   if Size > 0 then begin
     // if no more space in cache - flush the cache
     if sizeof(Self.fWritingBuf) - Self.fWritingBufPos < Size then begin
@@ -253,23 +261,23 @@ begin
     // if it's enough space in cache to hold passed data then write data to cache
     if sizeof(Self.fWritingBuf) - Self.fWritingBufPos >= Size then begin
       UtilsB2.CopyMem(Size, Addr, @Self.fWritingBuf[Self.fWritingBufPos]);
-      Inc(fWritingBufPos, Size);
+      Inc(Self.fWritingBufPos, Size);
     end
     // else cache is too small, write directly to section
     else begin
       WriteSavegameSection(Size, Addr, Self.fSectionName);
     end;
-  end; // .if
-end; // .procedure TRider.Write
+  end;
+end;
 
 procedure TRider.WriteByte (Value: byte);
 begin
-  Write(sizeof(Value), @Value);
+  Self.Write(sizeof(Value), @Value);
 end;
 
 procedure TRider.WriteInt (Value: integer);
 begin
-  Write(sizeof(Value), @Value);
+  Self.Write(sizeof(Value), @Value);
 end;
 
 procedure TRider.WriteStr (const Str: myAStr);
@@ -278,10 +286,10 @@ var
 
 begin
   StrLen := Length(Str);
-  WriteInt(StrLen);
+  Self.WriteInt(StrLen);
 
   if StrLen > 0 then begin
-    Write(StrLen, pointer(Str));
+    Self.Write(StrLen, pointer(Str));
   end;
 end;
 
@@ -296,17 +304,11 @@ begin
     StrLen := Windows.LStrLenA(Str);
   end;
 
-  WriteInt(StrLen);
+  Self.WriteInt(StrLen);
 
   if StrLen > 0 then begin
-    Write(StrLen, pointer(Str));
+    Self.Write(StrLen, pointer(Str));
   end;
-end;
-
-procedure TRider.Flush;
-begin
-  WriteSaveGameSection(fWritingBufPos, @fWritingBuf[0], fSectionName);
-  fWritingBufPos := 0;
 end;
 
 function TRider.Read (Size: integer; {n} Addr: pbyte): integer;
@@ -584,6 +586,7 @@ var
     DataLen:        integer;
     BuiltData:      myAStr;
     TotalWritten:   integer; // Trying to fix game diff algorithm in online games
+    IsException:    longbool;
 
   procedure GzipWrite (Count: integer; {n} Addr: pointer);
   begin
@@ -601,6 +604,7 @@ begin
 
   TotalWritten := 0;
   NumSections  := 0;
+  IsException  := true;
 
   try
     WritingStorage.Clear;
@@ -632,27 +636,30 @@ begin
         end;
       end; // .while
     end; // .with
-  except
-    on e: SysUtils.Exception do begin
+
+    IsException := false;
+  finally
+    if IsException then begin
       with SavegameWriteCrashDetective do begin
         Log.Write('Stores', 'SavegameWrite',
           '(!) Exception is raised during game saving. Report:' + #13#10#13#10 +
-          Legacy.Format('NumSections: %d, Last section: %s. Last data ptr: %x. Last data size: %d. Total bytes written: %d.' + #13#10 + 'Exception (%s): %s', [
+          Legacy.Format('NumSections: %d, Last section: %s. Last data ptr: 0x%x. Last data size: %d. Total bytes written: %d.', [
             NumSections,
             LastSectionName,
             integer(LastDataPtr),
             LastDataSize,
-            TotalDataSize,
-            e.ClassName,
-            e.Message
+            TotalDataSize
           ])
         );
       end;
 
-      DumpSavegameSectionsOpt := true;
-      Heroes.ShowMessage(COLOR_TAG_RED + Trans.tr('era.debug.game_saving_exception_warning', []) + '{~}');
-    end; // .on Exception
-  end; // .except
+      // Error notification and ability to save game twice is disabled for now. Crash with valid IP address is preferred currently.
+      if false then begin
+        DumpSavegameSectionsOpt := true;
+        Heroes.ShowMessage(COLOR_TAG_RED + Trans.tr('era.debug.game_saving_exception_warning', []) + '{~}');
+      end;
+    end;
+  end; // .try
 
   // Default code
   if PINTEGER(Context.EBP - 4)^ = 0 then begin

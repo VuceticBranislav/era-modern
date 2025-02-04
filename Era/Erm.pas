@@ -7137,7 +7137,7 @@ begin
     Title             := '';
     InputFieldLabel   := '';
     ButtonsGroupLabel := '';
-    ShowCancelBtn     := false;
+    ShowCancelBtn     := true;
 
     for i := 0 to High(ImagePaths) do begin
       ImagePaths[i] := '';
@@ -7170,7 +7170,7 @@ var
 
     // Only for non-empty paths
     if (Path <> '')  then begin
-      result := './Maps/' + Path;
+      result := '.\Maps\' + Path;
     end;
   end;
 

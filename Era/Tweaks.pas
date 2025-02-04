@@ -136,7 +136,6 @@ type
   end;
 
 var
-{O} TopLevelExceptionHandlers: DataLib.TList {OF Handler: pointer};
 {O} CLangRng:                  FastRand.TClangRng;
 {O} QualitativeRng:            FastRand.TXoroshiro128Rng;
 {O} BattleDeterministicRng:    TBattleDeterministicRng;
@@ -947,8 +946,8 @@ begin
   end;
 
   if Heroes.IsNetworkGame and
-     Heroes.IsValidPlayerId(AttackerPlayerId) and
-     Heroes.IsValidPlayerId(DefenderPlayerId) and
+     Heroes.IsValidPlayerId(AttackerPlayerId)   and
+     Heroes.IsValidPlayerId(DefenderPlayerId)   and
      Heroes.GetPlayer(AttackerPlayerId).IsHuman and
      Heroes.GetPlayer(DefenderPlayerId).IsHuman
   then begin
@@ -1497,35 +1496,6 @@ end;
 procedure OnBeforeBattleReplay (Event: GameExt.PEvent); stdcall;
 begin
   Erm.FireErmEvent(TRIGGER_BEFORE_BATTLE_REPLAY);
-end;
-
-procedure OnSavegameWrite (Event: PEvent); stdcall;
-var
-  RngState: array of byte;
-
-begin
-  SetLength(RngState, GlobalRng.GetStateSize);
-  GlobalRng.ReadState(pointer(RngState));
-
-  with Stores.NewRider(RNG_SAVE_SECTION) do begin
-    WriteInt(Length(RngState));
-    Write(Length(RngState), pointer(RngState));
-  end;
-end;
-
-procedure OnSavegameRead (Event: PEvent); stdcall;
-var
-  RngState: array of byte;
-
-begin
-  with Stores.NewRider(RNG_SAVE_SECTION) do begin
-    SetLength(RngState, ReadInt);
-
-    if Length(RngState) = GlobalRng.GetStateSize then begin
-      Read(Length(RngState), pointer(RngState));
-      GlobalRng.WriteState(pointer(RngState));
-    end;
-  end;
 end;
 
 function Hook_PostBattle_OnAddCreaturesExp (Context: ApiJack.PHookContext): longbool; stdcall;
@@ -2154,9 +2124,9 @@ begin
   if not IsCrashing then begin
     IsCrashing      := true;
     Erm.ErmEnabled^ := false;
-    Files.ClearDir(GameExt.GameDir + '\' + EraSettings.DEBUG_DIR);
+    GameExt.ClearDebugDir;
     DumpExceptionContext(ExceptionRecord, Context);
-    EventMan.GetInstance.Fire('OnGenerateDebugInfo');
+    GameExt.GenerateDebugInfoWithoutCleanup;
     Windows.MessageBoxA(Heroes.hWnd^, myPChar(Trans.Tr('era.game_crash_message', ['debug_dir', DEBUG_DIR])), '', Windows.MB_OK);
     Debug.KillThisProcess;
   end;
@@ -2346,14 +2316,6 @@ begin
   // Use CombatRound instead of combat manager field to summon creatures every nth turn via creature experience system
   PatchApi.p.WriteDataPatch(Ptr($71DFBE), [myAStr('8B15 %d'), @CombatRound]);
 
-  // Apply battle RNG seed right before placing obstacles, so that rand() calls in !?BF trigger would not influence battle obstacles
-  ApiJack.StdSplice(Ptr($465E70), @Hook_PlaceBattleObstacles, ApiJack.CONV_THISCALL, 1);
-
-  // Fix sequential PRNG calls in network PvP battles
-  ApiJack.Hook(Ptr($75D760), @SequentialRandomRangeFastcall, nil, 6, ApiJack.HOOKTYPE_CALL); // Death Stare WoG-native
-  ApiJack.Hook(Ptr($75D72E), @SequentialRandomRangeCdecl,    nil, 5, ApiJack.HOOKTYPE_CALL); // Death Stare WoG
-  ApiJack.Hook(Ptr($4690CA), @SequentialRand,                nil, 5, ApiJack.HOOKTYPE_CALL); // Phoenix Ressurection native
-
   // Fix combatManager::CastSpell function by temporarily setting CombatManager->ControlSide to the side, controlling casting stack.
   // "Fire wall", "land mines", "quick sands" and many other spells rely on which side is considered friendly for spell.
   ApiJack.StdSplice(Ptr($5A0140), @Splice_CombatManager_CastSpell, ApiJack.CONV_THISCALL, 7);
@@ -2455,6 +2417,14 @@ begin
   ApiJack.StdSplice(Ptr($50C7B0), @Hook_Tracking_SRand, ApiJack.CONV_THISCALL, 1);
   ApiJack.StdSplice(Ptr($50C7C0), @Hook_RandomRange, ApiJack.CONV_FASTCALL, 2);
 
+  // Apply battle RNG seed right before placing obstacles, so that rand() calls in !?BF trigger would not influence battle obstacles
+  ApiJack.StdSplice(Ptr($465E70), @Hook_PlaceBattleObstacles, ApiJack.CONV_THISCALL, 1);
+
+  // Fix sequential PRNG calls in network PvP battles
+  ApiJack.Hook(Ptr($75D760), @SequentialRandomRangeFastcall, nil, 6, ApiJack.HOOKTYPE_CALL); // Death Stare WoG-native
+  ApiJack.Hook(Ptr($75D72E), @SequentialRandomRangeCdecl,    nil, 5, ApiJack.HOOKTYPE_CALL); // Death Stare WoG
+  ApiJack.Hook(Ptr($4690CA), @SequentialRand,                nil, 5, ApiJack.HOOKTYPE_CALL); // Phoenix Ressurection native
+
   (* Allow to handle dialog outer clicks and provide full mouse info for event *)
   ApiJack.Hook(Ptr($7295F1), @Hook_ErmDlgFunctionActionSwitch);
 
@@ -2530,30 +2500,22 @@ end;
 begin
   Windows.InitializeCriticalSection(InetCriticalSection);
   ExceptionsCritSection.Init;
-  TopLevelExceptionHandlers := DataLib.NewList(not UtilsB2.OWNS_ITEMS);
-  CLangRng                  := FastRand.TClangRng.Create(FastRand.GenerateSecureSeed);
-  QualitativeRng            := FastRand.TXoroshiro128Rng.Create(FastRand.GenerateSecureSeed);
-  BattleDeterministicRng    := TBattleDeterministicRng.Create(@CombatId, @CombatRound, @CombatActionId, @CombatRngFreeParam);
-  GlobalRng                 := QualitativeRng;
-  Mp3TriggerHandledEvent    := Windows.CreateEvent(nil, false, false, nil);
-  ComputerName              := WinUtils.GetComputerNameW;
+  CLangRng               := FastRand.TClangRng.Create(FastRand.GenerateSecureSeed);
+  QualitativeRng         := FastRand.TXoroshiro128Rng.Create(FastRand.GenerateSecureSeed);
+  BattleDeterministicRng := TBattleDeterministicRng.Create(@CombatId, @CombatRound, @CombatActionId, @CombatRngFreeParam);
+  GlobalRng              := QualitativeRng;
+  Mp3TriggerHandledEvent := Windows.CreateEvent(nil, false, false, nil);
+  ComputerName           := WinUtils.GetComputerNameW;
 
-  EventMan.GetInstance.On('$OnLoadEraSettings', OnLoadEraSettings);
-  EventMan.GetInstance.On('OnAfterCreateWindow', OnAfterCreateWindow);
-  EventMan.GetInstance.On('OnAfterVfsInit', OnAfterVfsInit);
-  EventMan.GetInstance.On('OnAfterWoG', OnAfterWoG);
-  EventMan.GetInstance.On('OnBattleReplay', OnBattleReplay);
-  EventMan.GetInstance.On('OnBeforeBattleReplay', OnBeforeBattleReplay);
+  EventMan.GetInstance.On('$OnLoadEraSettings',      OnLoadEraSettings);
+  EventMan.GetInstance.On('OnAfterCreateWindow',     OnAfterCreateWindow);
+  EventMan.GetInstance.On('OnAfterVfsInit',          OnAfterVfsInit);
+  EventMan.GetInstance.On('OnAfterWoG',              OnAfterWoG);
+  EventMan.GetInstance.On('OnBattleReplay',          OnBattleReplay);
+  EventMan.GetInstance.On('OnBeforeBattleReplay',    OnBeforeBattleReplay);
   EventMan.GetInstance.On('OnBeforeBattleUniversal', OnBeforeBattleUniversal);
   EventMan.GetInstance.On('OnBeforeErmInstructions', OnBeforeErmInstructions);
-  EventMan.GetInstance.On('OnBeforeLoadGame', OnBeforeLoadGame);
-  EventMan.GetInstance.On('OnBeforeSaveGame', OnBeforeSaveGame);
-  EventMan.GetInstance.On('OnGenerateDebugInfo', OnGenerateDebugInfo);
-
-  if FALSE then begin
-    (* Save global generator state in saved games *)
-    (* Makes game predictable. Disabled. *)
-    EventMan.GetInstance.On('OnSavegameWrite', OnSavegameWrite);
-    EventMan.GetInstance.On('OnSavegameRead',  OnSavegameRead);
-  end;
+  EventMan.GetInstance.On('OnBeforeLoadGame',        OnBeforeLoadGame);
+  EventMan.GetInstance.On('OnBeforeSaveGame',        OnBeforeSaveGame);
+  EventMan.GetInstance.On('OnGenerateDebugInfo',     OnGenerateDebugInfo);
 end.
