@@ -183,6 +183,7 @@ const
   WND_MANAGER    = $6992D0;
   SOUND_MANAGER  = $699414;
   COMBAT_MANAGER = $699420;
+  SWAP_MANAGER   = $6A3D90;
 
   (* Colors *)
   RED_COLOR              = 'F2223E';
@@ -1050,7 +1051,6 @@ type
   PGeneralPurposeTextBuf = ^TGeneralPurposeTextBuf;
   TGeneralPurposeTextBuf = array [0..767] of myChar;
 
-  PPGameManager = ^PGameManager;
   PGameManager  = ^TGameManager;
   TGameManager  = packed record
     _0:      array [1..129904] of byte;
@@ -1077,22 +1077,54 @@ type
     Unk1:           array [0..$34 - 1] of byte;
     MonType:        integer; // +0x34
     Pos:            integer; // +0x38
-    Unk2:           array [$3C..$58 - 1] of byte;
-    HpLost:         integer;
-    Unk3:           array [$5C..$84 - 1] of byte;
+    Unk2:           array [$3C..$4C - 1] of byte;
+    Num:            integer; // +0x4C
+    Unk3:           array [$50..$58 - 1] of byte;
+    HpLost:         integer; // +0x58
+    Unk4:           array [$5C..$84 - 1] of byte;
     Flags:          integer;
-    Unk4:           array [$88..$C0 - 1] of byte;
+    Unk5:           array [$88..$C0 - 1] of byte;
     HitPoints:      integer;
-    Unk5:           array [$C4..$F4 - 1] of byte;
+    Unk6:           array [$C4..$F4 - 1] of byte;
     Side:           integer;
     Index:          integer; // 0..21
-    Unk6:           array [$FC..$198 - 1] of byte;
+    Unk7:           array [$FC..$198 - 1] of byte;
     SpellDurations: array [0..80] of integer; // +0x198 spellID => duration
     SpellLevels:    array [0..80] of integer; // +0x2DC spellID => magic skill level (0..3)
-    Unk7:           array [$420..$548 - 1] of byte;
+    Unk8:           array [$420..$548 - 1] of byte;
+
+    function GetId: integer; inline;
   end; // .record TBattleStack
 
-  PPCombatManager = ^PCombatManager;
+  PBaseManager = ^TBaseManager;
+  TBaseManager = packed record
+    VMT:         pointer;
+    NextManager: {n} PBaseManager;
+    PrevManager: {n} PBaseManager;
+    Id:          integer;
+    Priority:    integer;
+    Name:        array [0..31] of myChar;
+    Status:      integer;
+  end;
+
+  PSwapManager = ^TSwapManager;
+  TSwapManager = packed record
+    Base:               TBaseManager;
+    Parent:             pointer;
+    Border:             pointer;
+    Heroes:             array [0..1] of PHero;
+    SourceHeroInd:      integer; // 0..1
+    TargetHeroInd:      integer; // 0..1
+    SourceSlot:         integer;
+    DestSlot:           integer;
+    IsSlotClicked:      TInt32Bool;
+    _Align1:            byte;
+    IsSamePlayer:       boolean;
+    _Align2:            array [1..2] of byte;
+    ChatMessageHandler: pointer;
+    NetMessageHandler:  pointer;
+  end;
+
   PCombatManager  = ^TCombatManager;
   TCombatManager  = packed record
     Unk1:          array [0..$3C - 1] of byte;
@@ -1225,7 +1257,6 @@ type
     f95C:   integer;
   end;
 
-  PPWndManager = ^PWndManager;
   PWndManager  = ^TWndManager;
   TWndManager  = packed record
     _1:           array [1..55] of byte;
@@ -1295,12 +1326,12 @@ const
   ZvsRandom:   function (MinValue, MaxValue: integer): integer cdecl = Ptr($710509);
   TimeGetTime: function: integer = Ptr($77114A);
 
-  WndManagerPtr:    PPWndManager    = Ptr($6992D0);
+  WndManagerPtr:    ^PWndManager    = Ptr($6992D0);
   MouseManagerPtr:  ^PMouseManager  = Ptr($6992B0);
   InputManagerPtr:  ^PInputManager  = Ptr($699530);
-  GameManagerPtr:   PPGameManager   = Ptr(GAME_MANAGER);
-  CombatManagerPtr: PPCombatManager = Ptr(COMBAT_MANAGER);
-  SwapManagerPtr:   ppointer        = Ptr($6A3D90);
+  GameManagerPtr:   ^PGameManager   = Ptr(GAME_MANAGER);
+  CombatManagerPtr: ^PCombatManager = Ptr(COMBAT_MANAGER);
+  SwapManagerPtr:   ^PSwapManager   = Ptr($6A3D90);
   MainMenuTarget:   pinteger        = Ptr($697728);
   {$J+}
   CursorHotspotsX:  UtilsB2.PEndlessIntArr = Ptr($67FFA0);
@@ -1545,6 +1576,11 @@ begin
   end;
 
   PatchApi.Call(FASTCALL_, Ptr($5549E0), [@Self, aDestPlayerId, 0, 1]);
+end;
+
+function TBattleStack.GetId: integer;
+begin
+  result := Self.Side * NUM_BATTLE_STACKS_PER_SIDE + Self.Index;
 end;
 
 function TCombatManager.GetActiveStack: PBattleStack;

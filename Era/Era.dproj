@@ -58,6 +58,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCC_DcuOutput>Compiled\$(Config)\Dcu</DCC_DcuOutput>
         <PostBuildEvent><![CDATA[call ..\BuildTools\Compiled\BuildTools.exe -DebugMaps "$(OUTPUTPATH)"
 $(PostBuildEvent)]]></PostBuildEvent>
+        <DCC_IOChecking>false</DCC_IOChecking>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <BT_BuildType>Debug</BT_BuildType>

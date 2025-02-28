@@ -56,6 +56,16 @@ begin
   Result := VfsControl.MapModsFromList(myWStr(RootDir), myWStr(ModsDir), myWStr(ModListFile), Flags);
 end;
 
+function GetSerializedModList: {O} pointer; stdcall;
+begin
+  result := VfsControl.GetSerializedModList;
+end;
+
+function GetSerializedModListA: {O} pointer; stdcall;
+begin
+  result := VfsControl.GetSerializedModListA;
+end;
+
 function RunWatcher (const WatchDir: myPWChar; DebounceInterval: Integer): LONGBOOL; stdcall;
 begin
   Result := VfsWatching.RunWatcher(WatchDir, DebounceInterval);
@@ -148,6 +158,8 @@ exports
   GetMappingsReportA,
   GetRealPath,
   GetRealPathA,
+  GetSerializedModList,
+  GetSerializedModListA,
   InstallConsoleLogger,
   MapDir,
   MapDirA,

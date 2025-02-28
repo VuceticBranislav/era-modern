@@ -35,12 +35,12 @@ type
   TTrimSide  = (LEFT_SIDE, RIGHT_SIDE);
   TTrimSides = set of LEFT_SIDE..RIGHT_SIDE;
 
-  PListItem = ^TListItem;
-  TListItem = record
-          Data:     array of myChar;
-          DataSize: integer;
-    {On}  NextItem: PListItem;
-  end; // .record TListItem
+  PStrBulderItem = ^TStrBulderItem;
+  TStrBulderItem = record
+        Data:     array of myChar;
+        DataSize: integer;
+  {On}  NextItem: PStrBulderItem;
+  end;
 
   IStrBuilder = interface
     procedure Append (const Str: myAStr);
@@ -54,22 +54,27 @@ type
     procedure Clear;
   end;
 
+  TStrBuilderChunkConsumer = function (Buf: pointer; BufSize: integer; Context: pointer = nil): boolean;
+
   TStrBuilder = class (TInterfacedObject, IStrBuilder)
    protected
     const
       MIN_BLOCK_SIZE = 65000;
 
     var
-      {On} fRootItem: PListItem;
-      {Un} fCurrItem: PListItem;
+      {On} fRootItem: PStrBulderItem;
+      {Un} fCurrItem: PStrBulderItem;
            fSize:     integer;
+           fLocked:   boolean;
 
    public
     destructor Destroy; override;
+
     procedure Append (const Str: myAStr);
     procedure AppendWide (const Str: myWStr);
     procedure AppendBuf (BufSize: integer; {n} Buf: pointer);
-    procedure AppendWithLenField (const Str: myAStr; StrLenFieldSize: integer = sizeof(integer));
+    procedure AppendWithLenField (const Str: myAStr);
+    procedure AppendWideWithLenField (const Str: myWStr);
     procedure WriteByte (Value: byte);
     procedure WriteWord (Value: word);
     procedure WriteInt (Value: integer);
@@ -78,6 +83,10 @@ type
     function  BuildBuf: UtilsB2.TArrayOfByte;
     procedure BuildTo ({n} Buf: pointer; BufSize: integer);
     procedure Clear;
+
+    (* Iteratively passes all buffered contents by implementation specific chunks to user provided chunk consumer function. The function stops when all data is processed
+       or when callback function returns false. Returns number of consumed bytes *)
+    function PipeThrough (ChunkConsumer: TStrBuilderChunkConsumer; Context: pointer = nil): integer;
 
     property  Size: integer read fSize;
   end; // .class TStrBuilder
@@ -97,7 +106,7 @@ type
     constructor Create (const Data: myAStr);
 
     function Read (Count: integer; {Un} Buf: pointer): integer;
-  end; // .TStrByteSource
+  end;
 
   TBufByteSource = class (TInterfacedObject, IByteSource)
    protected
@@ -109,7 +118,7 @@ type
     constructor Create ({Un} Buf: pointer; BufSize: integer);
 
     function Read (Count: integer; {Un} Buf: pointer): integer;
-  end; // .TBufByteSource
+  end;
 
   IByteMapper = interface
     function GetSource: IByteSource;
@@ -136,7 +145,7 @@ type
     function ReadInt: integer;
     function ReadStr (StrLen: integer): myAStr;
     function ReadStrWithLenField (StrLenFieldSize: integer = sizeof(integer)): myAStr;
-  end; // .TByteMapper
+  end;
 
 function  MakeStr: IStrBuilder;
 function  StrAsByteSource (const Str: myAStr): IByteSource;
@@ -257,25 +266,37 @@ function  CompareBinStringsW (const Str1, Str2: myWStr): integer;
 (***) implementation (***)
 
 
+const
+  BITS_IN_BYTE = 8;
+
 destructor TStrBuilder.Destroy;
 begin
   Self.Clear;
-end; // .destructor TStrBuilder.Destroy
+end;
 
 procedure TStrBuilder.Append (const Str: myAStr);
 begin
   Self.AppendBuf(Length(Str), pointer(Str));
 end;
 
-procedure TStrBuilder.AppendWithLenField (const Str: myAStr; StrLenFieldSize: integer = sizeof(integer));
+procedure TStrBuilder.AppendWithLenField (const Str: myAStr);
 var
   StrLen: integer;
 
 begin
- {!} Assert(StrLenFieldSize in [1, 2, 4, sizeof(integer)]);
   StrLen := Length(Str);
-  Self.AppendBuf(StrLenFieldSize, @StrLen);
+  Self.AppendBuf(sizeof(StrLen), @StrLen);
   Self.AppendBuf(StrLen, pointer(Str));
+end;
+
+procedure TStrBuilder.AppendWideWithLenField (const Str: myWStr);
+var
+  StrLen: integer;
+
+begin
+  StrLen := Length(Str);
+  Self.AppendBuf(sizeof(StrLen), @StrLen);
+  Self.AppendBuf(StrLen * sizeof(Str[1]), pointer(Str));
 end;
 
 procedure TStrBuilder.AppendWide (const Str: myWStr);
@@ -290,6 +311,8 @@ var
 
 begin
   {!} Assert(UtilsB2.IsValidBuf(Buf, BufSize));
+  {!} Assert(not Self.fLocked, 'Cannot append to TStrBuilder in a locked state');
+
   if BufSize > 0 then begin
     if Self.fRootItem = nil then begin
       New(Self.fRootItem);
@@ -338,7 +361,7 @@ end;
 
 function TStrBuilder.BuildStr: myAStr;
 var
-{U} CurrItem: PListItem;
+{U} CurrItem: PStrBulderItem;
     Pos:      integer;
 
 begin
@@ -352,11 +375,11 @@ begin
     Pos      := Pos + CurrItem.DataSize;
     CurrItem := CurrItem.NextItem;
   end;
-end; // .function TStrBuilder.BuildStr
+end;
 
 function TStrBuilder.BuildWideStr: myWStr;
 var
-{U} CurrItem: PListItem;
+{U} CurrItem: PStrBulderItem;
     Pos:      integer;
 
 begin
@@ -370,11 +393,11 @@ begin
     Pos      := Pos + CurrItem.DataSize;
     CurrItem := CurrItem.NextItem;
   end;
-end; // .function TStrBuilder.BuildStr
+end;
 
 function TStrBuilder.BuildBuf: TArrayOfByte;
 var
-{U} CurrItem: PListItem;
+{U} CurrItem: PStrBulderItem;
     Pos:      integer;
 
 begin
@@ -388,11 +411,11 @@ begin
     Pos      := Pos + CurrItem.DataSize;
     CurrItem := CurrItem.NextItem;
   end;
-end; // .function TStrBuilder.BuildBuf
+end;
 
 procedure TStrBuilder.BuildTo ({n} Buf: pointer; BufSize: integer);
 var
-{U} CurrItem: PListItem;
+{U} CurrItem: PStrBulderItem;
     Pos:      integer;
 
 begin
@@ -406,14 +429,16 @@ begin
     Inc(Pos, CurrItem.DataSize);
     CurrItem := CurrItem.NextItem;
   end;
-end; // .procedure TStrBuilder.BuildTo
+end;
 
 procedure TStrBuilder.Clear;
 var
-{Un}  CurrItem: PListItem;
-{Un}  NextItem: PListItem;
+{Un}  CurrItem: PStrBulderItem;
+{Un}  NextItem: PStrBulderItem;
 
 begin
+  {!} Assert(not Self.fLocked, 'Cannot clear TStrBuilder in a locked state');
+
   CurrItem := Self.fRootItem;
   NextItem := nil;
   // * * * * * //
@@ -426,11 +451,37 @@ begin
   Self.fRootItem := nil;
   Self.fCurrItem := nil;
   Self.fSize     := 0;
-end; // .procedure TStrBuilder.Clear
+end;
+
+function TStrBuilder.PipeThrough (ChunkConsumer: TStrBuilderChunkConsumer; Context: pointer = nil): integer;
+var
+  PrevLocked: longbool;
+  ChunkItem:  PStrBulderItem;
+
+begin
+  result     := 0;
+  PrevLocked := Self.fLocked;
+
+  try
+    Self.fLocked := true;
+    ChunkItem    := Self.fRootItem;
+
+    while ChunkItem <> nil do begin
+      if ChunkItem.DataSize > 0 then begin
+        ChunkConsumer(@ChunkItem.Data[0], ChunkItem.DataSize, Context);
+        Inc(result, ChunkItem.DataSize);
+        ChunkItem := ChunkItem.NextItem;
+      end;
+    end;
+  finally
+    Self.flocked := PrevLocked;
+  end;
+end;
 
 constructor TStrByteSource.Create (const Data: myAStr);
 begin
   inherited Create;
+
   fData    := Data;
   fDataLen := length(Data);
   fPos     := 0;
@@ -450,7 +501,7 @@ begin
       inc(fPos, result);
     end;
   end;
-end; // .function TStrByteSource.Read
+end;
 
 constructor TBufByteSource.Create ({Un} Buf: pointer; BufSize: integer);
 begin
@@ -477,11 +528,12 @@ begin
       inc(fPos, result);
     end;
   end;
-end; // .function TBufByteSource.Read
+end;
 
 constructor TByteMapper.Create (ByteSource: IByteSource);
 begin
   inherited Create;
+
   fByteSource := ByteSource;
 end;
 

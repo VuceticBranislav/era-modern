@@ -6803,6 +6803,14 @@ begin
   end;
 end; // .function Hook_UN_C
 
+function Splice_SwapManager_Create (OrigFunc: pointer; SwapManager: Heroes.PSwapManager; LeftHero, RightHero: Heroes.PHero): integer; stdcall;
+begin
+  pinteger($2730F60)^ := LeftHero.Id;
+  pinteger($A4AAE8)^  := RightHero.Id;
+
+  result := PatchApi.Call(THISCALL_, OrigFunc, [SwapManager, LeftHero, RightHero]);
+end;
+
 function Hook_DlgCallback (Context: ApiJack.PHookContext): longbool; stdcall;
 const
   NO_CMD = 0;
@@ -9329,6 +9337,9 @@ begin
 
   (* Extended UN:C implementation with 4 parameters support *)
   ApiJack.Hook(Ptr($731FF0), @Hook_UN_C);
+
+  (* Fix CM:H to always return valid hero IDs from SwapManager even in non-click events *)
+  ApiJack.StdSplice(Ptr($5AE850), @Splice_SwapManager_Create, ApiJack.CONV_THISCALL, 3);
 
   (* Fix missing final "break" keyword in CO:A case, leading to automatical CO:N execution in many branches *)
   PatchApi.p.WriteDataPatch(Ptr($76F929), [myAStr('0F872A0E')]);

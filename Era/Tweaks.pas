@@ -7,6 +7,7 @@ unit Tweaks;
 (***)  interface  (***)
 uses
   Math,
+  PsApi,
   SysUtils,
   Types,
   Windows,
@@ -2117,6 +2118,41 @@ begin
   {!} Debug.ModuleContext.Unlock;
 end; // .procedure DumpExceptionContext
 
+procedure LogMemoryState;
+var
+  MemoryInfo: PsApi.PROCESS_MEMORY_COUNTERS;
+
+begin
+  Legacy.FillChar(MemoryInfo, sizeof(MemoryInfo), #0);
+  MemoryInfo.cb := sizeof(MemoryInfo);
+
+  if (PsApi.GetProcessMemoryInfo(Windows.GetCurrentProcess(), @MemoryInfo, sizeof(MemoryInfo))) then begin
+    Log.Write('ExceptionHandler', 'LogMemoryState', Legacy.Format(
+      'PageFaultCount: %d'#13#10             +
+      'PeakWorkingSetSize: %d'#13#10         +
+      'WorkingSetSize: %d'#13#10             +
+      'QuotaPeakPagedPoolUsage: %d'#13#10    +
+      'QuotaPagedPoolUsage: %d'#13#10        +
+      'QuotaPeakNonPagedPoolUsage: %d'#13#10 +
+      'QuotaNonPagedPoolUsage: %d'#13#10     +
+      'PagefileUsage: %d'#13#10              +
+      'PeakPagefileUsage: %d'#13#10          +
+      'PagefileUsage: %d',
+    [
+      MemoryInfo.PageFaultCount,
+      MemoryInfo.PeakWorkingSetSize,
+      MemoryInfo.WorkingSetSize,
+      MemoryInfo.QuotaPeakPagedPoolUsage,
+      MemoryInfo.QuotaPagedPoolUsage,
+      MemoryInfo.QuotaPeakNonPagedPoolUsage,
+      MemoryInfo.QuotaNonPagedPoolUsage,
+      MemoryInfo.PagefileUsage,
+      MemoryInfo.PeakPagefileUsage,
+      MemoryInfo.PagefileUsage
+    ]));
+  end;
+end;
+
 procedure ProcessUnhandledException (ExceptionRecord: Windows.PExceptionRecord; Context: Windows.PContext);
 begin
   {!} ExceptionsCritSection.Enter;
@@ -2126,10 +2162,12 @@ begin
     Erm.ErmEnabled^ := false;
     GameExt.ClearDebugDir;
     DumpExceptionContext(ExceptionRecord, Context);
+    LogMemoryState;
     GameExt.GenerateDebugInfoWithoutCleanup;
     Windows.MessageBoxA(Heroes.hWnd^, myPChar(Trans.Tr('era.game_crash_message', ['debug_dir', DEBUG_DIR])), '', Windows.MB_OK);
-    Debug.KillThisProcess;
   end;
+
+  Debug.KillThisProcess;
 
   {!} ExceptionsCritSection.Leave;
 end;
@@ -2421,7 +2459,7 @@ begin
   ApiJack.StdSplice(Ptr($465E70), @Hook_PlaceBattleObstacles, ApiJack.CONV_THISCALL, 1);
 
   // Fix sequential PRNG calls in network PvP battles
-  ApiJack.Hook(Ptr($75D760), @SequentialRandomRangeFastcall, nil, 6, ApiJack.HOOKTYPE_CALL); // Death Stare WoG-native
+  ApiJack.Hook(Ptr($75D760), @SequentialRandomRangeFastcall, nil, 7, ApiJack.HOOKTYPE_CALL); // Death Stare WoG-native
   ApiJack.Hook(Ptr($75D72E), @SequentialRandomRangeCdecl,    nil, 5, ApiJack.HOOKTYPE_CALL); // Death Stare WoG
   ApiJack.Hook(Ptr($4690CA), @SequentialRand,                nil, 5, ApiJack.HOOKTYPE_CALL); // Phoenix Ressurection native
 
@@ -2459,6 +2497,13 @@ begin
 
   (* Remove WoG Service_SetExcFilter call, preventing SetUnhandledExceptionFilter *)
   PatchApi.p.WriteDataPatch(Ptr($77180E), [myAStr('90909090909090909090909090')]);
+
+  (* Fix advmap objects control word unpacking: right arithmetic shift was used instead of right logical shift *)
+  PatchApi.p.WriteDataPatch(Ptr($4A4CF8), [myAStr('E8')]);
+  PatchApi.p.WriteDataPatch(Ptr($4A512E), [myAStr('E8')]);
+  PatchApi.p.WriteDataPatch(Ptr($4A61CC), [myAStr('E8')]);
+  PatchApi.p.WriteDataPatch(Ptr($4A66AC), [myAStr('E8')]);
+  PatchApi.p.WriteDataPatch(Ptr($4A795B), [myAStr('E8')]);
 end; // .procedure OnAfterWoG
 
 procedure OnLoadEraSettings (Event: GameExt.PEvent); stdcall;

@@ -379,15 +379,16 @@ end; // .function TModuleContext.AddrToStr
 
 procedure KillThisProcess; assembler;
 asm
-  xor eax, eax   // zero register
-  mov esp, eax   // zero stack pointer (no recovery possibly)
-  mov [eax], eax // trigger exception without any possible recovery
+  xor eax, eax
+  mov ecx, $DEADDEAD
+  mov esp, eax       // zero stack pointer (no recovery possibly)
+  mov [eax], ecx
 end;
 
 procedure GenerateException; assembler;
 asm
   xor eax, eax
-  mov [eax], eax
+  mov [eax], $DEADDEAD
 end;
 
 procedure NotifyError (const Err: myAStr);

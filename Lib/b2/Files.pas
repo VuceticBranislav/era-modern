@@ -148,7 +148,8 @@ function ToRelativePathIfPossible (FilePath, BasePath: myAStr): myAStr;
 function  ReadFileContents (const FilePath: myAStr; out FileContents: myAStr): boolean; overload;
 function  ReadFileContents (FileHandle: integer; out FileContents: myAStr): boolean; overload;
 function  WriteFileContents (const FileContents, FilePath: myAStr): boolean;
-function  AppendFileContents (const FileContents, FilePath: myAStr): boolean;
+function  AppendFileContents (const FileContents, FilePath: myAStr): boolean; overload;
+function  AppendFileContents ({n} FileContentsBuf: pointer; FileContentsBufSize: integer; const FilePath: myAStr): boolean; overload;
 function  DeleteDir (const DirPath: myAStr): boolean;
 function  ClearDir (const DirPath: myAStr; {n} Filter: TClearDirFilter = nil; {n} _Context: PClearDirContext = nil): boolean;
 function  GetFileSize (const FilePath: myAStr; out Res: integer): boolean;
@@ -601,7 +602,7 @@ begin
     end;
   end;
   Legacy.FreeAndNil(Locator);
-end; // .function TFileLocator.GetItemInfo
+end;
 
 function ReadFileContents (const FilePath: myAStr; out FileContents: myAStr): boolean;
 var
@@ -617,7 +618,7 @@ begin
   end;
   // * * * * * //
   Legacy.FreeAndNil(TheFile);
-end; // .function ReadFileContents
+end;
 
 function ReadFileContents (FileHandle: integer; out FileContents: myAStr): boolean; overload;
 var
@@ -634,7 +635,7 @@ begin
   end;
   // * * * * * //
   Legacy.FreeAndNil(TheFile);
-end; // .function ReadFileContents
+end;
 
 function WriteFileContents (const FileContents, FilePath: myAStr): boolean;
 var
@@ -648,9 +649,9 @@ begin
     MyFile.WriteStr(FileContents);
   // * * * * * //
   Legacy.FreeAndNil(MyFile);
-end; // .function WriteFileContents
+end;
 
-function AppendFileContents (const FileContents, FilePath: myAStr): boolean;
+function AppendFileContents (const FileContents, FilePath: myAStr): boolean; overload;
 var
 {O} MyFile: TFile;
 
@@ -666,7 +667,25 @@ begin
   result := result and MyFile.WriteStr(FileContents);
   // * * * * * //
   Legacy.FreeAndNil(MyFile);
-end; // .function AppendFileContents
+end;
+
+function AppendFileContents ({n} FileContentsBuf: pointer; FileContentsBufSize: integer; const FilePath: myAStr): boolean; overload;
+var
+{O} MyFile: TFile;
+
+begin
+  MyFile := TFile.Create;
+  // * * * * * //
+  if Legacy.FileExists(FilePath) then begin
+    result := MyFile.Open(FilePath, MODE_WRITE) and MyFile.Seek(MyFile.Size);
+  end else begin
+    result := MyFile.CreateNew(FilePath);
+  end;
+
+  result := result and MyFile.Write(FileContentsBufSize, FileContentsBuf);
+  // * * * * * //
+  Legacy.FreeAndNil(MyFile);
+end;
 
 function ClearDir (const DirPath: myAStr; {n} Filter: TClearDirFilter = nil; {n} _Context: PClearDirContext = nil): boolean;
 var
