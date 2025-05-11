@@ -13,6 +13,8 @@ uses
   Windows,
   WinSock,
 
+  FastMM4,
+
   Alg,
   ApiJack,
   CFiles,
@@ -41,6 +43,7 @@ uses
   Graph,
   Heroes,
   Lodman,
+  Memory,
   Network,
   Stores,
   Trans,
@@ -50,6 +53,8 @@ type
   (* Import *)
   TStrList = DataLib.TStrList;
   TRect    = Types.TRect;
+
+  //pbyte = ^byte;
 
 const
   // f (Value: pchar; MaxResLen: integer; DefValue, Key, SectionName, FileName: pchar): integer; cdecl;
@@ -91,16 +96,23 @@ function RandomRangeWithFreeParam (MinValue, MaxValue, FreeParam: integer): inte
 
 procedure ProcessUnhandledException (ExceptionRecord: Windows.PExceptionRecord; Context: Windows.PContext);
 
+(* Writes memory consumption info to main log file *)
+procedure LogMemoryState;
+
 
 (***) implementation (***)
 
 
 const
   RNG_SAVE_SECTION : myAStr      = 'Era.RNG';
-  CRASH_SCREENHOST_PATH : myAStr = EraSettings.DEBUG_DIR + '\screenshot.jpg';
+  CRASH_SCREENSHOT_PATH : myAStr = EraSettings.DEBUG_DIR + '\screenshot.jpg';
   CRASH_SAVEGAME_PATH   = EraSettings.DEBUG_DIR + '\savegame.gm1';
 
   DL_GROUP_INDEX_MARKER = 100000; // DL frame index column is DL_GROUP_INDEX_MARKER * groupIndex + frameIndex
+
+  OUT_OF_MEMORY_RESERVE_BLOCK_SIZE    = 1024000;
+  OUT_OF_MEMORY_RESERVE_BYTES         = 1 * OUT_OF_MEMORY_RESERVE_BLOCK_SIZE;  // Delphi GetMem reserve
+  OUT_OF_MEMORY_VIRTUAL_RESERVE_BYTES = 15 * OUT_OF_MEMORY_RESERVE_BLOCK_SIZE; // VirtualAlloc reserved, but not commited
 
 type
   TWogMp3Process = procedure; stdcall;
@@ -136,22 +148,42 @@ type
     function RandomRange (MinValue, MaxValue: integer): integer; override;
   end;
 
+  TExceptionDialogTrackerRec = record
+    ExceptionAddr: pointer;
+    DialogId:      integer;
+  end;
+
+  TExceptionDialogTracker = record
+    Pos:     integer;
+    Records: array [0..14] of TExceptionDialogTrackerRec;
+
+    procedure TrackEvent (ExceptionAddress: pointer);
+    function GetDialogId (ExceptionAddress: pointer): integer;
+  end;
+
 var
 {O} CLangRng:                  FastRand.TClangRng;
 {O} QualitativeRng:            FastRand.TXoroshiro128Rng;
 {O} BattleDeterministicRng:    TBattleDeterministicRng;
 {U} GlobalRng:                 FastRand.TRng;
+{O} OutOfMemoryReserve:        pointer;
+{O} OutOfMemoryVirtualReserve: pointer;
 
-  hTimerEvent:           THandle;
-  InetCriticalSection:   Windows.TRTLCriticalSection;
-  ExceptionsCritSection: Concur.TCritSection;
-  ZvsLibImageTemplate:   myAStr;
-  ZvsLibGamePath:        myAStr;
-  IsLocalPlaceObject:    boolean = true;
-  DlgLastEvent:          Heroes.TMouseEventInfo;
-  ComputerName:          myWStr;
-  IsCrashing:            boolean;
-  CrashSavegameName:     myAStr;
+  hTimerEvent:            THandle;
+  InetCriticalSection:    Windows.TRTLCriticalSection;
+  ExceptionsCritSection:  Concur.TCritSection;
+  ZvsLibImageTemplate:    myAStr;
+  ZvsLibGamePath:         myAStr;
+  DlgLastEvent:           Heroes.TMouseEventInfo;
+  ComputerName:           myAStr;
+  IsCrashing:             boolean;
+  CrashSavegameName:      myAStr;
+  ExceptionDialogTracker: TExceptionDialogTracker;
+
+  ShowMessageOnCrash:       boolean = true;
+  ExternalCrashHandlerPath: myAStr;
+  IsLocalPlaceObject:       boolean = true;
+  ShouldLogMemoryState:     boolean = true;
 
   Mp3TriggerHandledEvent: THandle;
   IsMp3Trigger:           boolean = false;
@@ -666,7 +698,7 @@ begin
   // * * * * * //
   result := Ptr(PatchApi.Call(PatchApi.STDCALL_, OrigFunc, [Name]));
 
-  if (result = nil) or ((Name <> nil) and (string(Name) <> ComputerName)) or (result.h_length <> sizeof(integer)) then begin
+  if (result = nil) or ((Name <> nil) and (myAStr(Name) <> ComputerName)) or (result.h_length <> sizeof(integer)) then begin
     exit;
   end;
 
@@ -1231,8 +1263,6 @@ type
   PCallerContext = ^TCallerContext;
   TCallerContext = packed record EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX: integer; end;
 
-  TRandomRangeFunc = function (Dummy, MinValue, MaxValue: integer): integer; register;
-
 const
   CALLER_CONTEXT_SIZE = sizeof(TCallerContext);
 
@@ -1309,7 +1339,7 @@ begin
   result := SequantialRandomRange(0, High(integer));
 end;
 
-function SequentialRandomRangeFastcall (Dummy, MaxValue, MinValue: integer): integer; register;
+function SequentialRandomRangeFastcall (_1, MaxValue, MinValue: integer): integer; register;
 begin
   asm
     push eax
@@ -2014,144 +2044,333 @@ begin
   {!} Debug.ModuleContext.Unlock;
 end; // .procedure DumpWinPeModuleList
 
-procedure DumpExceptionContext (ExcRec: Windows.PExceptionRecord; Context: Windows.PContext);
+procedure DumpExceptionReasonAndAddress (Output: FilesEx.IFormattedOutput; ExceptionRec: Windows.PExceptionRecord);
+var
+  ExceptionText: myAStr;
+
+begin
+  case ExceptionRec.ExceptionCode of
+    $C0000005: begin
+      if ExceptionRec.ExceptionInformation[0] <> 0 then begin
+        ExceptionText := 'Failed to write data at ' + Legacy.Format('%x', [integer(ExceptionRec.ExceptionInformation[1])]);
+      end else begin
+        ExceptionText := 'Failed to read data at ' + Legacy.Format('%x', [integer(ExceptionRec.ExceptionInformation[1])]);
+      end;
+    end;
+
+    $C000008C: ExceptionText := 'Array index is out of bounds';
+    $80000003: ExceptionText := 'Breakpoint encountered';
+    $80000002: ExceptionText := 'Data access misalignment';
+    $C000008D: ExceptionText := 'One of the operands in a floating-point operation is denormal';
+    $C000008E: ExceptionText := 'Attempt to divide a floating-point value by a floating-point divisor of zero';
+    $C000008F: ExceptionText := 'The result of a floating-point operation cannot be represented exactly as a decimal fraction';
+    $C0000090: ExceptionText := 'Invalid floating-point exception';
+    $C0000091: ExceptionText := 'The exponent of a floating-point operation is greater than the magnitude allowed by the corresponding type';
+    $C0000092: ExceptionText := 'The stack overflowed or underflowed as the result of a floating-point operation';
+    $C0000093: ExceptionText := 'The exponent of a floating-point operation is less than the magnitude allowed by the corresponding type';
+    $C000001D: ExceptionText := 'Attempt to execute an illegal instruction';
+    $C0000006: ExceptionText := 'Attempt to access a page that was not present, and the system was unable to load the page';
+    $C0000094: ExceptionText := 'Attempt to divide an integer value by an integer divisor of zero';
+    $C0000095: ExceptionText := 'Integer arithmetic overflow';
+    $C0000026: ExceptionText := 'An invalid exception disposition was returned by an exception handler';
+    $C0000025: ExceptionText := 'Attempt to continue from an exception that isn''t continuable';
+    $C0000096: ExceptionText := 'Attempt to execute a privilaged instruction.';
+    $80000004: ExceptionText := 'Single step exception';
+    $C00000FD: ExceptionText := 'Stack overflow';
+    else       ExceptionText := 'Unknown exception';
+  end; // .switch ExceptionRec.ExceptionCode
+
+  Output.Line(ExceptionText + '.');
+  Output.Line(Legacy.Format('EIP: %s. Code: %x', [Debug.ModuleContext.AddrToStr(ExceptionRec.ExceptionAddress), ExceptionRec.ExceptionCode]));
+  Output.EmptyLine;
+end;
+
+procedure DumpGameContext (Output: FilesEx.IFormattedOutput; ExceptionAddress: pointer);
+const
+  MAX_TAGS = 10;
+
+var
+  Tags:          UtilsB2.TArrayOfStr;
+  CombatTypeStr: myAStr;
+  TagInd:        integer;
+  DialogId:      integer;
+  DialogName:    myAStr;
+
+begin
+  Tags := nil;
+
+  try
+    DialogId := ExceptionDialogTracker.GetDialogId(ExceptionAddress);
+
+    if DialogId = 0 then begin
+      DialogId := Heroes.GetActiveDialogId;
+    end;
+
+    DialogName := Heroes.GetDialogName(DialogId);
+
+    if DialogName <> '' then begin
+      SetLength(Tags, MAX_TAGS);
+      TagInd := 0;
+
+      if Heroes.IsAiPlayerTurn then begin
+        Tags[TagInd] := 'AI turn';
+        Inc(TagInd);
+      end;
+
+      if Heroes.IsHotSeatGame then begin
+        Tags[TagInd] := 'HotSeat';
+        Inc(TagInd);
+      end else if Heroes.IsNetworkGame then begin
+        Tags[TagInd] := 'Network';
+        Inc(TagInd);
+
+        if (Heroes.DirectPlayHeroesPtr^ <> nil) and DirectPlayHeroesPtr^.IsHost then begin
+          Tags[TagInd] := 'Host';
+          Inc(TagInd);
+        end else begin
+          Tags[TagInd] := 'Client';
+          Inc(TagInd);
+        end;
+      end;
+
+      if (Heroes.CombatManagerPtr^ <> nil) and (CombatManagerPtr^.Status <> 0) then begin
+        Tags[TagInd] := 'Combat';
+        Inc(TagInd);
+
+        case (ord(CombatManagerPtr^.IsHuman[1]) shl 1) or ord(CombatManagerPtr^.IsHuman[0]) of
+          0: CombatTypeStr := 'AI vs AI';
+          1: CombatTypeStr := 'Human vs AI';
+          2: CombatTypeStr := 'AI vs Human';
+          3: CombatTypeStr := 'Human vs Human';
+        end;
+
+        Tags[TagInd] := CombatTypeStr;
+        Inc(TagInd);
+      end;
+
+      Output.Write('> Game context: [' + DialogName + '] dialog');
+
+      if TagInd > 0 then begin
+        SetLength(Tags, TagInd);
+        Output.Write(' (' + StrLib.Join(Tags, ', ') + ')');
+      end;
+
+      Output.EmptyLine;
+      Output.EmptyLine;
+    end;
+  except
+    // Skip exceptions during game context dump
+  end;
+end; // .procedure DumpGameContext
+
+procedure DumpRegisters (Output: FilesEx.IFormattedOutput; Context: Windows.PContext);
+begin
+  Output.Line('> Registers');
+
+  Output.Line('EAX: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Eax), Debug.ANALYZE_DATA));
+  Output.Line('ECX: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Ecx), Debug.ANALYZE_DATA));
+  Output.Line('EDX: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Edx), Debug.ANALYZE_DATA));
+  Output.Line('EBX: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Ebx), Debug.ANALYZE_DATA));
+  Output.Line('ESP: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Esp), Debug.ANALYZE_DATA));
+  Output.Line('EBP: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Ebp), Debug.ANALYZE_DATA));
+  Output.Line('ESI: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Esi), Debug.ANALYZE_DATA));
+  Output.Line('EDI: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Edi), Debug.ANALYZE_DATA));
+
+  Output.EmptyLine;
+end;
+
+procedure DumpCallStack (Output: FilesEx.IFormattedOutput; Context: Windows.PContext);
+var
+  RetAddr: integer;
+  Ebp:     integer;
+
+begin
+  Output.Line('> Callstack');
+  Ebp     := Context.Ebp;
+  RetAddr := 1;
+
+  try
+    while (Ebp <> 0) and (RetAddr <> 0) do begin
+      RetAddr := pinteger(Ebp + 4)^;
+
+      if RetAddr <> 0 then begin
+        Output.Line(Debug.ModuleContext.AddrToStr(Ptr(RetAddr)));
+        Ebp := pinteger(Ebp)^;
+      end;
+    end;
+  except
+    // Stop processing callstack
+  end; // .try
+
+  Output.EmptyLine;
+end;
+
+procedure DumpStack (Output: FilesEx.IFormattedOutput; Context: Windows.PContext);
+var
+  Esp:      integer;
+  LineText: myAStr;
+  i:        integer;
+
+begin
+  Output.Line('> Stack');
+  Esp := Context.Esp - sizeof(integer) * 5;
+
+  try
+    for i := 1 to 40 do begin
+      LineText := IntToHex(Esp, 8);
+
+      if Esp = integer(Context.Esp) then begin
+        LineText := LineText + '*';
+      end;
+
+      LineText := LineText + ': ' + Debug.ModuleContext.AddrToStr(ppointer(Esp)^, Debug.ANALYZE_DATA);
+      Inc(Esp, sizeof(integer));
+      Output.Line(LineText);
+    end; // .for
+  except
+    // Stop stack traversing
+  end; // .try
+end;
+
+procedure DumpExceptionContext (ExceptionRec: Windows.PExceptionRecord; Context: Windows.PContext);
 const
   DEBUG_EXCEPTION_CONTEXT_PATH = EraSettings.DEBUG_DIR + '\exception context.txt';
 
 var
-  ExceptionText: myAStr;
-  LineText:      myAStr;
-  Ebp:           integer;
-  Esp:           integer;
-  RetAddr:       integer;
-  i:             integer;
+  Output: FilesEx.IFormattedOutput;
 
 begin
   {!} Debug.ModuleContext.Lock;
   Debug.ModuleContext.UpdateModuleList;
 
-  with FilesEx.WriteFormattedOutput(GameExt.GameDir + '\' + DEBUG_EXCEPTION_CONTEXT_PATH) do begin
-    case ExcRec.ExceptionCode of
-      $C0000005: begin
-        if ExcRec.ExceptionInformation[0] <> 0 then begin
-          ExceptionText := 'Failed to write data at ' + Legacy.Format('%x', [integer(ExcRec.ExceptionInformation[1])]);
-        end else begin
-          ExceptionText := 'Failed to read data at ' + Legacy.Format('%x', [integer(ExcRec.ExceptionInformation[1])]);
-        end;
-      end; // .case $C0000005
+  Output := FilesEx.WriteFormattedOutput(GameExt.GameDir + '\' + DEBUG_EXCEPTION_CONTEXT_PATH);
 
-      $C000008C: ExceptionText := 'Array index is out of bounds';
-      $80000003: ExceptionText := 'Breakpoint encountered';
-      $80000002: ExceptionText := 'Data access misalignment';
-      $C000008D: ExceptionText := 'One of the operands in a floating-point operation is denormal';
-      $C000008E: ExceptionText := 'Attempt to divide a floating-point value by a floating-point divisor of zero';
-      $C000008F: ExceptionText := 'The result of a floating-point operation cannot be represented exactly as a decimal fraction';
-      $C0000090: ExceptionText := 'Invalid floating-point exception';
-      $C0000091: ExceptionText := 'The exponent of a floating-point operation is greater than the magnitude allowed by the corresponding type';
-      $C0000092: ExceptionText := 'The stack overflowed or underflowed as the result of a floating-point operation';
-      $C0000093: ExceptionText := 'The exponent of a floating-point operation is less than the magnitude allowed by the corresponding type';
-      $C000001D: ExceptionText := 'Attempt to execute an illegal instruction';
-      $C0000006: ExceptionText := 'Attempt to access a page that was not present, and the system was unable to load the page';
-      $C0000094: ExceptionText := 'Attempt to divide an integer value by an integer divisor of zero';
-      $C0000095: ExceptionText := 'Integer arithmetic overflow';
-      $C0000026: ExceptionText := 'An invalid exception disposition was returned by an exception handler';
-      $C0000025: ExceptionText := 'Attempt to continue from an exception that isn''t continuable';
-      $C0000096: ExceptionText := 'Attempt to execute a privilaged instruction.';
-      $80000004: ExceptionText := 'Single step exception';
-      $C00000FD: ExceptionText := 'Stack overflow';
-      else       ExceptionText := 'Unknown exception';
-    end; // .switch ExcRec.ExceptionCode
-
-    Line(ExceptionText + '.');
-    Line(Legacy.Format('EIP: %s. Code: %x', [Debug.ModuleContext.AddrToStr(Ptr(Context.Eip)), ExcRec.ExceptionCode]));
-    EmptyLine;
-    Line('> Registers');
-
-    Line('EAX: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Eax), Debug.ANALYZE_DATA));
-    Line('ECX: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Ecx), Debug.ANALYZE_DATA));
-    Line('EDX: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Edx), Debug.ANALYZE_DATA));
-    Line('EBX: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Ebx), Debug.ANALYZE_DATA));
-    Line('ESP: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Esp), Debug.ANALYZE_DATA));
-    Line('EBP: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Ebp), Debug.ANALYZE_DATA));
-    Line('ESI: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Esi), Debug.ANALYZE_DATA));
-    Line('EDI: ' + Debug.ModuleContext.AddrToStr(Ptr(Context.Edi), Debug.ANALYZE_DATA));
-
-    EmptyLine;
-    Line('> Callstack');
-    Ebp     := Context.Ebp;
-    RetAddr := 1;
-
-    try
-      while (Ebp <> 0) and (RetAddr <> 0) do begin
-        RetAddr := pinteger(Ebp + 4)^;
-
-        if RetAddr <> 0 then begin
-          Line(Debug.ModuleContext.AddrToStr(Ptr(RetAddr)));
-          Ebp := pinteger(Ebp)^;
-        end;
-      end;
-    except
-      // Stop processing callstack
-    end; // .try
-
-    EmptyLine;
-    Line('> Stack');
-    Esp := Context.Esp - sizeof(integer) * 5;
-
-    try
-      for i := 1 to 40 do begin
-        LineText := Legacy.IntToHex(Esp, 8);
-
-        if Esp = integer(Context.Esp) then begin
-          LineText := LineText + '*';
-        end;
-
-        LineText := LineText + ': ' + Debug.ModuleContext.AddrToStr(ppointer(Esp)^, Debug.ANALYZE_DATA);
-        Inc(Esp, sizeof(integer));
-        Line(LineText);
-      end; // .for
-    except
-      // Stop stack traversing
-    end; // .try
-  end; // .with
+  DumpExceptionReasonAndAddress(Output, ExceptionRec);
+  DumpGameContext(Output, ExceptionRec.ExceptionAddress);
+  DumpRegisters(Output, Context);
+  DumpCallStack(Output, Context);
+  DumpStack(Output, Context);
 
   {!} Debug.ModuleContext.Unlock;
 end; // .procedure DumpExceptionContext
 
 procedure LogMemoryState;
 var
-  MemoryInfo: PsApi.PROCESS_MEMORY_COUNTERS;
+{U} MemoryConsumers:          DataLib.TStrList {of Ptr(AllocatedSize: integer)};
+    MemoryInfo:               PsApi.PROCESS_MEMORY_COUNTERS;
+    MemoryManagerState:       FastMM4.TMemoryManagerState;
+    ReservedSmallBlocksSize:  cardinal;
+    TotalSmallBlocksSize:     cardinal;
+    TotalSmallBlocksCount:    cardinal;
+    TotalAllocatedSize:       cardinal;
+    TotalReservedSize:        cardinal;
+    TotalTrackedConsumption:  cardinal;
+    EraMemoryConsumption:     cardinal;
+    GameMemoryConsumption:    cardinal;
+    PluginsMemoryConsumption: cardinal;
+    MemoryConsumptionReport:  myAStr;
+    i:                        integer;
 
 begin
+  MemoryConsumers := nil;
+  // * * * * * //
   Legacy.FillChar(MemoryInfo, sizeof(MemoryInfo), #0);
   MemoryInfo.cb := sizeof(MemoryInfo);
 
   if (PsApi.GetProcessMemoryInfo(Windows.GetCurrentProcess(), @MemoryInfo, sizeof(MemoryInfo))) then begin
-    Log.Write('ExceptionHandler', 'LogMemoryState', Legacy.Format(
-      'PageFaultCount: %d'#13#10             +
-      'PeakWorkingSetSize: %d'#13#10         +
-      'WorkingSetSize: %d'#13#10             +
-      'QuotaPeakPagedPoolUsage: %d'#13#10    +
-      'QuotaPagedPoolUsage: %d'#13#10        +
-      'QuotaPeakNonPagedPoolUsage: %d'#13#10 +
-      'QuotaNonPagedPoolUsage: %d'#13#10     +
-      'PagefileUsage: %d'#13#10              +
-      'PeakPagefileUsage: %d'#13#10          +
-      'PagefileUsage: %d',
+    Log.Write('LogMemoryState', 'Log process memory state', Legacy.Format(
+      'Allocated bytes: %d'#13#10            +
+      'Reserved bytes: %d'#13#10             +
+      'Peak allocated bytes: %d'#13#10       +
+      'Peak reserved bytes: %d'#13#10        +
+      'PageFaultCount: %d'#13#10,
+      //'QuotaPeakPagedPoolUsage: %d'#13#10    +
+      //'QuotaPagedPoolUsage: %d'#13#10        +
+      //'QuotaPeakNonPagedPoolUsage: %d'#13#10 +
+      //'QuotaNonPagedPoolUsage: %d',
     [
-      MemoryInfo.PageFaultCount,
-      MemoryInfo.PeakWorkingSetSize,
       MemoryInfo.WorkingSetSize,
-      MemoryInfo.QuotaPeakPagedPoolUsage,
-      MemoryInfo.QuotaPagedPoolUsage,
-      MemoryInfo.QuotaPeakNonPagedPoolUsage,
-      MemoryInfo.QuotaNonPagedPoolUsage,
       MemoryInfo.PagefileUsage,
+      MemoryInfo.PeakWorkingSetSize,
       MemoryInfo.PeakPagefileUsage,
-      MemoryInfo.PagefileUsage
+      MemoryInfo.PageFaultCount
+      // MemoryInfo.QuotaPeakPagedPoolUsage,
+      // MemoryInfo.QuotaPagedPoolUsage,
+      // MemoryInfo.QuotaPeakNonPagedPoolUsage,
+      // MemoryInfo.QuotaNonPagedPoolUsage
     ]));
   end;
-end;
+
+  FastMM4.GetMemoryManagerState(MemoryManagerState);
+
+  ReservedSmallBlocksSize := 0;
+  TotalSmallBlocksSize    := 0;
+  TotalSmallBlocksCount   := 0;
+
+  for i := Low(MemoryManagerState.SmallBlockTypeStates) to High(MemoryManagerState.SmallBlockTypeStates) do begin
+    Inc(ReservedSmallBlocksSize, MemoryManagerState.SmallBlockTypeStates[i].ReservedAddressSpace);
+    Inc(TotalSmallBlocksSize,    MemoryManagerState.SmallBlockTypeStates[i].AllocatedBlockCount * MemoryManagerState.SmallBlockTypeStates[i].UseableBlockSize);
+    Inc(TotalSmallBlocksCount,   MemoryManagerState.SmallBlockTypeStates[i].AllocatedBlockCount);
+  end;
+
+  TotalAllocatedSize := TotalSmallBlocksSize + MemoryManagerState.TotalAllocatedMediumBlockSize + MemoryManagerState.TotalAllocatedLargeBlockSize;
+  TotalReservedSize  := ReservedSmallBlocksSize + MemoryManagerState.ReservedMediumBlockAddressSpace + MemoryManagerState.ReservedLargeBlockAddressSpace;
+
+  Log.Write('LogMemoryState', 'Log Era memory state', Legacy.Format(
+    'TotalAllocatedSize: %d'#13#10              +
+    'TotalReservedSize: %d'#13#10               +
+    'TotalSmallBlocksCount: %d'#13#10           +
+    'TotalSmallBlocksSize: %d'#13#10            +
+    'ReservedSmallBlocksSize: %d'#13#10         +
+    'AllocatedMediumBlockCount: %d'#13#10       +
+    'TotalAllocatedMediumBlockSize: %d'#13#10   +
+    'ReservedMediumBlockAddressSpace: %d'#13#10 +
+    'AllocatedLargeBlockCount: %d'#13#10        +
+    'TotalAllocatedLargeBlockSize: %d'#13#10    +
+    'ReservedLargeBlockAddressSpace: %d',
+  [
+    TotalAllocatedSize,
+    TotalReservedSize,
+    TotalSmallBlocksCount,
+    TotalSmallBlocksSize,
+    ReservedSmallBlocksSize,
+    MemoryManagerState.AllocatedMediumBlockCount,
+    MemoryManagerState.TotalAllocatedMediumBlockSize,
+    MemoryManagerState.ReservedMediumBlockAddressSpace,
+    MemoryManagerState.AllocatedLargeBlockCount,
+    MemoryManagerState.TotalAllocatedLargeBlockSize,
+    MemoryManagerState.ReservedLargeBlockAddressSpace
+  ]));
+
+  MemoryConsumers         := Memory.GetMemoryConsumers;
+  MemoryConsumptionReport := '';
+  TotalTrackedConsumption := 0;
+  GameMemoryConsumption   := integer(MemoryConsumers.Values[Memory.GAME_MEM_CONSUMER_INDEX]);
+
+  for i := 0 to MemoryConsumers.Count - 1 do begin
+    Inc(TotalTrackedConsumption, cardinal(MemoryConsumers.Values[i]));
+    MemoryConsumptionReport := MemoryConsumptionReport + MemoryConsumers[i] + ': ' + Legacy.IntToStr(integer(MemoryConsumers.Values[i]));
+
+    if i < MemoryConsumers.Count - 1 then begin
+      MemoryConsumptionReport := MemoryConsumptionReport + #13#10;
+    end;
+  end;
+
+  PluginsMemoryConsumption := TotalTrackedConsumption - GameMemoryConsumption;
+  EraMemoryConsumption     := TotalAllocatedSize - TotalTrackedConsumption;
+
+  Log.Write('LogMemoryState', 'Log tracked memory consumption', Legacy.Format(
+    'Game memory consumption: %d'#13#10 +
+    'Era memory consumption: %d'#13#10 +
+    'Plugins memory consumption: %d'#13#10#13#10'Memory consumers:'#13#10'-----------------'#13#10'%s',
+    [
+      GameMemoryConsumption,
+      EraMemoryConsumption,
+      PluginsMemoryConsumption,
+      MemoryConsumptionReport
+    ]
+  ));
+end; // .procedure LogMemoryState
 
 procedure ProcessUnhandledException (ExceptionRecord: Windows.PExceptionRecord; Context: Windows.PContext);
 begin
@@ -2160,11 +2379,23 @@ begin
   if not IsCrashing then begin
     IsCrashing      := true;
     Erm.ErmEnabled^ := false;
+
+    Windows.VirtualFree(OutOfMemoryVirtualReserve, 0, Windows.MEM_RELEASE);
+    Legacy.FreeMem(OutOfMemoryReserve);
+
     GameExt.ClearDebugDir;
     DumpExceptionContext(ExceptionRecord, Context);
     LogMemoryState;
+    ShouldLogMemoryState := false;
     GameExt.GenerateDebugInfoWithoutCleanup;
-    Windows.MessageBoxA(Heroes.hWnd^, myPChar(Trans.Tr('era.game_crash_message', ['debug_dir', DEBUG_DIR])), '', Windows.MB_OK);
+
+    if ShowMessageOnCrash then begin
+      Windows.MessageBoxA(Heroes.hWnd^, myPChar(Trans.Tr('era.game_crash_message', ['debug_dir', DEBUG_DIR])), '', Windows.MB_OK);
+    end;
+
+    if ExternalCrashHandlerPath <> '' then begin
+      Heroes.ShellExecuteA(0, 'open', myPChar(ExternalCrashHandlerPath), myPChar('"' + GameExt.GameDir + '"'), myPChar(GameExt.GameDir), Windows.SW_SHOWNORMAL);
+    end;
   end;
 
   Debug.KillThisProcess;
@@ -2182,9 +2413,70 @@ begin
   result := EXCEPTION_CONTINUE_SEARCH;
 end;
 
+procedure TExceptionDialogTracker.TrackEvent (ExceptionAddress: pointer);
+var
+  ActiveDialogId: integer;
+
+begin
+  ActiveDialogId := 0;
+
+  if Heroes.WndManagerPtr^ <> nil then begin
+    ActiveDialogId := Heroes.WndManagerPtr^.GetCurrentDlgId;
+  end;
+
+  with Self.Records[Self.Pos] do begin
+    ExceptionAddr := ExceptionAddress;
+    DialogId      := ActiveDialogId;
+  end;
+
+  Inc(Self.Pos);
+
+  if Self.Pos > High(Self.Records) then begin
+    Self.Pos := 0;
+  end;
+end;
+
+function TExceptionDialogTracker.GetDialogId (ExceptionAddress: pointer): integer;
+var
+  Pos: integer;
+  i:   integer;
+
+begin
+  result := 0;
+  i      := 0;
+  Pos    := Self.Pos - 1;
+
+  if Pos < 0 then begin
+    Pos := High(Self.Records);
+  end;
+
+  while (i <= High(Self.Records)) and (Self.Records[Pos].ExceptionAddr <> ExceptionAddress) do begin
+    Inc(i);
+    Dec(Pos);
+
+    if Pos < 0 then begin
+      Pos := High(Self.Records);
+    end;
+  end;
+
+  if i <= High(Self.Records) then begin
+    result := Self.Records[Pos].DialogId;
+  end;
+end;
+
+function OnBeforeAnyException (const ExceptionPtrs: TExceptionPointers): integer; stdcall;
+const
+  EXCEPTION_CONTINUE_SEARCH = 0;
+
+begin
+  ExceptionDialogTracker.TrackEvent(ExceptionPtrs.ExceptionRecord.ExceptionAddress);
+
+  result := EXCEPTION_CONTINUE_SEARCH;
+end;
+
 procedure CaptureCrashScreenshot;
 begin
-  Graph.TakeScreenshot(GameExt.GameDir + '\' + CRASH_SCREENHOST_PATH, 70);
+  Graph.TakeScreenshot(GameExt.GameDir + '\' + CRASH_SCREENSHOT_PATH, 70);
 end;
 
 procedure CopyCrashSavegameToDebugDir;
@@ -2203,6 +2495,10 @@ end;
 
 procedure OnGenerateDebugInfo (Event: PEvent); stdcall;
 begin
+  if ShouldLogMemoryState then begin
+    LogMemoryState;
+  end;
+
   if EraSettings.GetOpt('Debug.CaptureScreenshotOnCrash').Bool(true) then begin
     CaptureCrashScreenshot;
   end;
@@ -2508,10 +2804,12 @@ end; // .procedure OnAfterWoG
 
 procedure OnLoadEraSettings (Event: GameExt.PEvent); stdcall;
 begin
-  CpuTargetLevel          := EraSettings.GetOpt('CpuTargetLevel')    .Int(50);
-  AutoSelectPcIpMaskOpt   := EraSettings.GetOpt('AutoSelectPcIpMask').Str('');
-  UseOnlyOneCpuCoreOpt    := EraSettings.GetOpt('UseOnlyOneCpuCore') .Bool(false);
-  DebugRng                := EraSettings.GetOpt('Debug.Rng')         .Int(0);
+  CpuTargetLevel           := EraSettings.GetOpt('CpuTargetLevel')    .Int(50);
+  AutoSelectPcIpMaskOpt    := EraSettings.GetOpt('AutoSelectPcIpMask').Str('');
+  UseOnlyOneCpuCoreOpt     := EraSettings.GetOpt('UseOnlyOneCpuCore') .Bool(false);
+  DebugRng                 := EraSettings.GetOpt('Debug.Rng')         .Int(0);
+  ShowMessageOnCrash       := EraSettings.GetDebugBoolOpt('Debug.ShowMessageOnCrash', true);
+  ExternalCrashHandlerPath := EraSettings.GetOpt('Debug.ExternalCrashHandlerPath').Str('');
 end;
 
 procedure OnAfterCreateWindow (Event: GameExt.PEvent); stdcall;
@@ -2536,6 +2834,8 @@ begin
   CrashSavegameName := myPChar(Erm.x[1]);
 end;
 
+function AddVectoredExceptionHandler (First: integer; Handler: pointer): Windows.THandle; stdcall; external 'kernel32.dll';
+
 procedure OnAfterVfsInit (Event: GameExt.PEvent); stdcall;
 begin
   Windows.SetErrorMode(SEM_NOGPFAULTERRORBOX);
@@ -2545,12 +2845,16 @@ end;
 begin
   Windows.InitializeCriticalSection(InetCriticalSection);
   ExceptionsCritSection.Init;
+  Legacy.GetMem(OutOfMemoryReserve, OUT_OF_MEMORY_RESERVE_BYTES);
+  OutOfMemoryVirtualReserve := Windows.VirtualAlloc(nil, OUT_OF_MEMORY_VIRTUAL_RESERVE_BYTES, Windows.MEM_RESERVE, Windows.PAGE_READWRITE);
   CLangRng               := FastRand.TClangRng.Create(FastRand.GenerateSecureSeed);
   QualitativeRng         := FastRand.TXoroshiro128Rng.Create(FastRand.GenerateSecureSeed);
   BattleDeterministicRng := TBattleDeterministicRng.Create(@CombatId, @CombatRound, @CombatActionId, @CombatRngFreeParam);
   GlobalRng              := QualitativeRng;
   Mp3TriggerHandledEvent := Windows.CreateEvent(nil, false, false, nil);
-  ComputerName           := WinUtils.GetComputerNameW;
+  ComputerName           := myAStr(WinUtils.GetComputerNameW);
+
+  AddVectoredExceptionHandler(1, @OnBeforeAnyException);
 
   EventMan.GetInstance.On('$OnLoadEraSettings',      OnLoadEraSettings);
   EventMan.GetInstance.On('OnAfterCreateWindow',     OnAfterCreateWindow);

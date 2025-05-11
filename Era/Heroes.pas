@@ -1,8 +1,8 @@
 unit Heroes;
-{
-DESCRIPTION:  Internal game functions and structures
-AUTHOR:       Alexander Shostak (aka Berserker aka EtherniDee aka BerSoft)
-}
+(*
+  Description: Internal game functions and structures.
+  Author:      Alexander Shostak aka Berserker.
+*)
 
 (***)  interface  (***)
 uses
@@ -10,9 +10,8 @@ uses
   SysUtils,
   Windows,
 
-  PatchApi,
-
   Alg,
+  ApiJack,
   DataLib,
   Debug,
   DlgMes,
@@ -211,6 +210,7 @@ const
   MSG_RES_CANCEL    = 2;
   MSG_RES_LEFTPIC   = 0;
   MSG_RES_RIGHTPIC  = 1;
+  MSG_RES_TIMEOUT   = 9999;
 
   (*  Dialog Pictures Types and Subtypes  *)
   NO_PIC_TYPE = -1;
@@ -245,6 +245,19 @@ type
       4: (w:  word);
       5: (f:  single);
       6: (longbool: longbool);
+  end;
+
+  SavegameWriter = record
+    class procedure Write (Size: integer; {n} Addr: pointer); static;
+    class procedure WriteInt (Value: integer); static;
+    class procedure WriteStrWithLenField (const Str: myAStr); static;
+  end;
+
+  SavegameReader = record
+    class function  TryRead (Count: integer; {n} Addr: pointer): integer; static;
+    class procedure Read (Count: integer; {n} Addr: pointer); static;
+    class function  ReadInt: integer; static;
+    class function  ReadStrWithLenField: myAStr; static;
   end;
 
   PTxtFile = ^TTxtFile;
@@ -449,9 +462,7 @@ type
   TMAlloc = function (Size: integer): pointer; cdecl;
   TMFree  = procedure (Addr: pointer); cdecl;
 
-  TGzipWrite  = procedure (Data: pointer; DataSize: integer); cdecl;
-  TGzipRead   = function (Dest: pointer; DataSize: integer): integer; cdecl;
-  TWndProc    = function (hWnd, Msg, wParam, lParam: integer): integer; stdcall;
+  TWndProc = function (hWnd, Msg, wParam, lParam: integer): integer; stdcall;
 
   TGetAdvMapTileVisibility = function (x, y, z: integer): integer; cdecl;
   TGetBattleCellByPos = function (Pos: integer): pointer; cdecl;
@@ -514,7 +525,8 @@ type
     Item:    PBinaryTreeItem;
     Field20: integer;
 
-    function  FindItem (const aName: myAStr; var {out} aItem: PBinaryTreeItem): boolean;
+    function  FindItem (const aName: myAStr; var {out} aItem: PBinaryTreeItem): boolean; overload;
+    function  FindItem (aName: myPChar; var {out} aItem: PBinaryTreeItem): boolean; overload;
     function  FindNode (const aName: myAStr; var {out} aNode: PBinaryTreeNode): boolean;
     procedure RemoveNode (Node: PBinaryTreeNode);
     procedure AddItem (aItem: PBinaryTreeItem);
@@ -1127,18 +1139,24 @@ type
 
   PCombatManager  = ^TCombatManager;
   TCombatManager  = packed record
-    Unk1:          array [0..$3C - 1] of byte;
+    Unk1:          array [0..$34 - 1] of byte;
+    Status:        integer; // +0x34 1 - active, 0 - inactive
+    Unk2:          array [$38..$3C - 1] of byte;
     Action:        integer; // +0x3C
     Spell:         integer; // +0x40
     TargetPos:     integer; // +0x44
     ActionParam2:  integer; // +0x48
-    Unk2:          array [$4C..$53CC - 1] of byte;
+    Unk3:          array [$4C..$53CC - 1] of byte;
     Heroes:        array [0..1] of PHero; // +0x53CC
-    Unk3:          array [$53CC + sizeof(pointer) * 2..$132B8 - 1] of byte;
+    Unk4:          array [$53D4..$54A4 - 1] of byte;
+    IsHuman:       array [0..1] of boolean;
+    IsLocalHuman:  array [0..1] of boolean;
+    PlayerIds:     array [0..1] of integer;
+    Unk5:          array [$54B0..$132B8 - 1] of byte;
     CurrStackSide: integer; // 0x132B8
     CurrStackInd:  integer; // 0x132BC
     ControlSide:   integer; // 0x132C0, the side, which is really controlling current stack
-    Unk4:          array [$132C0 + 4..$13D68 - 1] of byte;
+    Unk6:          array [$132C0 + 4..$13D68 - 1] of byte;
     IsTactics:     boolean; // 0x13D68
     Align1:        array [1..3] of byte;
     Round:         integer; // 0x13D6C
@@ -1284,6 +1302,13 @@ type
     procedure Send (aDestPlayerId: integer);
   end;
 
+  PDirectPlayHeroes = ^TDirectPlayHeroes;
+  TDirectPlayHeroes = packed record
+    VTable: UtilsB2.PEndlessPtrArr;
+
+    function IsHost: boolean;
+  end;
+
   PWogDlgItem = pointer;
 
   TWogDlgAnimatedDef = packed record
@@ -1321,10 +1346,10 @@ type
   end;
 
 const
-  MAlloc:      TMAlloc = Ptr($617492);
-  MFree:       TMFree  = Ptr($60B0F0);
-  ZvsRandom:   function (MinValue, MaxValue: integer): integer cdecl = Ptr($710509);
-  TimeGetTime: function: integer = Ptr($77114A);
+  MAlloc:    TMAlloc = Ptr($617492);
+  MFree:     TMFree  = Ptr($60B0F0);
+  ZvsRandom: function (MinValue, MaxValue: integer): integer cdecl = Ptr($710509);
+  GetTime:   function: integer = Ptr($77114A);
 
   WndManagerPtr:    ^PWndManager    = Ptr($6992D0);
   MouseManagerPtr:  ^PMouseManager  = Ptr($6992B0);
@@ -1343,24 +1368,26 @@ const
   IsGameEnd:           pboolean   = Ptr($697308);
   GameEndKind:         pbyte      = Ptr($699560);
 
+  DirectPlayHeroesPtr: ^PDirectPlayHeroes = Ptr($69D858);
+
   BytesPerPixelPtr:           pbyte = Ptr($5FA228 + 3);
   Color16GreenChannelMaskPtr: pword = Ptr($694DB0);
 
-  ZvsGzipWrite:   TGzipWrite = Ptr($704062);
-  ZvsGzipRead:    TGzipRead  = Ptr($7040A7);
-  WndProc:        TWndProc   = Ptr($4F8290);
-  ZvsGetHero:     function (HeroId: integer): {n} PHero cdecl = Ptr($71168D);
-  ZvsGetTowns:    function: {n} PTowns cdecl = Ptr($711BD4);
-  ZvsCountTowns:  function: integer cdecl = Ptr($711C0E);
-  ZvsLoadTxtFile: function (FilePath: myPChar; var TxtFile: TTxtFile): longbool cdecl = Ptr($777030); // true on error
-  ZvsGetTxtValue: function (Row, Col: integer; TxtFile: PTxtFile): myPChar cdecl = Ptr($77710B);
-  ZvsFindNextObjects: function (ObjType, ObjSubtype: integer; var x, y, z: integer; Direction: integer): longbool cdecl = Ptr($72F67B);
-  ZvsFindObjects: function (ObjType, ObjSubtype, ObjectN: integer; var x, y, z: integer): longbool cdecl = Ptr($72F539);
+  ZvsWriteSavegame: function (Data: pointer; DataSize: integer): integer cdecl = Ptr($704062);
+  ZvsReadSavegame:  function (Dest: pointer; DataSize: integer): integer cdecl = Ptr($7040A7);
+  WndProc:          TWndProc   = Ptr($4F8290);
+  ZvsGetHero:       function (HeroId: integer): {n} PHero cdecl = Ptr($71168D);
+  ZvsGetTowns:      function: {n} PTowns cdecl = Ptr($711BD4);
+  ZvsCountTowns:    function: integer cdecl = Ptr($711C0E);
+  ZvsLoadTxtFile:   function (FilePath: myPChar; var TxtFile: TTxtFile): longbool cdecl = Ptr($777030); // true on error
+  ZvsGetTxtValue:   function (Row, Col: integer; TxtFile: PTxtFile): myPChar cdecl = Ptr($77710B);
+  ZvsFindNextObjects:     function (ObjType, ObjSubtype: integer; var x, y, z: integer; Direction: integer): longbool cdecl = Ptr($72F67B);
+  ZvsFindObjects:         function (ObjType, ObjSubtype, ObjectN: integer; var x, y, z: integer): longbool cdecl = Ptr($72F539);
   ZvsChangeHeroPortraitN: procedure (DstHeroId, SrcHeroId: integer) cdecl = Ptr($753ABF);
-  ZvsChangeHeroPortrait: procedure (HeroId: integer; {n} LargePortrait, {n} SmallPortrait: myPChar) cdecl = Ptr($7539A6);
-  ZvsRedrawMap:   procedure = Ptr($7126EA);
-  a2i:            function (Str: myPChar): int cdecl = Ptr($6184D9);
-  a2f:            function (Str: myPChar): single cdecl = Ptr($619366);
+  ZvsChangeHeroPortrait:  procedure (HeroId: integer; {n} LargePortrait, {n} SmallPortrait: myPChar) cdecl = Ptr($7539A6);
+  ZvsRedrawMap:     procedure = Ptr($7126EA);
+  a2i:              function (Str: myPChar): int cdecl = Ptr($6184D9);
+  a2f:              function (Str: myPChar): single cdecl = Ptr($619366);
 
 type
   TOpenSmackApiFunc = function (FileHandle: Windows.THandle; BufSize, MinusOne: int): {n} pointer stdcall;
@@ -1415,8 +1442,6 @@ function  MemAlloc (Size: integer): {On} pointer;
 procedure MemFreeAndNil (var p);
 function  RandomRange (Min, Max: integer): integer;
 procedure SRand (Seed: integer);
-procedure GZipWrite (Count: integer; {n} Addr: pointer);
-function  GzipRead (Count: integer; {n} Addr: pointer): integer;
 function  LoadTxt (Name: myPChar): {n} PTxtFile; stdcall;
 procedure LoadLod (const LodName: myAStr; Res: PLod);
 function  LoadDef (const DefName: myAStr): {n} PDefItem;
@@ -1434,6 +1459,10 @@ function  GetMapSize: integer;
 function  IsTwoLevelMap: boolean;
 function  IsLocalGame: boolean;
 function  IsNetworkGame: boolean;
+function  IsHotSeatGame: boolean;
+function  GetGameTypeName: myAStr;
+function  GetActiveDialogId: integer;
+function  GetDialogName (DialogId: integer): myAStr;
 function  GetTownManager: PTownManager;
 function  GetPlayer (PlayerId: integer): {n} PPlayer;
 function  IsValidPlayerId (PlayerId: integer): boolean;
@@ -1444,6 +1473,7 @@ function GetThisPcHumanPlayerId: integer;
 
 function  IsThisPcHumanTurn: boolean;
 function  IsThisPcNetworkActiveSide: boolean;
+function  IsAiPlayerTurn: boolean;
 function  GetObjectEntranceTile (MapTile: PMapTile): PMapTile;
 function  PackCoords (x, y, z: integer): integer;
 procedure UnpackCoords (PackedCoords: integer; var x, y, z: integer); overload;
@@ -1495,10 +1525,20 @@ function ParseTextTable (const TextTable: myAStr): TTextTableCells;
 (* Show H3 complex dialog with up to 8 pictures and text. Returns 0/1 for question or 0..7 for selected picture or -1 for cancel *)
 function DisplayComplexDialog (Text: myPChar; PicsConfig: pointer; MsgType: TMesType = MES_MES; TextAlignment: integer = -1; Timeout: integer = 15000): integer;
 
+(* In-game imported function, not triggering AV false positives *)
+function ShellExecuteA (hWnd: Windows.HWND; Operation, FileName, Parameters, Directory: PAnsiChar; ShowCmd: Integer): Windows.HINST;
+
 
 (***) implementation (***)
 
 uses GameExt, EventMan;
+
+
+const
+  GAME_TYPE_NAMES: array [0..5] of myAStr = ('Single', 'Network', 'Network', 'HotSeat', 'Network', 'Network');
+
+var
+{O} DialogNamesById: {O} TObjDict {of Ptr(addr) => TString};
 
 
 function TArtInfo.GetTextField (Ind: integer): PValue;
@@ -1575,7 +1615,12 @@ begin
     aDestPlayerId := 127;
   end;
 
-  PatchApi.Call(FASTCALL_, Ptr($5549E0), [@Self, aDestPlayerId, 0, 1]);
+  ApiJack.CallFast(Ptr($5549E0), int(@Self), aDestPlayerId, 0, 1);
+end;
+
+function TDirectPlayHeroes.IsHost: boolean;
+begin
+  result := boolean(ApiJack.CallThis(Self.VTable[36], int(@Self)) and 1);
 end;
 
 function TBattleStack.GetId: integer;
@@ -1592,11 +1637,8 @@ begin
 end;
 
 procedure TCombatManager.RedrawGridAndSelection;
-Type
-  TRedrawGridAndSelection = procedure (Dummy1, Dummy2: integer; CombatMgr: PCombatManager); register;
-
 begin
-  TRedrawGridAndSelection(Ptr($4773F0))(0, 0, @Self);
+  ApiJack.CallThis(Ptr($4773F0), int(@Self));
 end;
 
 procedure TInputMessageQueue.Enqueue (InputMsg: PInputMessage);
@@ -1704,17 +1746,19 @@ begin
 
   result := MSG_RES_OK;
 
-  if MesType = MES_QUESTION then begin
-    if Res = 30726 then begin
+  if Res = 9999 then begin
+    result := MSG_RES_TIMEOUT;
+  end else if MesType = MES_QUESTION then begin
+    if Res <> 30725 then begin
       result := MSG_RES_CANCEL;
-    end // .if
+    end;
   end else if MesType in [MES_CHOOSE, MES_MAY_CHOOSE] then begin
     case Res of
       30729: result := MSG_RES_LEFTPIC;
       30730: result := MSG_RES_RIGHTPIC;
     else
       result := MSG_RES_CANCEL;
-    end; // .SWITCH Res
+    end;
   end; // .elseif
 end; // .function Msg
 
@@ -1761,7 +1805,7 @@ end;
 
 procedure TH3Str.SetLen (NewLen: integer);
 begin
-  PatchApi.Call(THISCALL_, Ptr($404B80), [@Self, NewLen]);
+  ApiJack.CallThis(Ptr($404B80), int(@Self), NewLen);
 end;
 
 procedure TH3Str.AssignPchar ({n} Str: myPChar; StrLen: integer = -1);
@@ -1774,7 +1818,7 @@ begin
     end;
   end;
 
-  PatchApi.Call(THISCALL_, Ptr($404180), [@Self, Str, StrLen]);
+  ApiJack.CallThis(Ptr($404180), int(@Self), int(Str), StrLen);
 end;
 
 function TWndManager.GetRootDlgId: integer;
@@ -1797,7 +1841,7 @@ end;
 
 procedure TDlgTextLines.Reset;
 begin
-  PatchApi.Call(THISCALL_, Ptr($4B5D70), [@Self, Self.FirstStr, Self.FirstFreeStr]);
+  ApiJack.CallThis(Ptr($4B5D70), int(@Self), int(Self.FirstStr), int(Self.FirstFreeStr));
 end;
 
 procedure TDlgTextLines.AppendLine ({n} Line: myPChar; LineLen: integer = -1);
@@ -1807,7 +1851,7 @@ var
 begin
   NewLine.Reset;
   NewLine.AssignPchar(Line, LineLen);
-  PatchApi.Call(THISCALL_, Ptr($4AF250), [@Self, Self.FirstFreeStr, 1, @NewLine]);
+  ApiJack.CallThis(Ptr($4AF250), int(@Self), int(Self.FirstFreeStr), 1, int(@NewLine));
   NewLine.Clear;
 end;
 
@@ -1835,7 +1879,7 @@ begin
 
     result := MapItem.Value;
   end; // .else
-end; // .function TResourceNamer.GetResourceName
+end;
 
 function TResourceNamer.GenerateUniqueResourceName: myAStr;
 begin
@@ -1861,12 +1905,12 @@ end;
 
 procedure TBinaryTreeItem.DecRef;
 begin
-  PatchApi.Call(PatchApi.THISCALL_, Self.VTable[1], [@Self]);
+  ApiJack.CallThis(Self.VTable[1], int(@Self));
 end;
 
 procedure TBinaryTreeItem.Destruct (IsHeapObject: boolean = true);
 begin
-  PatchApi.Call(PatchApi.THISCALL_, Self.VTable[0], [@Self, ord(IsHeapObject)]);
+  ApiJack.CallThis(Self.VTable[0], int(@Self), ord(IsHeapObject));
 end;
 
 function TBinaryTreeItem.IsPcx8: boolean;
@@ -1893,14 +1937,32 @@ begin
   result := false;
   // * * * * * //
   if aName <> '' then begin
-    Node := PBinaryTreeNode(PatchApi.Call(PatchApi.THISCALL_, Ptr($55EE00), [@Self, myPChar(aName)]));
+    Node := PBinaryTreeNode(ApiJack.CallThis(Ptr($55EE00), int(@Self), int(myPChar(aName))));
 
     if (Node <> Self.Parent) and (Legacy.AnsiCompareText(aName, Node.Name) = 0) then begin
       aItem  := Node.Item;
       result := true;
     end;
   end;
-end; // .function TBinaryTreeNode.FindItem
+end;
+
+function TBinaryTreeNode.FindItem (aName: myPChar; var {out} aItem: PBinaryTreeItem): boolean;
+var
+{U} Node: PBinaryTreeNode;
+
+begin
+  Node   := nil;
+  result := false;
+  // * * * * * //
+  if (aName <> nil) and (aName^ <> #0) then begin
+    Node := PBinaryTreeNode(ApiJack.CallThis(Ptr($55EE00), int(@Self), int(aName)));
+
+    if (Node <> Self.Parent) and (StrLib.ComparePchars(aName, Node.Name) = 0) then begin
+      aItem  := Node.Item;
+      result := true;
+    end;
+  end;
+end;
 
 function TBinaryTreeNode.FindNode (const aName: myAStr; var {out} aNode: PBinaryTreeNode): boolean;
 var
@@ -1911,7 +1973,7 @@ begin
   result := false;
   // * * * * * //
   if aName <> '' then begin
-    Node := PBinaryTreeNode(PatchApi.Call(PatchApi.THISCALL_, Ptr($55EE00), [@Self, myPChar(aName)]));
+    Node := PBinaryTreeNode(ApiJack.CallThis(Ptr($55EE00), int(@Self), int(myPChar(aName))));
 
     if (Node <> Self.Parent) and (Legacy.AnsiCompareText(aName, Node.Name) = 0) then begin
       aNode  := Node;
@@ -1927,7 +1989,7 @@ var
 begin
   {!} Assert(Node <> nil);
   // * * * * * //
-  PatchApi.Call(PatchApi.THISCALL_, Ptr($55DF20), [@Self, @Temp, Node]);
+  ApiJack.CallThis(Ptr($55DF20), int(@Self), int(@Temp), int(Node));
 end;
 
 procedure TBinaryTreeNode.AddItem (aItem: PBinaryTreeItem);
@@ -1945,8 +2007,8 @@ begin
   NewItem.NameEnd := 0;
   NewItem.Item    := aItem;
 
-  PatchApi.Call(PatchApi.THISCALL_, Ptr($55DDF0), [@Self, @ResPtrs, @NewItem]);
-end; // .procedure TBinaryTreeNode.AddItem
+  ApiJack.CallThis(Ptr($55DDF0), int(@Self), int(@ResPtrs), int(@NewItem));
+end;
 
 function TDefItem.GetFrame (GroupInd, FrameInd: integer): {n} PDefFrame;
 var
@@ -1967,9 +2029,9 @@ end;
 function TDefItem.DrawInterfaceDefGroupFrame (GroupInd, FrameInd, SrcX, SrcY, SrcWidth, SrcHeight: integer; Buf: pointer; DstX, DstY, DstW, DstH, ScanlineSize: integer;
                                               DoMirror, UsePaletteSpecialColors: boolean): integer;
 begin
-  result := PatchApi.Call(THISCALL_, Ptr($47B610), [
-    @Self, GroupInd, FrameInd, SrcX, SrcY, SrcWidth, SrcHeight, Buf, DstX, DstY, DstW, DstH, ScanlineSize, ord(DoMirror), ord(UsePaletteSpecialColors)
-  ]);
+  result := ApiJack.CallThis(Ptr($47B610),
+    int(@Self), GroupInd, FrameInd, SrcX, SrcY, SrcWidth, SrcHeight, int(Buf), DstX, DstY, DstW, DstH, ScanlineSize, ord(DoMirror), ord(UsePaletteSpecialColors)
+  );
 end;
 
 procedure TPcx8Item.DrawToBuf (
@@ -1979,7 +2041,7 @@ procedure TPcx8Item.DrawToBuf (
 );
 
 begin
-  PatchApi.Call(THISCALL_, Ptr($44F940), [@Self, SrcX, SrcY, SrcWidth, SrcHeight, Buf, DstX, DstY, DstW, DstH, aScanlineSize, TransparentColor]);
+  ApiJack.CallThis(Ptr($44F940), int(@Self), SrcX, SrcY, SrcWidth, SrcHeight, int(Buf), DstX, DstY, DstW, DstH, aScanlineSize, TransparentColor);
 end;
 
 procedure TPcx16Item.DrawToBuf (
@@ -1989,7 +2051,7 @@ procedure TPcx16Item.DrawToBuf (
 );
 
 begin
-  PatchApi.Call(THISCALL_, Ptr($44DF80), [@Self, SrcX, SrcY, SrcWidth, SrcHeight, Buf, DstX, DstY, DstW, DstH, aScanlineSize, TransparentColor]);
+  ApiJack.CallThis(Ptr($44DF80), int(@Self), SrcX, SrcY, SrcWidth, SrcHeight, int(Buf), DstX, DstY, DstW, DstH, aScanlineSize, TransparentColor);
 end;
 
 class function TPcx8ItemStatic.Create (const aName: myAStr; aWidth, aHeight: integer): {On} PPcx8Item;
@@ -2028,7 +2090,7 @@ end; // .function TPcx8ItemStatic.Create
 class function TPcx16ItemStatic.Create (const aName: myAStr; aWidth, aHeight: integer): {On} PPcx16Item;
 begin
   result := MemAlloc(Alg.IntRoundToBoundary(sizeof(result^), sizeof(integer)));
-  PatchApi.Call(PatchApi.THISCALL_, Ptr($44DD20), [result, myPChar(aName), aWidth, aHeight]);
+  ApiJack.CallThis(Ptr($44DD20), int(result), int(myPChar(aName)), aWidth, aHeight);
   {!} Assert(result.RefCount = 0);
 end;
 
@@ -2062,7 +2124,7 @@ end; // .function TPcx16ItemStatic.Create_
 
 class function TPcx16ItemStatic.Load (const aName: myAStr): {U} PPcx16Item;
 begin
-  result := PPcx16Item(PatchApi.Call(PatchApi.FASTCALL_, Ptr($55B1E0), [myPChar(aName)]));
+  result := PPcx16Item(ApiJack.CallThis(Ptr($55B1E0), int(myPChar(aName))));
   {!} Assert(result <> nil, string(Legacy.Format('Failed to load pcx16 image "%s". "dfault24.pcx" is also missing', [aName])));
   {!} Assert(result.IsPcx16(), string(Legacy.Format('Loaded image "%s" is not requested pcx16', [aName])));
 end;
@@ -2098,7 +2160,7 @@ end; // .function TPcx24ItemStatic.Create
 procedure TPcx24Item.DrawToPcx16 (SrcX, SrcY, aWidth, aHeight: integer; Pcx16: PPcx16Item; DstX, DstY: integer);
 begin
   {!} Assert(Pcx16 <> nil);
-  PatchApi.Call(PatchApi.THISCALL_, Ptr($44ECA0), [@Self, SrcX, SrcY, Width, Height, Pcx16, DstX, DstY]);
+  ApiJack.CallThis(Ptr($44ECA0), int(@Self), SrcX, SrcY, Width, Height, int(Pcx16), DstX, DstY);
 end;
 
 function MemAlloc (Size: integer): {On} pointer;
@@ -2123,16 +2185,16 @@ begin
   if Temp <> nil then begin
     MemFree(Temp);
   end;
-end; // .procedure MemFreeAndNil
+end;
 
 function RandomRange (Min, Max: integer): integer;
 begin
-  result := PatchApi.Call(FASTCALL_, Ptr($50C7C0), [Min, Max]);
+  result := ApiJack.CallFast(Ptr($50C7C0), Min, Max);
 end;
 
 procedure SRand (Seed: integer);
 begin
-  PatchApi.Call(THISCALL_, Ptr($50C7B0), [Seed]);
+  ApiJack.CallThis(Ptr($50C7B0), Seed);
 end;
 
 function GetVal (BaseAddr: pointer; Offset: integer): PValue; overload;
@@ -2145,17 +2207,62 @@ begin
   result := UtilsB2.PtrOfs(Ptr(BaseAddr), Offset);
 end;
 
-procedure GZipWrite (Count: integer; {n} Addr: pointer);
+class procedure SavegameWriter.Write (Size: integer; {n} Addr: pointer);
 begin
-  {!} Assert(UtilsB2.IsValidBuf(Addr, Count));
-  ZvsGzipWrite(Addr, Count);
+  {!} Assert(UtilsB2.IsValidBuf(Addr, Size));
+  {!} Assert(ZvsWriteSavegame(Addr, Size) = 0, 'Failed to write ' + Legacy.IntToStr(Size) + ' bytes to savegame');
 end;
 
-function GzipRead (Count: integer; {n} Addr: pointer): integer;
+class procedure SavegameWriter.WriteInt (Value: integer);
+begin
+  SavegameWriter.Write(sizeof(Value), @Value);
+end;
+
+class procedure SavegameWriter.WriteStrWithLenField (const Str: myAStr);
+var
+  StrLen: integer;
+
+begin
+  StrLen := Length(Str);
+  SavegameWriter.WriteInt(StrLen);
+  SavegameWriter.Write(StrLen, pointer(Str));
+end;
+
+class function SavegameReader.TryRead (Count: integer; {n} Addr: pointer): integer;
 begin
   {!} Assert(UtilsB2.IsValidBuf(Addr, Count));
-  result := ZvsGzipRead(Addr, Count) + Count;
-end; 
+  result := ZvsReadSavegame(Addr, Count) + Count;
+end;
+
+class procedure SavegameReader.Read (Count: integer; {n} Addr: pointer);
+var
+  BytesRead: integer;
+
+begin
+  BytesRead := SavegameReader.TryRead(Count, Addr);
+  {!} Assert(BytesRead = Count, 'Failed to read ' + Legacy.IntToStr(Count) + ' bytes from savegame. Bytes read: ' + Legacy.IntToStr(BytesRead));
+end;
+
+class function SavegameReader.ReadInt: integer;
+begin
+  SavegameReader.Read(sizeof(result), @result);
+end;
+
+class function SavegameReader.ReadStrWithLenField: myAStr;
+var
+  StrLen: integer;
+
+begin
+  StrLen := SavegameReader.ReadInt;
+  {!} Assert(StrLen >= 0, 'Invalid string field length read from savegame: ' + Legacy.IntToStr(StrLen));
+
+  result := '';
+
+  if StrLen > 0 then begin
+    SetLength(result, StrLen);
+    SavegameReader.Read(StrLen, pointer(result));
+  end;
+end;
 
 function LoadTxt (Name: myPChar): {n} PTxtFile;
 begin
@@ -2180,17 +2287,17 @@ end;
 
 function LoadDef (const DefName: myAStr): {n} PDefItem;
 begin
-  result := PDefItem(PatchApi.Call(THISCALL_, Ptr($55C9C0), [myPChar(DefName)]));
+  result := PDefItem(ApiJack.CallThis(Ptr($55C9C0), int(myPChar(DefName))));
 end;
 
 function LoadPcx8 (const PcxName: myAStr): {n} PPcxItem;
 begin
-  result := PPcxItem(PatchApi.Call(THISCALL_, Ptr($55AA10), [myPChar(PcxName)]));
+  result := PPcxItem(ApiJack.CallThis(Ptr($55AA10), int(myPChar(PcxName))));
 end;
 
 function LoadPcx16 (const PcxName: myAStr): {n} PPcx16Item;
 begin
-  result := PPcx16Item(PatchApi.Call(THISCALL_, Ptr($55AE50), [myPChar(PcxName)]));
+  result := PPcx16Item(ApiJack.CallThis(Ptr($55AE50), int(myPChar(PcxName))));
 end;
 
 procedure Rgb96ToHsb (Red, Green, Blue: integer; out Hue, Saturation, Brightness: single); stdcall; assembler; {$STACKFRAMES ON}
@@ -2228,6 +2335,15 @@ begin
   end;
 end;
 
+function GetActiveDialogId: integer;
+begin
+  result := 0;
+
+  if WndManagerPtr^ <> nil then begin
+    result := WndManagerPtr^.GetCurrentDlgId;
+  end;
+end;
+
 function GetMapSize: integer; assembler; {$W+}
 asm
   MOV EAX, [GAME_MANAGER]
@@ -2248,6 +2364,37 @@ end;
 function IsNetworkGame: boolean;
 begin
   result := (GameType^ <> GAMETYPE_SINGLE) and (GameType^ <> GAMETYPE_HOTSEAT);
+end;
+
+function IsHotSeatGame: boolean;
+begin
+  result := GameType^ = GAMETYPE_HOTSEAT;
+end;
+
+function GetGameTypeName: myAStr;
+begin
+  if (ord(GameType^) < ord(Low(GameType^))) or (ord(GameType^) > ord(High(GameType^))) then begin
+    result := 'Unknown';
+  end else begin
+    result := GAME_TYPE_NAMES[ord(GameType^)];
+  end;
+end;
+
+function GetDialogName (DialogId: integer): myAStr;
+var
+{Un} DialogName: TString;
+
+begin
+  DialogName := nil;
+  result     := '';
+  // * * * * * //
+  if DialogId <> 0 then begin
+    DialogName := TString(DialogNamesById[Ptr(DialogId)]);
+
+    if DialogName <> nil then begin
+      result := DialogName.Value;
+    end;
+  end;
 end;
 
 function GetTownManager: PTownManager;
@@ -2296,12 +2443,12 @@ end;
 
 function THero.HasArtOnDoll (ArtId: integer): boolean;
 begin
-  result := PatchApi.Call(THISCALL_, Ptr($4D9460), [@Self, ArtId]) <> 0;
+  result := ApiJack.CallThis(Ptr($4D9460), int(@Self), ArtId) <> 0;
 end;
 
 function GetThisPcHumanPlayerId: integer;
 begin
-  result := PatchApi.Call(THISCALL_, Ptr($4CE6E0), [ppointer(GAME_MANAGER)^]);
+  result := ApiJack.CallThis(Ptr($4CE6E0), pinteger(GAME_MANAGER)^);
 end;
 
 function IsThisPcHumanTurn: boolean;
@@ -2316,6 +2463,11 @@ var
 begin
   ThisPcHumanPlayerId := GetThisPcHumanPlayerId;
   result              := IsValidPlayerId(ThisPcHumanPlayerId) and GetPlayer(ThisPcHumanPlayerId).IsOnActiveNetworkSide;
+end;
+
+function IsAiPlayerTurn: boolean;
+begin
+  result := IsValidPlayerId(CurrentPlayerId^) and not GetPlayer(CurrentPlayerId^).IsHuman;
 end;
 
 function GetObjectEntranceTile (MapTile: PMapTile): PMapTile;
@@ -2336,7 +2488,7 @@ begin
     MustHideHero := false;
   end;
 
-  result := PMapTile(PatchApi.Call(THISCALL_, Ptr($40AF10), [integer(@ExtendedRes), integer(MapTile), 0, 0]));
+  result := PMapTile(ApiJack.CallThis(Ptr($40AF10), int(@ExtendedRes), int(MapTile), 0, 0));
 
   if ExtendedRes.Hero <> nil then begin
     ShowHero(ExtendedRes.Hero);
@@ -2483,7 +2635,7 @@ end; // .procedure RedrawHeroMeetingScreen
 
 procedure HideHero (Hero: PHero);
 begin
-  PatchApi.Call(THISCALL_, Ptr($4D7950), [Hero]);
+  ApiJack.CallThis(Ptr($4D7950), int(Hero));
 end;
 
 procedure ShowHero (Hero: PHero);
@@ -2491,7 +2643,7 @@ const
   TYPE_HERO = 34;
 
 begin
-  PatchApi.Call(THISCALL_, Ptr($4D7840), [Hero, TYPE_HERO, Hero.Id]);
+  ApiJack.CallThis(Ptr($4D7840), int(Hero), TYPE_HERO, Hero.Id);
 end;
 
 procedure ShowBoat (Boat: PBoat);
@@ -2499,7 +2651,7 @@ const
   TYPE_BOAT = 8;
 
 begin
-  PatchApi.Call(THISCALL_, Ptr($4D7840), [Boat, TYPE_BOAT, Boat.Index]);
+  ApiJack.CallThis(Ptr($4D7840), int(Boat), TYPE_BOAT, Boat.Index);
 end;
 
 function IsCampaign: boolean;
@@ -2548,26 +2700,24 @@ end;
 function GetCurrentMp3Track (): myAStr;
 begin
   (* Note, $A8 critsection lock of sound manager is not necessary and can take up to several seconds *)
-  // Windows.EnterCriticalSection(PRtlCriticalSection(pinteger(SOUND_MANAGER)^ + $A8)^);
   Windows.EnterCriticalSection(PRtlCriticalSection(pinteger(SOUND_MANAGER)^ + $C0)^);
   Result := myPChar(@CurrentMp3Track[0]);
   Windows.LeaveCriticalSection(PRtlCriticalSection(pinteger(SOUND_MANAGER)^ + $C0)^);
- // Windows.LeaveCriticalSection(PRtlCriticalSection(pinteger(SOUND_MANAGER)^ + $A8)^);
 end;
 
 procedure ChangeMp3Theme (const Mp3TrackName: myAStr; DontTrackPos: boolean = false; Loop: boolean = true);
 begin
-  PatchApi.Call(THISCALL_, Ptr($59AFB0), [pinteger(SOUND_MANAGER)^, myPChar(Mp3TrackName), ord(DontTrackPos), ord(Loop)]);
+  ApiJack.CallThis(Ptr($59AFB0), pinteger(SOUND_MANAGER)^, int(myPChar(Mp3TrackName)), ord(DontTrackPos), ord(Loop));
 end;
 
 procedure PauseMp3Theme;
 begin
-  PatchApi.Call(THISCALL_, Ptr($59B380), [pinteger(SOUND_MANAGER)^]);
+  ApiJack.CallThis(Ptr($59B380), pinteger(SOUND_MANAGER)^);
 end;
 
 procedure ResumeMp3Theme;
 begin
-  PatchApi.Call(THISCALL_, Ptr($59AF00), [pinteger(SOUND_MANAGER)^]);
+  ApiJack.CallThis(Ptr($59AF00), pinteger(SOUND_MANAGER)^);
 end;
 
 procedure PlaySound (FileName: myPChar); stdcall; overload;
@@ -2622,7 +2772,7 @@ var
 
 begin
   Opts      := (((TextAlignment + 1) and $0F) shl 20) or ((ord(MsgType) and $0F) shl 16) or (Timeout and $FFFF);
-  PatchApi.Call(FASTCALL_, Ptr($4F7D20), [Text, PicsConfig, -1, -1, Opts]);
+  ApiJack.CallFast(Ptr($4F7D20), int(Text), int(PicsConfig), -1, -1, Opts);
   ResItemId := WndManagerPtr^.DlgResItemId shr 8;
 
   result := -1;
@@ -2636,7 +2786,62 @@ begin
       result := -1;
     end;
   end;
-end; // .function DisplayComplexDialog
+end;
+
+function ShellExecuteA (hWnd: Windows.HWND; Operation, FileName, Parameters, Directory: PAnsiChar; ShowCmd: Integer): Windows.HINST;
+type
+  TShellExecuteA = function (hWnd: Windows.HWND; Operation, FileName, Parameters, Directory: PAnsiChar; ShowCmd: Integer): Windows.HINST; stdcall;
+
+begin
+  result := TShellExecuteA(pinteger($63A250)^)(hWnd, Operation, FileName, Parameters, Directory, ShowCmd);
+end;
+
+procedure InitDialogNamesMap;
+begin
+  DialogNamesById[Ptr($402AE0)] := TString.Create('Adventure Map');
+  DialogNamesById[Ptr($405620)] := TString.Create('Adventure Actions');
+  DialogNamesById[Ptr($41B040)] := TString.Create('Adventure Popup');
+  DialogNamesById[Ptr($46F220)] := TString.Create('Combat Settings');
+  DialogNamesById[Ptr($471590)] := TString.Create('Combat Log');
+  DialogNamesById[Ptr($4723E0)] := TString.Create('Combat');
+  DialogNamesById[Ptr($48F9B0)] := TString.Create('Universal');
+  DialogNamesById[Ptr($4913E0)] := TString.Create('Dimension Door');
+  DialogNamesById[Ptr($4917E0)] := TString.Create('Sink Ship');
+  DialogNamesById[Ptr($4E1790)] := TString.Create('Hero');
+  DialogNamesById[Ptr($4E7EA0)] := TString.Create('Hill Fort');
+  DialogNamesById[Ptr($4F9D90)] := TString.Create('Hero LevelUp');
+  DialogNamesById[Ptr($521220)] := TString.Create('Kingdom Overview');
+  DialogNamesById[Ptr($52CA50)] := TString.Create('Puzzle');
+  DialogNamesById[Ptr($52E690)] := TString.Create('Journal');
+  DialogNamesById[Ptr($54FEF0)] := TString.Create('Dwelling');
+  DialogNamesById[Ptr($5605E0)] := TString.Create('Altar of Sacrifice');
+  DialogNamesById[Ptr($5661B0)] := TString.Create('Skeleton Transformer');
+  DialogNamesById[Ptr($569A90)] := TString.Create('Scenario Info');
+  DialogNamesById[Ptr($57D410)] := TString.Create('Saving');
+  DialogNamesById[Ptr($59CBC0)] := TString.Create('Spell Book');
+  DialogNamesById[Ptr($5AE6E0)] := TString.Create('Hero Meeting');
+  DialogNamesById[Ptr($5B3320)] := TString.Create('Adventure Settings');
+  DialogNamesById[Ptr($5C2740)] := TString.Create('Select Town');
+  DialogNamesById[Ptr($5C5CB0)] := TString.Create('Town');
+  DialogNamesById[Ptr($5C9A60)] := TString.Create('Thieves Guild');
+  DialogNamesById[Ptr($5CCCE0)] := TString.Create('Town Hall');
+  DialogNamesById[Ptr($5CE520)] := TString.Create('Mage Guild');
+  DialogNamesById[Ptr($5D1160)] := TString.Create('Leave Creatures');
+  DialogNamesById[Ptr($5D1490)] := TString.Create('Garrison');
+  DialogNamesById[Ptr($5D1E00)] := TString.Create('Blacksmith');
+  DialogNamesById[Ptr($5D2900)] := TString.Create('WoG DL');
+  DialogNamesById[Ptr($5D5F40)] := TString.Create('Building Info');
+  DialogNamesById[Ptr($5D7C80)] := TString.Create('Tavern');
+  DialogNamesById[Ptr($5DCF50)] := TString.Create('Fort');
+  DialogNamesById[Ptr($5E1A20)] := TString.Create('Resource Exchange');
+  DialogNamesById[Ptr($5E3A90)] := TString.Create('Resource Transfer');
+  DialogNamesById[Ptr($5E5A90)] := TString.Create('Buy Artifacts');
+  DialogNamesById[Ptr($5E7FE0)] := TString.Create('Sell Artifacts');
+  DialogNamesById[Ptr($5EA080)] := TString.Create('Freelancers Guild');
+  DialogNamesById[Ptr($5F0B30)] := TString.Create('University');
+  DialogNamesById[Ptr($5F3EC0)] := TString.Create('Monster Info');
+  DialogNamesById[Ptr($5FC0E0)] := TString.Create('World Overview');
+end;
 
 procedure OnAfterStructRelocations (Event: GameExt.PEvent); stdcall;
 begin
@@ -2653,6 +2858,8 @@ begin
 end;
 
 begin
-  ResourceNamer := TResourceNamer.Create;
+  ResourceNamer   := TResourceNamer.Create;
+  DialogNamesById := DataLib.NewObjDict(UtilsB2.OWNS_ITEMS);
+  InitDialogNamesMap;
   EventMan.GetInstance.On('OnAfterStructRelocations', OnAfterStructRelocations);
 end.

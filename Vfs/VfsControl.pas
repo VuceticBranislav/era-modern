@@ -255,7 +255,7 @@ begin
     Builder.WriteInt(GlobalModList.Count);
 
     for i := 0 to GlobalModList.Count - 1 do begin
-      Builder.AppendWideWithLenField(TWideString(GlobalModList[i]).Value);
+      Builder.AppendWithLenField(AnsiString(UTF8Encode(string(TWideString(GlobalModList[i]).Value))));
     end;
   end;
 

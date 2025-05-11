@@ -103,8 +103,78 @@ function SetCodeWriter (CodeWriter: TWriteAtCode): {n} TWriteAtCode;
 (* Creates and returns new patcher instance *)
 function CreatePatcher ({n} TargetAddr: pointer = nil): {O} TPatcher; inline;
 
+(* Functions, allowing to call arbitrary functions with 'thiscall' calling convention without performance hit *)
+function CallThis (Func: pointer; Arg1: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14, Arg15: integer): integer; inline; overload;
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14, Arg15, Arg16: integer): integer; inline; overload;
+
+(* Functions, allowing to call arbitrary functions with 'fastcall' calling convention without performance hit *)
+function CallFast (Func: pointer; Arg1, Arg2: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14, Arg15: integer): integer; inline; overload;
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14, Arg15, Arg16: integer): integer; inline; overload;
+
+
 var
   WriteAtCode: TWriteAtCode = nil; // readonly, use SetCodeWriter to change
+
+
+type
+  TCallThis1 = function (_1, _2, Arg1: integer): integer; register;
+  TCallThis2 = function (_1, _2, Arg1, Arg2: integer): integer; register;
+  TCallThis3 = function (_1, _2, Arg1, Arg2, Arg3: integer): integer; register;
+  TCallThis4 = function (_1, _2, Arg1, Arg2, Arg3, Arg4: integer): integer; register;
+  TCallThis5 = function (_1, _2, Arg1, Arg2, Arg3, Arg4, Arg5: integer): integer; register;
+  TCallThis6 = function (_1, _2, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6: integer): integer; register;
+  TCallThis7 = function (_1, _2, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7: integer): integer; register;
+  TCallThis8 = function (_1, _2, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8: integer): integer; register;
+  TCallThis9 = function (_1, _2, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9: integer): integer; register;
+  TCallThis10 = function (_1, _2, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10: integer): integer; register;
+  TCallThis11 = function (_1, _2, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11: integer): integer; register;
+  TCallThis12 = function (_1, _2, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12: integer): integer; register;
+  TCallThis13 = function (_1, _2, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13: integer): integer; register;
+  TCallThis14 = function (_1, _2, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14: integer): integer; register;
+  TCallThis15 = function (_1, _2, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14, Arg15: integer): integer; register;
+  TCallThis16 = function (_1, _2, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14, Arg15, Arg16: integer): integer; register;
+  TCallFast2 = function (_1, Arg1, Arg2: integer): integer; register;
+  TCallFast3 = function (_1, Arg1, Arg2, Arg3: integer): integer; register;
+  TCallFast4 = function (_1, Arg1, Arg2, Arg3, Arg4: integer): integer; register;
+  TCallFast5 = function (_1, Arg1, Arg2, Arg3, Arg4, Arg5: integer): integer; register;
+  TCallFast6 = function (_1, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6: integer): integer; register;
+  TCallFast7 = function (_1, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7: integer): integer; register;
+  TCallFast8 = function (_1, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8: integer): integer; register;
+  TCallFast9 = function (_1, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9: integer): integer; register;
+  TCallFast10 = function (_1, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10: integer): integer; register;
+  TCallFast11 = function (_1, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11: integer): integer; register;
+  TCallFast12 = function (_1, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12: integer): integer; register;
+  TCallFast13 = function (_1, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13: integer): integer; register;
+  TCallFast14 = function (_1, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14: integer): integer; register;
+  TCallFast15 = function (_1, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14, Arg15: integer): integer; register;
+  TCallFast16 = function (_1, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14, Arg15, Arg16: integer): integer; register;
 
 
 (***)  implementation  (***)
@@ -122,6 +192,7 @@ type
     class procedure Alloc (var Addr: pointer; Size: integer); static;
     class procedure FreeAndNil (var {n} Addr: pointer); static;
   end;
+
 
 class procedure CodeMemoryManager.Alloc (var Addr: pointer; Size: integer);
 begin
@@ -528,6 +599,176 @@ begin
   if Self.NewBytes <> nil then begin
     result := not Legacy.CompareMem(Self.Addr, pointer(Self.NewBytes), Length(Self.NewBytes));
   end;
+end;
+
+function CallThis (Func: pointer; Arg1: integer): integer;
+begin
+  result := TCallThis1(Func)(0, 0, Arg1);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2: integer): integer;
+begin
+  result := TCallThis2(Func)(0, 0, Arg1, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3: integer): integer;
+begin
+  result := TCallThis3(Func)(0, 0, Arg1, Arg3, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4: integer): integer;
+begin
+  result := TCallThis4(Func)(0, 0, Arg1, Arg4, Arg3, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5: integer): integer;
+begin
+  result := TCallThis5(Func)(0, 0, Arg1, Arg5, Arg4, Arg3, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6: integer): integer;
+begin
+  result := TCallThis6(Func)(0, 0, Arg1, Arg6, Arg5, Arg4, Arg3, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7: integer): integer;
+begin
+  result := TCallThis7(Func)(0, 0, Arg1, Arg7, Arg6, Arg5, Arg4, Arg3, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8: integer): integer;
+begin
+  result := TCallThis8(Func)(0, 0, Arg1, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9: integer): integer;
+begin
+  result := TCallThis9(Func)(0, 0, Arg1, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10: integer): integer;
+begin
+  result := TCallThis10(Func)(0, 0, Arg1, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11: integer): integer;
+begin
+  result := TCallThis11(Func)(0, 0, Arg1, Arg11, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12: integer): integer;
+begin
+  result := TCallThis12(Func)(0, 0, Arg1, Arg12, Arg11, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13: integer): integer;
+begin
+  result := TCallThis13(Func)(0, 0, Arg1, Arg13, Arg12, Arg11, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14: integer): integer;
+begin
+  result := TCallThis14(Func)(0, 0, Arg1, Arg14, Arg13, Arg12, Arg11, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14, Arg15: integer): integer;
+begin
+  result := TCallThis15(Func)(0, 0, Arg1, Arg15, Arg14, Arg13, Arg12, Arg11, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3, Arg2);
+end;
+
+function CallThis (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14, Arg15, Arg16: integer): integer;
+begin
+  result := TCallThis16(Func)(0, 0, Arg1, Arg16, Arg15, Arg14, Arg13, Arg12, Arg11, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3, Arg2);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2: integer): integer;
+
+begin
+  result := TCallFast2(Func)(0, Arg2, Arg1);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3: integer): integer;
+
+begin
+  result := TCallFast3(Func)(0, Arg2, Arg1, Arg3);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4: integer): integer;
+
+begin
+  result := TCallFast4(Func)(0, Arg2, Arg1, Arg4, Arg3);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5: integer): integer;
+
+begin
+  result := TCallFast5(Func)(0, Arg2, Arg1, Arg5, Arg4, Arg3);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6: integer): integer;
+
+begin
+  result := TCallFast6(Func)(0, Arg2, Arg1, Arg6, Arg5, Arg4, Arg3);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7: integer): integer;
+
+begin
+  result := TCallFast7(Func)(0, Arg2, Arg1, Arg7, Arg6, Arg5, Arg4, Arg3);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8: integer): integer;
+
+begin
+  result := TCallFast8(Func)(0, Arg2, Arg1, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9: integer): integer;
+
+begin
+  result := TCallFast9(Func)(0, Arg2, Arg1, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10: integer): integer;
+
+begin
+  result := TCallFast10(Func)(0, Arg2, Arg1, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11: integer): integer;
+
+begin
+  result := TCallFast11(Func)(0, Arg2, Arg1, Arg11, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12: integer): integer;
+
+begin
+  result := TCallFast12(Func)(0, Arg2, Arg1, Arg12, Arg11, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13: integer): integer;
+
+begin
+  result := TCallFast13(Func)(0, Arg2, Arg1, Arg13, Arg12, Arg11, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14: integer): integer;
+
+begin
+  result := TCallFast14(Func)(0, Arg2, Arg1, Arg14, Arg13, Arg12, Arg11, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14, Arg15: integer): integer;
+
+begin
+  result := TCallFast15(Func)(0, Arg2, Arg1, Arg15, Arg14, Arg13, Arg12, Arg11, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3);
+end;
+
+function CallFast (Func: pointer; Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14, Arg15, Arg16: integer): integer;
+
+begin
+  result := TCallFast16(Func)(0, Arg2, Arg1, Arg16, Arg15, Arg14, Arg13, Arg12, Arg11, Arg10, Arg9, Arg8, Arg7, Arg6, Arg5, Arg4, Arg3);
 end;
 
 begin

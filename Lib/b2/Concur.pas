@@ -1,9 +1,16 @@
 unit Concur;
-(* Author:      EtherniDee aka Berserker
-   Desctiption: Support for concurrency *)
+(*
+  Author:      Alexander Shostak aka Berserker.
+  Description: Support for concurrency.
+*)
 
-interface
-uses Windows, SysUtils, UtilsB2;
+(***)  interface  (***)
+
+uses
+  SysUtils,
+  Windows,
+
+  UtilsB2, Legacy;
 
 type
   TCritSection = record
@@ -15,7 +22,10 @@ type
     procedure Enter;
     procedure Leave;
     procedure Delete;
-  end; // .record TCritSection
+  end;
+
+procedure AtomicAdd (var Dest: integer; Value: integer);
+procedure AtomicSub (var Dest: integer; Value: integer);
 
 
 (***)  implementation  (***)
@@ -39,6 +49,16 @@ end;
 procedure TCritSection.Delete;
 begin
   Windows.DeleteCriticalSection(fCritSection);
+end;
+
+procedure AtomicAdd (var Dest: integer; Value: integer); assembler;
+asm
+  lock add [eax], edx
+end;
+
+procedure AtomicSub (var Dest: integer; Value: integer); assembler;
+asm
+  lock sub [eax], edx
 end;
 
 end.

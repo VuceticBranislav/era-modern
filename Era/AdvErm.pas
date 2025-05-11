@@ -2401,7 +2401,7 @@ begin
 
         if (NumItems > 0) and (Slot.StorageType = SLOT_STORED) then begin
           if Slot.ItemsType = INT_VAR then begin
-            Write(NumItems * sizeof(integer), @Slot.IntItems[0])
+            Write(NumItems * sizeof(integer), @Slot.IntItems[0]);
           end else begin
             for i := 0 to NumItems - 1 do begin
               WriteStr(Slot.StrItems[i]);
@@ -2416,7 +2416,6 @@ end; // .procedure SaveSlots
 procedure SaveAssocMem (Rider: Stores.IRider);
 var
 {U} AssocVarValue: TAssocVar;
-    AssocVarName:  myAStr;
 
 begin
   AssocVarValue := nil;
@@ -3042,9 +3041,22 @@ begin
   end; // .if
 end; // .function Hook_InterpolateErmString
 
+function AppendBufToFile (Buf: pointer; BufSize: integer; Context: pointer): boolean;
+var
+  FilePath: ^myAStr;
+
+begin
+  {!} Assert(UtilsB2.IsValidBuf(Buf, BufSize));
+  FilePath := Context;
+  result   := true;
+
+  Files.AppendFileContents(Buf, BufSize, FilePath^);
+end;
+
 procedure DumpErmMemory (const DumpFilePath: myAStr);
 const
   ERM_CONTEXT_LEN = 300;
+  MAX_BUF_SIZE    = 1000000;
 
 type
   TVarType          = (INT_VAR, FLOAT_VAR, STR_VAR, BOOL_VAR);
@@ -3061,28 +3073,33 @@ var
     ErmContextStart:  myPChar;
     i:                integer;
 
-  procedure WriteSectionHeader (const Header: myAStr);
-  begin
-    if Buf.Size > 0 then begin
-      Buf.Append(#13#10);
-    end;
-
-    Buf.Append('> ' + Header + #13#10);
-  end;
-
   procedure Append (const Str: myAStr);
   begin
     Buf.Append(Str);
+
+    if Buf.Size >= MAX_BUF_SIZE then begin
+      Buf.PipeThrough(AppendBufToFile, @DumpFilePath);
+      Buf.Clear;
+    end;
+  end;
+
+  procedure WriteSectionHeader (const Header: myAStr);
+  begin
+    if Buf.Size > 0 then begin
+      Append(#13#10);
+    end;
+
+    Append('> ' + Header + #13#10);
   end;
 
   procedure LineEnd;
   begin
-    Buf.Append(#13#10);
+    Append(#13#10);
   end;
 
   procedure Line (const Str: myAStr);
   begin
-    Buf.Append(Str + #13#10);
+    Append(Str + #13#10);
   end;
 
   function ErmStrToWinStr (const Str: myAStr): myAStr;
@@ -3336,6 +3353,10 @@ begin
   // * * * * * //
   WriteSectionHeader('ERA version: ' + GameExt.ERA_VERSION_STR);
 
+  if Erm.LastErmError <> '' then begin
+    WriteSectionHeader('ERM error: ' + Erm.LastErmError);
+  end;
+
   if ErmErrCmdPtr^ <> nil then begin
     ErmContextHeader := 'ERM context';
     PositionLocated  := Erm.AddrToScriptNameAndLine(Erm.ErmErrCmdPtr^, ScriptName, LineN, LinePos);
@@ -3385,7 +3406,7 @@ begin
   end;
 
   DumpVars('Vars z1..z1000', 'z', STR_VAR, @Erm.z[1], 1000, 1);
-  Files.WriteFileContents(Buf.BuildStr, DumpFilePath);
+  Buf.PipeThrough(AppendBufToFile, @DumpFilePath);
   // * * * * * //
   Legacy.FreeAndNil(Buf);
 end; // .procedure DumpErmMemory
@@ -3403,7 +3424,7 @@ end;
 
 function New_ZvsSaveMP3 (OrigFunc: pointer): integer; stdcall;
 begin
-  Heroes.GzipWrite(4, myPChar('-MP3'));
+  Heroes.SavegameWriter.Write(4, myPChar('-MP3'));
   result := 0;
 end;
 
@@ -3413,12 +3434,12 @@ var
   Buf:    array of byte;
 
 begin
-  Heroes.GzipRead(sizeof(Header), @Header);
+  Heroes.SavegameReader.Read(sizeof(Header), @Header);
 
   // Emulate original WoG Mp3 data loading
   if Header = 'LMP3' then begin
     SetLength(Buf, 200 * 256);
-    Heroes.GzipRead(Length(Buf), pointer(Buf));
+    Heroes.SavegameReader.Read(Length(Buf), pointer(Buf));
   end;
 
   result := 0;

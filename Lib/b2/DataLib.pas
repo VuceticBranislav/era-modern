@@ -1,6 +1,6 @@
 unit DataLib;
 (*
-  Description: Convinient and widely used data structures
+  Description: Convenient and widely used data structures
   Author:      Alexander Shostak aka Berserker
 *)
 

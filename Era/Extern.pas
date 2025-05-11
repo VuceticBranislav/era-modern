@@ -20,6 +20,7 @@ uses
   Debug,
   DlgMes,
   Ini,
+  Log,
   PatchApi,
   StrLib,
   TypeWrappers,
@@ -101,32 +102,32 @@ const
   EXTERNAL_BUF_PREFIX_SIZE = sizeof(integer);
 
 
-function AllocExternalBuf (Size: integer): {O} pointer;
-begin
-  {!} Assert(Size >= 0);
-  GetMem(result, Size + EXTERNAL_BUF_PREFIX_SIZE);
-  pinteger(result)^ := Size;
-  Inc(integer(result), EXTERNAL_BUF_PREFIX_SIZE);
-end;
-
 function Externalize (const Str: myAStr): {O} pointer; overload;
 begin
-  result := AllocExternalBuf(Length(Str) + 1);
+  result := nil;
+  GetMem(result, Length(Str) + 1);
   UtilsB2.CopyMem(Length(Str) + 1, myPChar(Str), result);
 end;
 
 function Externalize (const Str: myWStr): {O} pointer; overload;
+var
+  BufSize: integer;
+
 begin
-  result := AllocExternalBuf((Length(Str) + 1) * sizeof(myWChar));
-  UtilsB2.CopyMem((Length(Str) + 1) * sizeof(myWChar), myPWChar(Str), result);
+  result  := nil;
+  BufSize := (Length(Str) + 1) * sizeof(Str[1]);
+  GetMem(result, BufSize);
+  UtilsB2.CopyMem(BufSize, PWideChar(Str), result);
 end;
 
-(* Frees buffer, that was transfered to client earlier *)
 procedure MemFree ({On} Buf: pointer); stdcall;  var p: pointer;
 begin
-  if Buf <> nil then begin
-    p:=UtilsB2.PtrOfs(Buf, -EXTERNAL_BUF_PREFIX_SIZE); Legacy.FreeMem(p);
-  end;
+  FreeMem(Buf);
+end;
+
+function RegisterMemoryConsumer (ConsumerName: myPChar): pinteger; stdcall;
+begin
+  result := Memory.RegisterMemoryConsumer(ConsumerName);
 end;
 
 procedure NameColor (Color32: integer; Name: myPChar); stdcall;
@@ -877,6 +878,11 @@ begin
   result := MinValue + integer(cardinal(result) mod RangeLen);
 end;
 
+function WriteLog (EventSource, Operation, Description: myPChar): TInt32Bool; stdcall;
+begin
+  result := ord(Log.Write(EventSource, Operation, Description));
+end;
+
 function CreatePlugin (Name: myPChar) : {On} TPlugin; stdcall;
 var
   PluginName: myAStr;
@@ -1005,7 +1011,11 @@ exports
   IsCampaign,
   IsPatchOverwritten,
   LoadImageAsPcx16,
+  LogMemoryState,
   MemFree,
+  Memory.ClientMemAlloc name '_ClientMemAlloc',
+  Memory.ClientMemFree name '_ClientMemFree',
+  Memory.ClientMemRealloc name '_ClientMemRealloc',
   MergeIniWithDefault,
   NameColor,
   NameTrigger,
@@ -1019,6 +1029,7 @@ exports
   RedirectFile,
   RegisterErmReceiver,
   RegisterHandler,
+  RegisterMemoryConsumer,
   ReportPluginVersion,
   RollbackAppliedPatch,
   SaveIni,
@@ -1042,6 +1053,7 @@ exports
   trTemp,
   Tweaks.RandomRangeWithFreeParam,
   WriteAtCode,
+  WriteLog,
   WriteSavegameSection,
   WriteStrToIni;
 

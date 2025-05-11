@@ -7,6 +7,10 @@ library Era;
 {$R *.RES}
 
 uses
+  {$define AssumeMultiThreaded}
+  FastMM4, // Must be the first unit
+
+  Math,
   SysUtils,
 
   (* Forced order, do not regroup or mix with other units: order dependent hooks/patches *)

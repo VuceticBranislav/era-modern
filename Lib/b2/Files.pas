@@ -42,6 +42,7 @@ type
 
     (***) public (***)
       destructor  Destroy; override;
+
       procedure Open ({n} Buf: pointer; BufSize: integer; DeviceMode: TDeviceMode);
       procedure Close;
       procedure CreateNew (BufSize: integer);
@@ -60,6 +61,7 @@ type
 
     (***) public (***)
       destructor  Destroy; override;
+
       function  Open (const FilePath: myAStr; DeviceMode: TDeviceMode): boolean;
       function  AttachToHandle (FileHandle: integer): boolean;
       procedure DetachHandle;
@@ -75,7 +77,7 @@ type
 
   TFileItemInfo = class (CFiles.TItemInfo)
     Data: Windows.TWin32FindDataA;
-  end; // .class TFileItemInfo
+  end;
 
   TFileLocator  = class (CFiles.TAbstractLocator)
     (***) protected (***)
@@ -93,7 +95,7 @@ type
       function  GetItemInfo (const ItemName: myAStr; out ItemInfo: TItemInfo): boolean; override;
 
       property  DirPath:  myAStr read fDirPath write fDirPath;
-  end; // .class TFileLocator
+  end;
 
   TScanCallback = function (var SearchRes: Legacy.TSearchRec): boolean;
 
@@ -325,6 +327,7 @@ end;
 destructor TFixedBuf.Destroy;
 begin
   Self.Close;
+
   inherited;
 end;
 
@@ -403,6 +406,7 @@ end;
 destructor TFile.Destroy;
 begin
   Self.Close;
+
   inherited Destroy;
 end;
 
@@ -490,7 +494,7 @@ begin
     Self.fHasKnownSize := true;
     Self.fSizeIsConst  := false;
   end;
-end; // .function TFile.CreateNew
+end;
 
 function TFile.ReadUpTo (Count: integer; {n} Buf: pointer; out BytesRead: integer): boolean;
 begin
@@ -503,7 +507,7 @@ begin
     Self.fPos := Self.Pos + BytesRead;
     Self.fEOF := (Self.fHasKnownSize and (Self.Pos = Self.Size)) or (BytesRead <= 0);
   end;
-end; // .function TFile.ReadUpTo
+end;
 
 function TFile.WriteUpTo (Count: integer; {n} Buf: pointer; out ByteWritten: integer): boolean;
 begin
@@ -516,8 +520,8 @@ begin
     Self.fPos   := Self.Pos + ByteWritten;
     Self.fSize  := Self.Size + ByteWritten;
     Self.fEOF   := Self.Pos = Self.Size;
-  end; // .if
-end; // .function TFile.WriteUpTo
+  end;
+end;
 
 function TFile.Seek (NewPos: integer): boolean;
 var
@@ -537,8 +541,8 @@ begin
     end;
 
     Self.fEOF := Self.Pos = Self.Size;
-  end; // .if
-end; // .function TFile.Seek
+  end;
+end;
 
 procedure TFileLocator.FinitSearch;
 begin
@@ -576,7 +580,7 @@ begin
   ItemInfo      := FileInfo; FileInfo  :=  nil;
   result        := Self.fFindData.cFileName;
   Self.fNotEnd  := WinWrappers.FindNextFile(Self.fSearchHandle, Self.fFindData);
-end; // .function TFileLocator.GetNextItem
+end;
 
 destructor TFileLocator.Destroy;
 begin
